@@ -12,6 +12,12 @@ KIT="$ROOT/kit"
 POLICY="$ROOT/policy/allow.txt"
 
 SBX=${SBX:-sbx}
+# Build the Kit in a builder sandbox, not with the host's Docker Buildx. The
+# whole promise here is that the host needs no Docker Engine; without this, a
+# host with Docker Desktop installed but not running fails with
+# "open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file".
+SBX_KIT_BUILDER=${SBX_KIT_BUILDER:-sandbox}
+export SBX_KIT_BUILDER
 HOST_PORT=${T3CK_PORT:-3773}
 CONTAINER_PORT=3773
 READY_TIMEOUT=${T3CK_READY_TIMEOUT:-120}
@@ -121,7 +127,9 @@ cmd_nuke() {
   say "destroying '$n' and its volumes. This loses every repo and all t3 state."
   $SBX rm --force "$n" || true
   # Volume names are the runtime's business, not ours: list and match.
-  for v in $($SBX volume ls 2>/dev/null | grep -- "$n" | awk '{print $1}' || true); do
+  vols=$($SBX volume ls 2>/dev/null | grep -- "$n" | awk '{print $1}' || true)
+  [ -n "$vols" ] || warn "no volume matched '$n'; check with: sbx volume ls"
+  for v in $vols; do
     say "  removing volume $v"
     $SBX volume rm "$v" || warn "could not remove volume $v"
   done

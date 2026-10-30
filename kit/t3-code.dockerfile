@@ -4,9 +4,9 @@
 # a CA store — comes from Docker's template images. A bare distro builds fine
 # and then fails at agent launch with a missing /bin/bash.
 #
-# ⚠️ Early Access reference. Confirm it on the host (`sbx template ls`) before
-# trusting it; `docker/sandbox-templates:ubuntu` is the fallback. Swapping the
-# base should stay a one-line change.
+# Verified to pull anonymously and to carry: agent (uid 1000), bash, git,
+# curl, node 24, npm, gh, and /home/agent/workspace. Swapping the base should
+# stay a one-line change.
 ARG BASE=dhi.io/sbx-templates:claude-code-docker
 FROM ${BASE}
 
@@ -22,11 +22,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 USER agent
+# Append, never replace: the base already puts /home/agent/.local/bin,
+# /opt/python/bin, /go/bin and /usr/local/go/bin on PATH.
 ENV T3CODE_HOME=/home/agent/.t3 \
     T3CODE_HOST=0.0.0.0 \
     T3CODE_PORT=3773 \
     T3CODE_NO_BROWSER=1 \
-    PATH=/home/agent/.local/bin:/home/agent/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/home/agent/.npm-global/bin:${PATH}
 
 # t3. install.sh honours T3CODE_VERSION, so this is a real pin.
 RUN curl -fsSL https://t3.codes/install.sh \
