@@ -19,7 +19,7 @@ policy, and no mount of your filesystem.
 | The sandbox cannot reach | your filesystem, your home directory, your other repos, your SSH agent, your keychain |
 | Code goes in | `git clone`, inside the sandbox |
 | Code comes out | `git push` a branch; you review and merge on the host |
-| Survives `stop` / restart | repos, t3 threads, worktrees — they live on volumes |
+| Survives `stop` / restart | repos, t3 threads, worktrees — they live on volumes (`workspace`, `.t3/userdata`, `.t3/projects`, `.t3/worktrees`) |
 | Survives `nuke` | nothing |
 
 ⚠️ This is a *containment* boundary, not a convenience wrapper. If you want to
@@ -31,6 +31,10 @@ wrong tool — it deliberately gives you no host mount.
 - [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/install/) (`sbx`) on
   the host: macOS 14+ on Apple silicon, Windows 11 x64, or Ubuntu 24.04+ with
   KVM. `sbx login` once.
+- **No Docker Engine, and no Docker Desktop.** The Kit is built in a builder
+  sandbox (`SBX_KIT_BUILDER=sandbox`, the default here) rather than with the
+  host's Buildx. The first `up` therefore builds slowly — it pulls a base
+  image, then t3 and pi.
 - A GitHub credential in the sandbox credential store:
   `sbx secret set github`
 - A model provider key for pi, likewise: `sbx secret set <provider>`
@@ -147,6 +151,19 @@ Add the host to `kit/t3-code.yaml` (`network-policy@2`, `runtime.allow`) and to
 **The pairing URL does not open.** `t3 serve` prints the sandbox's outbound
 interface address, which the host cannot reach; the launcher rewrites it to
 `http://localhost:<port>`. If `up` printed nothing, run `t3-code-kit logs`.
+
+**The Kit build fails with `dockerDesktopLinuxEngine: The system cannot find the
+file`.** `sbx` tried the host's Docker Buildx. The launchers default to
+`SBX_KIT_BUILDER=sandbox`; if you exported `SBX_KIT_BUILDER` yourself, unset it.
+
+**The Kit build fails with `OCI exporter is not supported for the docker
+driver`.** Same cause — the host Buildx driver cannot emit the OCI layout a Kit
+needs. Use the builder sandbox: `$env:SBX_KIT_BUILDER = 'sandbox'`.
+
+**`t3: No such file or directory` inside the sandbox.** `/home/agent/.local/bin/t3`
+is a symlink into `$T3CODE_HOME/runtime/versions/<v>/t3`. If someone volumes all
+of `/home/agent/.t3`, the volume shadows that install and the symlink dangles.
+The kit volumes only `userdata`, `projects`, and `worktrees`.
 
 **The sandbox will not start.** Check `sbx ls`, then `sbx diagnose`. A Kit that
 fails to build usually means the base image reference moved — it is the `BASE`

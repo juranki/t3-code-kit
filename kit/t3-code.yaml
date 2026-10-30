@@ -47,10 +47,21 @@ capabilities:
     config:
       path: /home/agent/workspace
       size: 20GiB
+  # State only, never all of /home/agent/.t3. The t3 binary is a symlink into
+  # $T3CODE_HOME/runtime/versions/<v>/t3, so a volume over the whole base dir
+  # shadows the install and leaves that symlink dangling.
   - type: com.docker.sandbox/volume@1
     config:
-      path: /home/agent/.t3
+      path: /home/agent/.t3/userdata
       size: 10GiB
+  - type: com.docker.sandbox/volume@1
+    config:
+      path: /home/agent/.t3/projects
+      size: 1GiB
+  - type: com.docker.sandbox/volume@1
+    config:
+      path: /home/agent/.t3/worktrees
+      size: 5GiB
 
   # Clone and push only. The proxy swaps the sentinel for the real token after
   # traffic leaves the VM, so the sandbox never holds the credential.
@@ -122,5 +133,5 @@ capabilities:
           The user reviews and merges on their own machine.
         - Egress is deny-by-default. A blocked destination answers HTTP 403
           from the proxy, not a connection error. Report it; do not retry.
-        - `/home/agent/workspace` and `/home/agent/.t3` are volumes and survive
-          a sandbox restart.
+        - `/home/agent/workspace` and `/home/agent/.t3/{userdata,projects,worktrees}`
+          are volumes and survive a sandbox restart.

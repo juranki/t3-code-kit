@@ -39,6 +39,11 @@ $KitDir     = Join-Path $Root 'kit'
 $PolicyFile = Join-Path (Join-Path $Root 'policy') 'allow.txt'
 
 $Sbx           = if ($env:SBX) { $env:SBX } else { 'sbx' }
+# Build the Kit in a builder sandbox, not with the host's Docker Buildx. The
+# whole promise here is that the host needs no Docker Engine; without this, a
+# host with Docker Desktop installed but not running fails with
+# "open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file".
+if (-not $env:SBX_KIT_BUILDER) { $env:SBX_KIT_BUILDER = 'sandbox' }
 $HostPort      = if ($env:T3CK_PORT) { [int] $env:T3CK_PORT } else { 3773 }
 $ContainerPort = 3773
 $ReadyTimeout  = if ($env:T3CK_READY_TIMEOUT) { [int] $env:T3CK_READY_TIMEOUT } else { 120 }
@@ -194,6 +199,9 @@ function Invoke-Nuke {
     # Not $matches: that is an automatic variable, and clobbering it breaks
     # every -match that runs afterwards.
     $volLines = $listing -split "`r?`n" | Where-Object { $_ -match [regex]::Escape($Sandbox) }
+    if (-not $volLines) {
+        Warn "no volume matched '$Sandbox'; check with: sbx volume ls"
+    }
     foreach ($line in $volLines) {
         $id = ($line -split '\s+')[0]
         if (-not $id) { continue }
