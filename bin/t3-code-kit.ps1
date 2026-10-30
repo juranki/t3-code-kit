@@ -74,12 +74,12 @@ function Get-SandboxName {
 
 function Test-SandboxExists {
     param([string] $Sandbox)
-    $out = & $Sbx ls 2>$null | Out-String
+    $out = & $Sbx ls 2>&1 | Out-String
     return [bool] ($out -match "(?m)^\s*$([regex]::Escape($Sandbox))\b")
 }
 
 function Test-Secret {
-    $out = & $Sbx secret ls 2>$null | Out-String
+    $out = & $Sbx secret ls 2>&1 | Out-String
     if ($out -notmatch '(?m)^\s*github\b') {
         Warn "no 'github' secret on this host: clone/push will fail."
         Warn 'set one with:  sbx secret set github'
@@ -118,7 +118,7 @@ function Wait-Ready {
 
 function Confirm-Port {
     param([string] $Sandbox)
-    $listing = & $Sbx ports $Sandbox 2>$null | Out-String
+    $listing = & $Sbx ports $Sandbox 2>&1 | Out-String
     if ($listing -match ":${HostPort}\b") { return }
     & $Sbx ports $Sandbox --publish "127.0.0.1:${HostPort}:$ContainerPort"
     if ($LASTEXITCODE -ne 0) {
@@ -132,6 +132,9 @@ function Invoke-Up {
     Test-Secret
     if (Test-SandboxExists $Sandbox) {
         Write-Output "sandbox '$Sandbox' exists; starting it."
+        # A restart keeps the image the sandbox was created from. Changing
+        # anything under kit/ needs `rebuild`, not `up`.
+        Write-Output "note: this reuses the sandbox's existing image; run 't3-code-kit.ps1 rebuild $Sandbox' after editing kit/."
         & $Sbx run -d --name $Sandbox
         if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
     }
@@ -156,13 +159,13 @@ function Invoke-Url {
     Assert-Sbx
     $pattern = 'http://[^\s"'']*#token=[A-Za-z0-9]+'
 
-    $raw = & $Sbx exec $Sandbox -- t3 pair 2>$null | Out-String
+    $raw = & $Sbx exec $Sandbox -- t3 pair 2>&1 | Out-String
     $m = [regex]::Match($raw, $pattern)
 
     if (-not $m.Success) {
         # t3 prints the pairing URL once at startup; read it back from the log
         # serve.sh keeps rather than minting a second token.
-        $log = & $Sbx exec $Sandbox -- tail -n 500 /home/agent/.t3/serve.log 2>$null | Out-String
+        $log = & $Sbx exec $Sandbox -- tail -n 500 /home/agent/.t3/serve.log 2>&1 | Out-String
         $m = [regex]::Match($log, 'Pairing URL: (' + $pattern + ')')
         if ($m.Success) { $m = [regex]::Match($m.Groups[1].Value, $pattern) }
     }
@@ -179,13 +182,13 @@ function Invoke-Logs {
     param([string] $Sandbox, [string] $Lines)
     Assert-Sbx
     if (-not $Lines) { $Lines = '200' }
-    $out = & $Sbx exec $Sandbox -- tail -n $Lines /home/agent/.t3/serve.log 2>$null
+    $out = & $Sbx exec $Sandbox -- tail -n $Lines /home/agent/.t3/serve.log 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
         Warn "no /home/agent/.t3/serve.log in '$Sandbox' - the entrypoint never ran."
         Warn "check: sbx exec $Sandbox -- ls -l /home/agent/serve.sh"
         return
     }
-    $out
+    Write-Output $out
 }
 
 function Invoke-Shell {
@@ -205,7 +208,7 @@ function Invoke-Rebuild {
     param([string] $Sandbox)
     Assert-Sbx
     Write-Output "removing '$Sandbox' to force a Kit rebuild; volumes survive."
-    & $Sbx rm --force $Sandbox 2>$null | Out-Null
+    & $Sbx rm --force $Sandbox 2>&1 | Out-Null
     Invoke-Up $Sandbox
 }
 
@@ -213,9 +216,9 @@ function Invoke-Nuke {
     param([string] $Sandbox)
     Assert-Sbx
     Write-Output "destroying '$Sandbox' and its volumes. This loses every repo and all t3 state."
-    & $Sbx rm --force $Sandbox 2>$null | Out-Null
+    & $Sbx rm --force $Sandbox 2>&1 | Out-Null
     # Volume names are the runtime's business, not ours: list and match.
-    $listing = & $Sbx volume ls 2>$null | Out-String
+    $listing = & $Sbx volume ls 2>&1 | Out-String
     # Not $matches: that is an automatic variable, and clobbering it breaks
     # every -match that runs afterwards.
     $volLines = $listing -split "`r?`n" | Where-Object { $_ -match [regex]::Escape($Sandbox) }

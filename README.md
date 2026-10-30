@@ -100,6 +100,11 @@ Open the printed `http://localhost:3773/pair#token=…` in your browser. That is
 the whole workflow: the t3 web UI runs in the sandbox, and pi is one of the
 agents it can drive.
 
+⚠️ `up` on an existing sandbox **reuses the image it was created from**. After
+changing anything under `kit/`, use `rebuild` — otherwise you are restarting a
+sandbox that still contains the old image, and the fix you just pulled is not in
+it.
+
 ```sh
 t3-code-kit url myproject    # mint a fresh pairing URL
 t3-code-kit logs myproject   # tail the server log inside the sandbox
