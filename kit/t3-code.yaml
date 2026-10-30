@@ -122,6 +122,17 @@ capabilities:
 
   # pi's model provider. Optional so a sandbox still comes up without it; the
   # agent round-trip in bin/smoke is what proves it actually works.
+  #
+  # `inject` is what makes the proxy swap the `proxy-managed` sentinel for the
+  # real key. Without it the sandbox gets the sentinel, sends it as-is, and the
+  # provider answers 401 Invalid API Key.
+  #
+  # ⚠️ inject.domain cannot be a kit arg (the schema takes plain strings), so
+  # switching provider means editing three things together: `provider` and
+  # `providerApiKeyEnv` above, and the domain/header/format below. The domain
+  # must also stay in network-policy's runtime allow list.
+  #   anthropic:  api.anthropic.com   x-api-key      %s
+  #   openai:     api.openai.com      Authorization  Bearer %s
   - type: com.docker.sandbox/credential@1
     name: pi model provider
     optional: true
@@ -131,6 +142,10 @@ capabilities:
       apiKey:
         name: ${{ kit.args.providerApiKeyEnv }}
         proxyManaged: true
+        inject:
+          - domain: api.mistral.ai
+            header: Authorization
+            format: "Bearer %s"
 
   # Mirrors policy/allow.txt. The descriptor is normative — it travels with the
   # image, under one digest — and `bin/smoke` fails if the two disagree.
