@@ -46,7 +46,7 @@ $Sbx           = if ($env:SBX) { $env:SBX } else { 'sbx' }
 if (-not $env:SBX_KIT_BUILDER) { $env:SBX_KIT_BUILDER = 'sandbox' }
 $HostPort      = if ($env:T3CK_PORT) { [int] $env:T3CK_PORT } else { 3773 }
 $ContainerPort = 3773
-$ReadyTimeout  = if ($env:T3CK_READY_TIMEOUT) { [int] $env:T3CK_READY_TIMEOUT } else { 120 }
+$ReadyTimeout  = if ($env:T3CK_READY_TIMEOUT) { [int] $env:T3CK_READY_TIMEOUT } else { 180 }
 
 function Fail {
     param([string] $Message)
@@ -98,19 +98,38 @@ function Show-Policy {
     Write-Output ''
 }
 
+function Test-Url {
+    param([string] $Uri)
+    # HttpWebRequest with Proxy = $null, not Invoke-WebRequest: the latter
+    # honours the system proxy, so a host with one configured never reaches
+    # localhost and every readiness check is a false negative.
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($Uri)
+        $req.Proxy = $null
+        $req.Timeout = 5000
+        $req.Method = 'GET'
+        $resp = $req.GetResponse()
+        $code = [int] $resp.StatusCode
+        $resp.Close()
+        return ($code -lt 500)
+    }
+    catch [System.Net.WebException] {
+        if ($_.Exception.Response) { return ([int] $_.Exception.Response.StatusCode -lt 500) }
+        return $false
+    }
+    catch { return $false }
+}
+
 function Wait-Ready {
     param([string] $Sandbox)
     Write-Host "waiting for the server on http://localhost:${HostPort}/ ..."
     $deadline = (Get-Date).AddSeconds($ReadyTimeout)
     while ((Get-Date) -lt $deadline) {
-        try {
-            $null = Invoke-WebRequest -Uri "http://localhost:${HostPort}/" -UseBasicParsing -TimeoutSec 2
+        if (Test-Url "http://localhost:${HostPort}/") {
             Write-Host 'server is up.'
             return $true
         }
-        catch {
-            Start-Sleep -Seconds 2
-        }
+        Start-Sleep -Seconds 2
     }
     Warn "no answer after ${ReadyTimeout}s. Check: t3-code-kit logs $Sandbox"
     return $false

@@ -50,13 +50,23 @@ function Invoke-InSandbox {
 
 function Test-Url {
     param([string] $Uri)
+    # Proxy = $null: Invoke-WebRequest honours the system proxy and would never
+    # reach localhost on a host with one configured.
     try {
-        $null = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 5
-        return $true
+        $req = [System.Net.HttpWebRequest]::Create($Uri)
+        $req.Proxy = $null
+        $req.Timeout = 5000
+        $req.Method = 'GET'
+        $resp = $req.GetResponse()
+        $code = [int] $resp.StatusCode
+        $resp.Close()
+        return ($code -lt 500)
     }
-    catch {
+    catch [System.Net.WebException] {
+        if ($_.Exception.Response) { return ([int] $_.Exception.Response.StatusCode -lt 500) }
         return $false
     }
+    catch { return $false }
 }
 
 # ---------------------------------------------------------------- static
