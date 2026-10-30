@@ -79,6 +79,9 @@ cmd_up() {
   require_secret
   if exists "$n"; then
     say "sandbox '$n' exists; starting it."
+    # A restart keeps the image the sandbox was created from. Changing
+    # anything under kit/ needs `rebuild`, not `up`.
+    say "note: this reuses the sandbox's existing image; run 't3-code-kit rebuild $n' after editing kit/."
     $SBX run -d --name "$n" || die "could not start sandbox '$n'"
   else
     # `create`, not `run`: `sbx run` always mounts a workspace, and with no

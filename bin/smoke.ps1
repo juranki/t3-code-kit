@@ -112,7 +112,7 @@ else {
     No "http://localhost:${HostPort}/ does not answer"
 }
 
-$pair = (& $KitBin url $Name 2>$null | Out-String).Trim()
+$pair = (& $KitBin url $Name 2>&1 | Out-String).Trim()
 if ($pair -match '^http://localhost:\d+/pair#token=') {
     Ok 'pairing URL minted and rewritten to localhost'
     $pairPage = ($pair -split '#')[0]
@@ -173,7 +173,7 @@ Head 'summary'
 Write-Output ("  {0} passed, {1} failed, {2} skipped" -f $script:Pass, $script:Fail, $script:Skip)
 
 if ($env:SMOKE_DOWN -eq '1') {
-    & $KitBin down $Name 2>$null | Out-Null
+    & $KitBin down $Name 2>&1 | Out-Null
     Write-Output '  sandbox stopped'
 }
 else {
