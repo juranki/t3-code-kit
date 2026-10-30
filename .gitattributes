@@ -1,0 +1,8 @@
+# Everything here is checked out with LF, on every platform.
+#
+# Windows clones default to core.autocrlf=true, which rewrites kit/serve.sh to
+# CRLF. It is COPYed into the image and executed, so its shebang becomes
+# "#!/usr/bin/env bash\r" and the sandbox fails to start with no log and no
+# obvious error. The Dockerfile also strips CR defensively, but do not rely on
+# that alone.
+* text=auto eol=lf

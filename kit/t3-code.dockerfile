@@ -40,7 +40,10 @@ RUN npm config set prefix /home/agent/.npm-global \
  && npm install -g "@earendil-works/pi-coding-agent@${PI_VERSION}"
 
 COPY --chown=agent:agent serve.sh /home/agent/serve.sh
-RUN chmod 0755 /home/agent/serve.sh
+# Strip CR defensively: a Windows clone with core.autocrlf=true turns the
+# shebang into "#!/usr/bin/env bash\r", which fails to exec with no useful
+# error. .gitattributes is the real fix; this is the belt.
+RUN sed -i 's/\r$//' /home/agent/serve.sh && chmod 0755 /home/agent/serve.sh
 
 # A volume path: repos live here, never on the host.
 WORKDIR /home/agent/workspace

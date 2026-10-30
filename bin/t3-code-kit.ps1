@@ -116,22 +116,36 @@ function Wait-Ready {
     return $false
 }
 
+function Confirm-Port {
+    param([string] $Sandbox)
+    $listing = & $Sbx ports $Sandbox 2>$null | Out-String
+    if ($listing -match ":${HostPort}\b") { return }
+    & $Sbx ports $Sandbox --publish "127.0.0.1:${HostPort}:$ContainerPort"
+    if ($LASTEXITCODE -ne 0) {
+        Warn "could not publish ${HostPort}:$ContainerPort (see: sbx ports $Sandbox)"
+    }
+}
+
 function Invoke-Up {
     param([string] $Sandbox)
     Assert-Sbx
     Test-Secret
     if (Test-SandboxExists $Sandbox) {
         Write-Output "sandbox '$Sandbox' exists; starting it."
+        & $Sbx run -d --name $Sandbox
+        if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
     }
-    # `run` is the create-or-attach path in sbx; it is also what rebuilds the
-    # Kit directory when its source hash changed.
-    & $Sbx run -d --name $Sandbox $KitDir
-    if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
-    # --publish is ignored on re-attach, so ask for the mapping every time.
-    & $Sbx ports $Sandbox --publish "127.0.0.1:${HostPort}:$ContainerPort"
-    if ($LASTEXITCODE -ne 0) {
-        Warn "could not publish ${HostPort}:$ContainerPort (already mapped? see: sbx ports $Sandbox)"
+    else {
+        # `create`, not `run`: `sbx run` always mounts a workspace, and with no
+        # path argument it mounts the *current directory*. `sbx create` with no
+        # path is the mountless form - the agent works in the container's own
+        # filesystem, which is the whole point here.
+        & $Sbx create --name $Sandbox -p "127.0.0.1:${HostPort}:$ContainerPort" $KitDir
+        if ($LASTEXITCODE -ne 0) { Fail "could not create sandbox '$Sandbox'" }
+        & $Sbx run -d --name $Sandbox
+        if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
     }
+    Confirm-Port $Sandbox
     Show-Policy
     $null = Wait-Ready $Sandbox
     Invoke-Url $Sandbox
@@ -165,7 +179,13 @@ function Invoke-Logs {
     param([string] $Sandbox, [string] $Lines)
     Assert-Sbx
     if (-not $Lines) { $Lines = '200' }
-    & $Sbx exec $Sandbox -- tail -n $Lines /home/agent/.t3/serve.log
+    $out = & $Sbx exec $Sandbox -- tail -n $Lines /home/agent/.t3/serve.log 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Warn "no /home/agent/.t3/serve.log in '$Sandbox' - the entrypoint never ran."
+        Warn "check: sbx exec $Sandbox -- ls -l /home/agent/serve.sh"
+        return
+    }
+    $out
 }
 
 function Invoke-Shell {
