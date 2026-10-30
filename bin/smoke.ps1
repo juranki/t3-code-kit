@@ -68,8 +68,10 @@ foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', '
 
 # policy/allow.txt must not promise anything the descriptor denies: the
 # descriptor is normative, this file is the readable mirror.
-$policyPath = Join-Path $Root 'policy' 'allow.txt'
-$descriptor = Join-Path $Root 'kit' 't3-code.yaml'
+# Nested on purpose: Join-Path takes two positional arguments in Windows
+# PowerShell 5.1; -AdditionalChildPath is PowerShell 6+.
+$policyPath = Join-Path (Join-Path $Root 'policy') 'allow.txt'
+$descriptor = Join-Path (Join-Path $Root 'kit') 't3-code.yaml'
 if ((Test-Path $policyPath) -and (Test-Path $descriptor)) {
     $text = Get-Content $descriptor -Raw
     $missing = @()
@@ -122,7 +124,12 @@ else {
 
 Head 'toolchain inside the sandbox'
 
-foreach ($cmd in @(, @('t3', '--version')) + @(, @('pi', '--version')) + @(, @('git', '--version'))) {
+$toolchain = @(
+    @('t3', '--version'),
+    @('pi', '--version'),
+    @('git', '--version')
+)
+foreach ($cmd in $toolchain) {
     $r = Invoke-InSandbox $cmd
     $label = $cmd -join ' '
     if ($r.Ok) { Ok $label } else { No $label }

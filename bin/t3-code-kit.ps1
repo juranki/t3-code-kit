@@ -34,7 +34,9 @@ $ErrorActionPreference = 'Stop'
 
 $Root       = Split-Path -Parent $PSScriptRoot
 $KitDir     = Join-Path $Root 'kit'
-$PolicyFile = Join-Path $Root 'policy' 'allow.txt'
+# Nested on purpose: Join-Path takes two positional arguments in Windows
+# PowerShell 5.1; -AdditionalChildPath is PowerShell 6+.
+$PolicyFile = Join-Path (Join-Path $Root 'policy') 'allow.txt'
 
 $Sbx           = if ($env:SBX) { $env:SBX } else { 'sbx' }
 $HostPort      = if ($env:T3CK_PORT) { [int] $env:T3CK_PORT } else { 3773 }
@@ -189,8 +191,10 @@ function Invoke-Nuke {
     & $Sbx rm --force $Sandbox 2>$null | Out-Null
     # Volume names are the runtime's business, not ours: list and match.
     $listing = & $Sbx volume ls 2>$null | Out-String
-    $matches = $listing -split "`r?`n" | Where-Object { $_ -match [regex]::Escape($Sandbox) }
-    foreach ($line in $matches) {
+    # Not $matches: that is an automatic variable, and clobbering it breaks
+    # every -match that runs afterwards.
+    $volLines = $listing -split "`r?`n" | Where-Object { $_ -match [regex]::Escape($Sandbox) }
+    foreach ($line in $volLines) {
         $id = ($line -split '\s+')[0]
         if (-not $id) { continue }
         Write-Output "  removing volume $id"
