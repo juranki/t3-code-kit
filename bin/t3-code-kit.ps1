@@ -219,6 +219,24 @@ function Invoke-Shell {
     if ($LASTEXITCODE -ne 0) { & $Sbx attach $Sandbox }
 }
 
+function Invoke-Refresh {
+    param([string] $Sandbox)
+    Assert-Sbx
+    Write-Output "refreshing pi's model catalog inside '$Sandbox'"
+    & $Sbx exec $Sandbox -- pi update --models 2>&1 | Out-String | Write-Output
+    if ($LASTEXITCODE -ne 0) { Warn 'pi update --models failed; check egress to pi.dev' }
+    # t3 caches the upstream manifest with a fetchedAtMs; drop it so the next
+    # start fetches instead of reusing the bundled fallback.
+    & $Sbx exec $Sandbox -- rm -f /home/agent/.t3/userdata/model-manifest.json 2>&1 | Out-Null
+    Write-Output 'restarting the server so t3 refetches its manifest'
+    & $Sbx stop $Sandbox
+    if ($LASTEXITCODE -ne 0) { Fail "could not stop '$Sandbox'" }
+    & $Sbx run -d --name $Sandbox
+    if ($LASTEXITCODE -ne 0) { Fail "could not start '$Sandbox'" }
+    $null = Wait-Ready $Sandbox
+    Invoke-Url $Sandbox
+}
+
 function Invoke-Down {
     param([string] $Sandbox)
     Assert-Sbx
@@ -264,6 +282,7 @@ usage: t3-code-kit.ps1 <verb> [sandbox-name]
   url      print the pairing URL for a running sandbox
   logs     tail the server log inside the sandbox (optional: line count)
   shell    open a bash shell inside the sandbox
+  refresh  refresh pi's model catalog and t3's model manifest, then restart
   down     stop the sandbox (volumes and repos survive)
   rebuild  destroy and recreate, forcing a Kit image rebuild (volumes survive)
   nuke     destroy the sandbox and its volumes (loses all repos and t3 state)
@@ -281,6 +300,7 @@ switch ($Verb.ToLowerInvariant()) {
     'url'     { Invoke-Url (Get-SandboxName $Name) }
     'logs'    { Invoke-Logs (Get-SandboxName $Name) $Extra }
     'shell'   { Invoke-Shell (Get-SandboxName $Name) }
+    'refresh' { Invoke-Refresh (Get-SandboxName $Name) }
     'down'    { Invoke-Down (Get-SandboxName $Name) }
     'rebuild' { Invoke-Rebuild (Get-SandboxName $Name) }
     'nuke'    { Invoke-Nuke (Get-SandboxName $Name) }
