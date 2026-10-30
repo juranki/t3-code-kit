@@ -124,7 +124,7 @@ host port (3773).
 |---|---|
 | [`kit/t3-code.yaml`](kit/t3-code.yaml) | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
 | [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3 and pi, pinned |
-| [`kit/serve.sh`](kit/serve.sh) | Entrypoint — `t3 serve` with its output mirrored to a log file |
+| [`kit/serve.sh`](kit/serve.sh) | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook |
 | [`policy/allow.txt`](policy/allow.txt) | Readable mirror of the runtime egress list |
 | [`bin/t3-code-kit`](bin/t3-code-kit) | The launcher: eight verbs over `sbx` (POSIX sh) |
 | [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1) | The same launcher for a Windows host (PowerShell 5.1+) |
@@ -191,7 +191,11 @@ driver`.** Same cause — the host Buildx driver cannot emit the OCI layout a Ki
 needs. Use the builder sandbox: `$env:SBX_KIT_BUILDER = 'sandbox'`.
 
 **The sandbox starts but the server never answers, and there is no
-`/home/agent/.t3/serve.log`.** The entrypoint did not run. The usual cause on
+`/home/agent/.t3/serve.log`.** Nothing started the server. The kit declares
+`sbx@1` and starts `serve.sh` from a `lifecycle@1` startup hook, because the
+image entrypoint is not what runs a workload on the agent platform. If you are
+editing the kit, keep the hook's `env` list complete: a hook sees only the
+variables it declares, and a missing `HTTPS_PROXY` silently breaks all egress. The usual cause on
 Windows is CRLF: a clone with `core.autocrlf=true` rewrites `kit/serve.sh`, so
 the shebang becomes `#!/usr/bin/env bash\r` and it fails to exec silently.
 `.gitattributes` forces LF and the Dockerfile strips CR, but an existing clone
