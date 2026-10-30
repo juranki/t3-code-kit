@@ -83,6 +83,8 @@ cmd_up() {
     # anything under kit/ needs `rebuild`, not `up`.
     say "note: this reuses the sandbox's existing image; run 't3-code-kit rebuild $n' after editing kit/."
     $SBX run -d --name "$n" || die "could not start sandbox '$n'"
+    # --publish is ignored on re-attach, so the mapping must be re-asked.
+    ensure_port "$n"
   else
     # `create`, not `run`: `sbx run` always mounts a workspace, and with no
     # path argument it mounts the *current directory*. `sbx create` with no
@@ -92,7 +94,7 @@ cmd_up() {
       || die "could not create sandbox '$n'"
     $SBX run -d --name "$n" || die "could not start sandbox '$n'"
   fi
-  ensure_port "$n"
+  # create published via -p already; asking again is a 409 Conflict.
   print_policy
   wait_ready "$n" || true
   cmd_url "$n"
