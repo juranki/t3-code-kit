@@ -21,5 +21,11 @@ api.github.com
 codeload.github.com
 objects.githubusercontent.com
 
+# --- model catalogs. t3 fetches its model manifest from raw.githubusercontent,
+# and pi checks its own catalog on pi.dev. Without these the model list is the
+# stale one bundled in the image.
+raw.githubusercontent.com
+pi.dev
+
 # --- package installs inside the sandbox
 registry.npmjs.org

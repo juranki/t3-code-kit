@@ -167,6 +167,12 @@ stop the sandbox afterwards.
 
 ## Troubleshooting
 
+**The model list is stale, or missing models that exist.** t3 fetches its model
+manifest from `raw.githubusercontent.com` and pi checks its catalog on
+`pi.dev`; both are in the allowlist for that reason. A blocked fetch is silent
+— t3 falls back to the manifest bundled in the image, which ages. Check with
+`sbx exec <name> -- curl -sI https://raw.githubusercontent.com/ | head -1`.
+
 **The provider answers `401 Invalid API Key` and the sandbox has
 `MISTRAL_API_KEY=proxy-managed`.** The credential has no `inject` rule, so the
 proxy has nothing to swap the sentinel *for*. `inject` names the domain and
