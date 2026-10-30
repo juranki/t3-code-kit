@@ -46,9 +46,17 @@ detached, so the first run starts with the credential withheld and warns. Do the
 first run by hand, once:
 
 ```sh
+sbx secret set github                 # the value, first
+sbx secret set mistral                # ...and your provider's
 sbx create --name myproject ./kit     # approve the credential prompts
 sbx run --name myproject              # start it; Ctrl-\ detaches
 ```
+
+⚠️ `sbx create` does **not** start the workload — it prints `try: sbx run --name
+<name>` and stops there. The sandbox shows as running, the published port
+accepts connections and immediately resets, and nothing serves. Approving a
+credential with no stored secret binds nothing, which is why the approval
+prompt can be followed by `no binding authorizes this service`.
 
 After that `t3-code-kit up myproject` reuses the binding.
 
