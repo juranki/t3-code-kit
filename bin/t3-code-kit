@@ -66,18 +66,30 @@ wait_ready() {
   return 1
 }
 
+ensure_port() {
+  if $SBX ports "$1" 2>/dev/null | grep -q ":$HOST_PORT"; then
+    return 0
+  fi
+  $SBX ports "$1" --publish "127.0.0.1:$HOST_PORT:$CONTAINER_PORT" \
+    || warn "could not publish $HOST_PORT:$CONTAINER_PORT (see: sbx ports $1)"
+}
+
 cmd_up() {
   n=$(sandbox_name "${1:-}")
   require_secret
   if exists "$n"; then
     say "sandbox '$n' exists; starting it."
+    $SBX run -d --name "$n" || die "could not start sandbox '$n'"
+  else
+    # `create`, not `run`: `sbx run` always mounts a workspace, and with no
+    # path argument it mounts the *current directory*. `sbx create` with no
+    # path is the mountless form — the agent works in the container's own
+    # filesystem, which is the whole point here.
+    $SBX create --name "$n" -p "127.0.0.1:$HOST_PORT:$CONTAINER_PORT" "$KIT" \
+      || die "could not create sandbox '$n'"
+    $SBX run -d --name "$n" || die "could not start sandbox '$n'"
   fi
-  # `run` is the create-or-attach path in sbx; it is also what rebuilds the
-  # Kit directory when its source hash changed.
-  $SBX run -d --name "$n" "$KIT" || die "could not start sandbox '$n'"
-  # --publish is ignored on re-attach, so ask for the mapping every time.
-  $SBX ports "$n" --publish "127.0.0.1:$HOST_PORT:$CONTAINER_PORT" \
-    || warn "could not publish $HOST_PORT:$CONTAINER_PORT (already mapped? see: sbx ports $n)"
+  ensure_port "$n"
   print_policy
   wait_ready "$n" || true
   cmd_url "$n"
@@ -102,7 +114,10 @@ cmd_url() {
 cmd_logs() {
   n=$(sandbox_name "${1:-}")
   lines=${2:-200}
-  $SBX exec "$n" -- tail -n "$lines" /home/agent/.t3/serve.log
+  if ! $SBX exec "$n" -- tail -n "$lines" /home/agent/.t3/serve.log; then
+    warn "no /home/agent/.t3/serve.log in '$n' — the entrypoint never ran."
+    warn "check: sbx exec $n -- ls -l /home/agent/serve.sh"
+  fi
 }
 
 cmd_shell() {

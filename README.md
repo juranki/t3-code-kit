@@ -39,6 +39,19 @@ wrong tool — it deliberately gives you no host mount.
   `sbx secret set github`
 - A model provider key for pi, likewise: `sbx secret set <provider>`
 
+⚠️ **A stored secret is not an approval.** `sbx` keeps a binding in
+`~/.config/sbx/credentials.yaml` recording which kit may use which service, and
+it only asks for that approval **interactively**. The launcher creates sandboxes
+detached, so the first run starts with the credential withheld and warns. Do the
+first run by hand, once:
+
+```sh
+sbx create --name myproject ./kit     # approve the credential prompts
+sbx run --name myproject              # start it; Ctrl-\ detaches
+```
+
+After that `t3-code-kit up myproject` reuses the binding.
+
 ## Install
 
 macOS / Linux:
@@ -70,6 +83,10 @@ cover the same ground, so run whichever matches your host.
 ```sh
 t3-code-kit up myproject     # create, publish the port, print the pairing URL
 ```
+
+`up` uses `sbx create`, not `sbx run`: `run` always bind-mounts a workspace, and
+with no path argument it mounts the current directory. `create` with no path is
+the mountless form, which is what keeps the host filesystem out of reach.
 
 Open the printed `http://localhost:3773/pair#token=…` in your browser. That is
 the whole workflow: the t3 web UI runs in the sandbox, and pi is one of the
@@ -159,6 +176,18 @@ file`.** `sbx` tried the host's Docker Buildx. The launchers default to
 **The Kit build fails with `OCI exporter is not supported for the docker
 driver`.** Same cause — the host Buildx driver cannot emit the OCI layout a Kit
 needs. Use the builder sandbox: `$env:SBX_KIT_BUILDER = 'sandbox'`.
+
+**The sandbox starts but the server never answers, and there is no
+`/home/agent/.t3/serve.log`.** The entrypoint did not run. The usual cause on
+Windows is CRLF: a clone with `core.autocrlf=true` rewrites `kit/serve.sh`, so
+the shebang becomes `#!/usr/bin/env bash\r` and it fails to exec silently.
+`.gitattributes` forces LF and the Dockerfile strips CR, but an existing clone
+needs re-checking out:
+
+```powershell
+git pull
+git rm --cached -r . | Out-Null; git reset --hard
+```
 
 **`capability com.docker.sandbox/<type>: json: unknown field "<field>"`.** The
 descriptor used a field newer than your `sbx` build. The spec is experimental
