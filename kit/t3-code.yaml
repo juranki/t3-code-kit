@@ -168,6 +168,11 @@ capabilities:
           - api.github.com
           - codeload.github.com
           - objects.githubusercontent.com
+          # t3 fetches its model manifest from here; without it the UI shows
+          # a bundled, stale model list.
+          - raw.githubusercontent.com
+          # pi's own catalog and version checks.
+          - pi.dev
           - registry.npmjs.org
         deny:
           # t3's telemetry and T3 Connect relay. Not needed to run a local
