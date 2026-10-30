@@ -1,0 +1,123 @@
+#!/bin/sh
+# Acceptance test for t3-code-kit. This is what "it works" means.
+#
+#   bin/smoke [sandbox-name]
+#
+# Leaves the sandbox running unless SMOKE_DOWN=1.
+#
+# ⚠️ Step 6 spends real model tokens. Set SMOKE_SKIP_AGENT=1 to skip it.
+set -u
+
+SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH= cd -- "$SELF/.." && pwd)
+KIT_BIN="$SELF/t3-code-kit"
+
+SBX=${SBX:-sbx}
+HOST_PORT=${T3CK_PORT:-3773}
+NAME=${1:-${T3CK_NAME:-t3ck-smoke}}
+REPO=${SMOKE_REPO:-https://github.com/juranki/t3-code-kit}
+
+pass=0
+fail=0
+skip=0
+
+ok()   { pass=$((pass + 1)); printf '  PASS  %s\n' "$*"; }
+no()   { fail=$((fail + 1)); printf '  FAIL  %s\n' "$*"; }
+meh()  { skip=$((skip + 1)); printf '  SKIP  %s\n' "$*"; }
+head_() { printf '\n== %s\n' "$*"; }
+
+in_sbx() { $SBX exec "$NAME" -- "$@" 2>&1; }
+
+# ---------------------------------------------------------------- static
+head_ "static checks"
+
+for f in kit/t3-code.yaml kit/t3-code.dockerfile kit/serve.sh policy/allow.txt; do
+  [ -f "$ROOT/$f" ] && ok "$f exists" || no "$f missing"
+done
+
+# policy/allow.txt must not promise anything the descriptor denies: the
+# descriptor is normative, this file is the readable mirror.
+if [ -f "$ROOT/policy/allow.txt" ] && [ -f "$ROOT/kit/t3-code.yaml" ]; then
+  missing=""
+  while IFS= read -r host; do
+    case "$host" in ''|\#*) continue ;; esac
+    grep -q -- "$host" "$ROOT/kit/t3-code.yaml" || missing="$missing $host"
+  done <"$ROOT/policy/allow.txt"
+  [ -z "$missing" ] && ok "policy/allow.txt matches the descriptor" \
+    || no "in policy/allow.txt but not in kit/t3-code.yaml:$missing"
+fi
+
+# ---------------------------------------------------------------- runtime
+head_ "sandbox lifecycle"
+
+T3CK_NAME=$NAME "$KIT_BIN" up >/tmp/t3ck-smoke-up.log 2>&1
+if [ $? -eq 0 ]; then
+  ok "up succeeded"
+else
+  no "up failed; see /tmp/t3ck-smoke-up.log"
+  printf '\n%s\n' "$(cat /tmp/t3ck-smoke-up.log)" >&2
+  exit 1
+fi
+
+head_ "reachability"
+
+if curl -fsS -o /dev/null --max-time 5 "http://localhost:$HOST_PORT/"; then
+  ok "http://localhost:$HOST_PORT/ answers"
+else
+  no "http://localhost:$HOST_PORT/ does not answer"
+fi
+
+pair=$(T3CK_NAME=$NAME "$KIT_BIN" url 2>/dev/null || true)
+case "$pair" in
+  http://localhost:*'/pair#token='*)
+    ok "pairing URL minted and rewritten to localhost"
+    if curl -fsS -o /dev/null --max-time 5 "${pair%%#*}"; then
+      ok "pairing page answers"
+    else
+      no "pairing page does not answer"
+    fi
+    ;;
+  *) no "no usable pairing URL (got: ${pair:-nothing})" ;;
+esac
+
+head_ "toolchain inside the sandbox"
+
+for cmd in "t3 --version" "pi --version" "git --version"; do
+  if in_sbx sh -c "$cmd" >/dev/null; then ok "$cmd"; else no "$cmd"; fi
+done
+
+if in_sbx sh -c 'mountpoint -q /home/agent/workspace' >/dev/null; then
+  ok "/home/agent/workspace is a volume, not a host mount"
+else
+  no "/home/agent/workspace is not a volume"
+fi
+
+head_ "egress and credentials"
+
+if in_sbx git ls-remote --exit-code "$REPO" HEAD >/dev/null; then
+  ok "git ls-remote $REPO (network + github credential)"
+else
+  no "git ls-remote $REPO — check policy/allow.txt and: sbx secret set github"
+fi
+
+head_ "agent round-trip"
+
+if [ "${SMOKE_SKIP_AGENT:-0}" = 1 ]; then
+  meh "pi prompt skipped (SMOKE_SKIP_AGENT=1)"
+elif in_sbx sh -c "pi -p 'Reply with exactly: OK' --no-tools --no-session" | grep -q OK; then
+  ok "pi answered through its provider"
+else
+  no "pi could not answer — check the provider key and its egress entry"
+fi
+
+# ---------------------------------------------------------------- teardown
+head_ "summary"
+printf '  %s passed, %s failed, %s skipped\n' "$pass" "$fail" "$skip"
+
+if [ "${SMOKE_DOWN:-0}" = 1 ]; then
+  T3CK_NAME=$NAME "$KIT_BIN" down >/dev/null 2>&1 && printf '  sandbox stopped\n'
+else
+  printf '  sandbox %s left running (SMOKE_DOWN=1 to stop it)\n' "$NAME"
+fi
+
+[ "$fail" -eq 0 ] || exit 1
