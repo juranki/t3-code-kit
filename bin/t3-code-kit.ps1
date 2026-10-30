@@ -137,6 +137,8 @@ function Invoke-Up {
         Write-Output "note: this reuses the sandbox's existing image; run 't3-code-kit.ps1 rebuild $Sandbox' after editing kit/."
         & $Sbx run -d --name $Sandbox
         if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
+        # --publish is ignored on re-attach, so the mapping must be re-asked.
+        Confirm-Port $Sandbox
     }
     else {
         # `create`, not `run`: `sbx run` always mounts a workspace, and with no
@@ -147,8 +149,8 @@ function Invoke-Up {
         if ($LASTEXITCODE -ne 0) { Fail "could not create sandbox '$Sandbox'" }
         & $Sbx run -d --name $Sandbox
         if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
+        # create published via -p already; asking again is a 409 Conflict.
     }
-    Confirm-Port $Sandbox
     Show-Policy
     $null = Wait-Ready $Sandbox
     Invoke-Url $Sandbox
