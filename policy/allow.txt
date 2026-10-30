@@ -1,0 +1,25 @@
+# Egress the sandbox may reach at runtime. One host per line; `#` starts a
+# comment. Everything not listed here is denied.
+#
+# This file is the readable mirror. The normative copy lives in
+# kit/t3-code.yaml (network-policy@2, runtime.allow) because a Kit carries its
+# authority in the image, under one digest — policy that lives outside the
+# artifact can drift from it. `bin/smoke` fails if the two disagree.
+#
+# ⚠️ A missing host does not look like a network error. The proxy answers
+# HTTP 403 with "Approval required for <host:port>", so an agent that "cannot
+# reach the API" is usually a missing line here.
+
+# --- model providers: pi's endpoint, plus the two you are most likely to add
+api.anthropic.com
+api.openai.com
+api.mistral.ai
+
+# --- git: clone and push only
+github.com
+api.github.com
+codeload.github.com
+objects.githubusercontent.com
+
+# --- package installs inside the sandbox
+registry.npmjs.org

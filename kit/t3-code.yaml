@@ -1,0 +1,126 @@
+# syntax=docker/sandbox-kit:3
+# yaml-language-server: $schema=https://raw.githubusercontent.com/docker/sandbox-kit-spec/main/schema/kit.schema.json
+schemaVersion: "3"
+kind: workload
+displayName: T3 Code
+description: >-
+  T3 Code server with pi, running inside the sandbox and driven from a browser
+  on the host. No host filesystem access: git is the only channel in and out.
+sourceUrl: https://github.com/juranki/t3-code-kit
+licenses: [MIT]
+provides: ["t3-code@0.1.5"]
+
+args:
+  t3Version:
+    default: "0.1.5"
+    pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    buildArg: T3_VERSION
+  piVersion:
+    default: "latest"
+    pattern: "^[A-Za-z0-9.@/_-]+$"
+    buildArg: PI_VERSION
+  # pi's provider, as a host credential-store service name. Change both when
+  # you use a different provider:  sbx secret set <provider>
+  provider:
+    default: mistral
+    pattern: "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+  providerApiKeyEnv:
+    default: MISTRAL_API_KEY
+    pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
+
+capabilities:
+  # t3 serve is the workload, not an agent the host launches: it outlives the
+  # session that started it and keeps running while the browser is closed.
+  - type: com.docker.sandbox/long-running@1
+    description: the t3 server outlives any session
+
+  - type: com.docker.sandbox/port@1
+    name: t3-code web UI
+    config:
+      container: 3773
+      transport: tcp
+      family: ipv4
+
+  # Repos and t3 state live on volumes, so `rm` does not destroy them. Only
+  # `t3-code-kit nuke` does.
+  - type: com.docker.sandbox/volume@1
+    config:
+      path: /home/agent/workspace
+      size: 20GiB
+  - type: com.docker.sandbox/volume@1
+    config:
+      path: /home/agent/.t3
+      size: 10GiB
+
+  # Clone and push only. The proxy swaps the sentinel for the real token after
+  # traffic leaves the VM, so the sandbox never holds the credential.
+  - type: com.docker.sandbox/credential@1
+    name: GitHub
+    description: clone and push over https
+    config:
+      service: github
+      phase: runtime
+      apiKey:
+        name: GH_TOKEN
+        proxyManaged: true
+        inject:
+          - { domain: github.com, header: Authorization, format: "Bearer %s" }
+          - { domain: api.github.com, header: Authorization, format: "Bearer %s" }
+
+  # pi's model provider. Optional so a sandbox still comes up without it; the
+  # agent round-trip in bin/smoke is what proves it actually works.
+  - type: com.docker.sandbox/credential@1
+    name: pi model provider
+    optional: true
+    config:
+      service: ${{ kit.args.provider }}
+      phase: runtime
+      apiKey:
+        name: ${{ kit.args.providerApiKeyEnv }}
+        proxyManaged: true
+
+  # Mirrors policy/allow.txt. The descriptor is normative — it travels with the
+  # image, under one digest — and `bin/smoke` fails if the two disagree.
+  - type: com.docker.sandbox/network-policy@2
+    config:
+      install:
+        allow:
+          - t3.codes
+          - registry.npmjs.org
+          - github.com
+          - objects.githubusercontent.com
+          - archive.ubuntu.com
+          - security.ubuntu.com
+      runtime:
+        allow:
+          - api.anthropic.com
+          - api.openai.com
+          - api.mistral.ai
+          - github.com
+          - api.github.com
+          - codeload.github.com
+          - objects.githubusercontent.com
+          - registry.npmjs.org
+        deny:
+          # t3's telemetry and T3 Connect relay. Not needed to run a local
+          # server, and an unattended agent should not be phoning home.
+          - ingest.t3.codes
+          - relay.t3.codes
+
+  - type: com.docker.sandbox/agent-context@1
+    optional: true
+    config:
+      filename: AGENTS.md
+      content: |
+        # You are in a sandbox
+
+        This machine has no access to the host filesystem. There is no shared
+        mount, no host home directory, and no way to reach the user's files.
+
+        - Work only inside `/home/agent/workspace`.
+        - Git is the only channel in and out: clone, commit, push a branch.
+          The user reviews and merges on their own machine.
+        - Egress is deny-by-default. A blocked destination answers HTTP 403
+          from the proxy, not a connection error. Report it; do not retry.
+        - `/home/agent/workspace` and `/home/agent/.t3` are volumes and survive
+          a sandbox restart.
