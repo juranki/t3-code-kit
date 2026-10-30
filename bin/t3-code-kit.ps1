@@ -185,12 +185,12 @@ function Invoke-Logs {
     Assert-Sbx
     if (-not $Lines) { $Lines = '200' }
     $out = & $Sbx exec $Sandbox -- tail -n $Lines /home/agent/.t3/serve.log 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        Warn "no /home/agent/.t3/serve.log in '$Sandbox' - the entrypoint never ran."
-        Warn "check: sbx exec $Sandbox -- ls -l /home/agent/serve.sh"
-        return
-    }
-    Write-Output $out
+    if ($LASTEXITCODE -eq 0) { Write-Output $out; return }
+    Warn "no /home/agent/.t3/serve.log in '$Sandbox' - serve.sh never started."
+    Warn "falling back to the runtime's startup-hook log:"
+    $hook = & $Sbx exec $Sandbox -- tail -n $Lines /var/log/sbx-kit-startup.log 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0) { Write-Output $hook }
+    else { Warn "no startup-hook log either: the lifecycle@1 hook did not run." }
 }
 
 function Invoke-Shell {
