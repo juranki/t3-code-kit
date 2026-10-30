@@ -29,10 +29,48 @@ args:
     pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
 
 capabilities:
+  # Target the sandbox agent platform: the runtime owns the process tree and
+  # honors the image's declared user, instead of leaving the image entrypoint
+  # as PID 1. Without this the entrypoint was never executed at all in
+  # practice, and the server never started.
+  - type: com.docker.sandbox/sbx@1
+
   # t3 serve is the workload, not an agent the host launches: it outlives the
   # session that started it and keeps running while the browser is closed.
   - type: com.docker.sandbox/long-running@1
     description: the t3 server outlives any session
+
+  # How the server actually starts. A startup hook sees only the environment
+  # it declares, so every variable serve.sh and its children need is listed
+  # here - including the proxy variables, without which t3 and pi cannot
+  # reach anything through the sandbox's egress proxy.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      startup:
+        - command: exec /home/agent/serve.sh
+          user: agent
+          background: true
+          description: Start the T3 Code server
+          env:
+            - HOME
+            - PATH
+            - T3CODE_HOME
+            - T3CODE_HOST
+            - T3CODE_PORT
+            - T3CODE_NO_BROWSER
+            - ${{ kit.args.providerApiKeyEnv }}
+            - GH_TOKEN
+            - HTTP_PROXY
+            - HTTPS_PROXY
+            - ALL_PROXY
+            - NO_PROXY
+            - http_proxy
+            - https_proxy
+            - all_proxy
+            - no_proxy
+            - SSL_CERT_FILE
+            - SSL_CERT_DIR
+            - PROXY_CA_CERT_B64
 
   # No `family:` here. It was added to port@1 on 2026-10-26 and an sbx build
   # from before that rejects the descriptor with "unknown field \"family\"".
