@@ -167,6 +167,13 @@ stop the sandbox afterwards.
 
 ## Troubleshooting
 
+**The provider answers `401 Invalid API Key` and the sandbox has
+`MISTRAL_API_KEY=proxy-managed`.** The credential has no `inject` rule, so the
+proxy has nothing to swap the sentinel *for*. `inject` names the domain and
+header the key belongs in; its `domain` cannot be a kit arg, so switching
+provider means editing `provider`, `providerApiKeyEnv`, and the `inject` block
+in `kit/t3-code.yaml` together — and approving the new domain's binding.
+
 **An agent says it cannot reach an API.** Egress is deny-by-default and the
 proxy does not fail like a network. It answers:
 
