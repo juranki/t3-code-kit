@@ -160,6 +160,13 @@ file`.** `sbx` tried the host's Docker Buildx. The launchers default to
 driver`.** Same cause — the host Buildx driver cannot emit the OCI layout a Kit
 needs. Use the builder sandbox: `$env:SBX_KIT_BUILDER = 'sandbox'`.
 
+**`capability com.docker.sandbox/<type>: json: unknown field "<field>"`.** The
+descriptor used a field newer than your `sbx` build. The spec is experimental
+and fields land between releases — `port@1`'s `family` arrived 2026-10-26, for
+instance. Check the field's date in the
+[spec repo history](https://github.com/docker/sandbox-kit-spec/commits/main/schema)
+and drop it; everything this kit uses otherwise dates from the initial release.
+
 **`t3: No such file or directory` inside the sandbox.** `/home/agent/.local/bin/t3`
 is a symlink into `$T3CODE_HOME/runtime/versions/<v>/t3`. If someone volumes all
 of `/home/agent/.t3`, the volume shadows that install and the symlink dangles.
