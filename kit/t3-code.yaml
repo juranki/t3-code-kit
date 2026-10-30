@@ -34,12 +34,16 @@ capabilities:
   - type: com.docker.sandbox/long-running@1
     description: the t3 server outlives any session
 
+  # No `family:` here. It was added to port@1 on 2026-10-26 and an sbx build
+  # from before that rejects the descriptor with "unknown field \"family\"".
+  # Omitted means ipv4, which is what t3 bound to 0.0.0.0 answers on anyway.
+  # Everything else in this descriptor uses fields from the initial spec
+  # release, so it validates on older runtimes too.
   - type: com.docker.sandbox/port@1
     name: t3-code web UI
     config:
       container: 3773
       transport: tcp
-      family: ipv4
 
   # Repos and t3 state live on volumes, so `rm` does not destroy them. Only
   # `t3-code-kit nuke` does.
