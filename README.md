@@ -37,12 +37,29 @@ wrong tool — it deliberately gives you no host mount.
 
 ## Install
 
+macOS / Linux:
+
 ```sh
 git clone https://github.com/juranki/t3-code-kit
 ln -s "$PWD/t3-code-kit/bin/t3-code-kit" ~/.local/bin/t3-code-kit
 ```
 
-No installer, no package. It is a launcher, a Dockerfile, and a descriptor.
+Windows (no bash needed — `bin/t3-code-kit.ps1` is a Windows PowerShell 5.1
+port, so a stock Windows 11 runs it as-is):
+
+```powershell
+git clone https://github.com/juranki/t3-code-kit
+# then, from the repo:
+.\bin\t3-code-kit.ps1 up myproject
+```
+
+Optionally put `bin` on `PATH` and drop the `.ps1`. No installer, no package.
+It is a launcher, a Dockerfile, and a descriptor.
+
+⚠️ The two launchers are deliberate duplicates — `bin/t3-code-kit` (POSIX sh)
+and `bin/t3-code-kit.ps1` (PowerShell) — because the alternative is telling a
+Windows user to install bash. They can drift; `bin/smoke` and `bin/smoke.ps1`
+cover the same ground, so run whichever matches your host.
 
 ## Use
 
@@ -75,8 +92,9 @@ host port (3773).
 | [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3 and pi, pinned |
 | [`kit/serve.sh`](kit/serve.sh) | Entrypoint — `t3 serve` with its output mirrored to a log file |
 | [`policy/allow.txt`](policy/allow.txt) | Readable mirror of the runtime egress list |
-| [`bin/t3-code-kit`](bin/t3-code-kit) | The launcher: six verbs over `sbx` |
-| [`bin/smoke`](bin/smoke) | The acceptance test — this is what "it works" means |
+| [`bin/t3-code-kit`](bin/t3-code-kit) | The launcher: eight verbs over `sbx` (POSIX sh) |
+| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1) | The same launcher for a Windows host (PowerShell 5.1+) |
+| [`bin/smoke`](bin/smoke) · [`bin/smoke.ps1`](bin/smoke.ps1) | The acceptance test — this is what "it works" means |
 | [`prototype/spike.md`](prototype/spike.md) | What was verified before any of this was written |
 
 The descriptor is normative. A Kit carries its authority in the image, under
@@ -86,7 +104,8 @@ read, and `bin/smoke` fails if the two disagree.
 ## Verify
 
 ```sh
-bin/smoke
+bin/smoke            # macOS / Linux
+.\bin\smoke.ps1      # Windows
 ```
 
 Checks the static files, brings a sandbox up, waits for the server, mints a
