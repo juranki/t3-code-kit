@@ -1,0 +1,176 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Acceptance test for t3-code-kit, on a Windows host with no bash.
+
+.DESCRIPTION
+    PowerShell port of bin/smoke. This is what "it works" means.
+
+    Leaves the sandbox running unless SMOKE_DOWN=1.
+    WARNING: the agent round-trip spends real model tokens.
+    Set SMOKE_SKIP_AGENT=1 to skip it.
+
+.EXAMPLE
+    .\smoke.ps1
+
+.EXAMPLE
+    $env:SMOKE_SKIP_AGENT = 1; .\smoke.ps1 t3ck-smoke
+#>
+[CmdletBinding()]
+param(
+    [Parameter(Position = 0)][string] $Name
+)
+
+$ErrorActionPreference = 'Stop'
+
+$Root   = Split-Path -Parent $PSScriptRoot
+$KitBin = Join-Path $PSScriptRoot 't3-code-kit.ps1'
+
+$Sbx      = if ($env:SBX) { $env:SBX } else { 'sbx' }
+$HostPort = if ($env:T3CK_PORT) { [int] $env:T3CK_PORT } else { 3773 }
+$Repo     = if ($env:SMOKE_REPO) { $env:SMOKE_REPO } else { 'https://github.com/juranki/t3-code-kit' }
+if (-not $Name) {
+    $Name = if ($env:T3CK_NAME) { $env:T3CK_NAME } else { 't3ck-smoke' }
+}
+
+$script:Pass = 0
+$script:Fail = 0
+$script:Skip = 0
+
+function Ok   { param([string] $m) $script:Pass++; Write-Output "  PASS  $m" }
+function No   { param([string] $m) $script:Fail++; Write-Output "  FAIL  $m" }
+function Meh  { param([string] $m) $script:Skip++; Write-Output "  SKIP  $m" }
+function Head { param([string] $m) Write-Output ''; Write-Output "== $m" }
+
+function Invoke-InSandbox {
+    param([string[]] $Command)
+    $out = & $Sbx exec $Name -- @Command 2>&1 | Out-String
+    return [pscustomobject]@{ Output = $out; Ok = ($LASTEXITCODE -eq 0) }
+}
+
+function Test-Url {
+    param([string] $Uri)
+    try {
+        $null = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 5
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+# ---------------------------------------------------------------- static
+Head 'static checks'
+
+foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', 'policy/allow.txt')) {
+    if (Test-Path (Join-Path $Root $f)) { Ok "$f exists" } else { No "$f missing" }
+}
+
+# policy/allow.txt must not promise anything the descriptor denies: the
+# descriptor is normative, this file is the readable mirror.
+$policyPath = Join-Path $Root 'policy' 'allow.txt'
+$descriptor = Join-Path $Root 'kit' 't3-code.yaml'
+if ((Test-Path $policyPath) -and (Test-Path $descriptor)) {
+    $text = Get-Content $descriptor -Raw
+    $missing = @()
+    foreach ($line in Get-Content $policyPath) {
+        $host_ = ($line -replace '#.*$', '').Trim()
+        if (-not $host_) { continue }
+        if ($text -notmatch [regex]::Escape($host_)) { $missing += $host_ }
+    }
+    if ($missing.Count -eq 0) {
+        Ok 'policy/allow.txt matches the descriptor'
+    }
+    else {
+        No ("in policy/allow.txt but not in kit/t3-code.yaml: " + ($missing -join ', '))
+    }
+}
+
+# ---------------------------------------------------------------- runtime
+Head 'sandbox lifecycle'
+
+$upLog = Join-Path ([System.IO.Path]::GetTempPath()) 't3ck-smoke-up.log'
+$env:T3CK_NAME = $Name
+& $KitBin up $Name *> $upLog
+if ($LASTEXITCODE -eq 0) {
+    Ok 'up succeeded'
+}
+else {
+    No "up failed; see $upLog"
+    Get-Content $upLog | Write-Output
+    exit 1
+}
+
+Head 'reachability'
+
+if (Test-Url "http://localhost:${HostPort}/") {
+    Ok "http://localhost:${HostPort}/ answers"
+}
+else {
+    No "http://localhost:${HostPort}/ does not answer"
+}
+
+$pair = (& $KitBin url $Name 2>$null | Out-String).Trim()
+if ($pair -match '^http://localhost:\d+/pair#token=') {
+    Ok 'pairing URL minted and rewritten to localhost'
+    $pairPage = ($pair -split '#')[0]
+    if (Test-Url $pairPage) { Ok 'pairing page answers' } else { No 'pairing page does not answer' }
+}
+else {
+    No "no usable pairing URL (got: $(if ($pair) { $pair } else { 'nothing' }))"
+}
+
+Head 'toolchain inside the sandbox'
+
+foreach ($cmd in @(, @('t3', '--version')) + @(, @('pi', '--version')) + @(, @('git', '--version'))) {
+    $r = Invoke-InSandbox $cmd
+    $label = $cmd -join ' '
+    if ($r.Ok) { Ok $label } else { No $label }
+}
+
+$r = Invoke-InSandbox @('sh', '-c', 'mountpoint -q /home/agent/workspace')
+if ($r.Ok) {
+    Ok '/home/agent/workspace is a volume, not a host mount'
+}
+else {
+    No '/home/agent/workspace is not a volume'
+}
+
+Head 'egress and credentials'
+
+$r = Invoke-InSandbox @('git', 'ls-remote', '--exit-code', $Repo, 'HEAD')
+if ($r.Ok) {
+    Ok "git ls-remote $Repo (network + github credential)"
+}
+else {
+    No "git ls-remote $Repo - check policy/allow.txt and: sbx secret set github"
+}
+
+Head 'agent round-trip'
+
+if ($env:SMOKE_SKIP_AGENT -eq '1') {
+    Meh 'pi prompt skipped (SMOKE_SKIP_AGENT=1)'
+}
+else {
+    $r = Invoke-InSandbox @('pi', '-p', 'Reply with exactly: OK', '--no-tools', '--no-session')
+    if ($r.Output -match 'OK') {
+        Ok 'pi answered through its provider'
+    }
+    else {
+        No 'pi could not answer - check the provider key and its egress entry'
+    }
+}
+
+# ---------------------------------------------------------------- teardown
+Head 'summary'
+Write-Output ("  {0} passed, {1} failed, {2} skipped" -f $script:Pass, $script:Fail, $script:Skip)
+
+if ($env:SMOKE_DOWN -eq '1') {
+    & $KitBin down $Name 2>$null | Out-Null
+    Write-Output '  sandbox stopped'
+}
+else {
+    Write-Output "  sandbox $Name left running (SMOKE_DOWN=1 to stop it)"
+}
+
+if ($script:Fail -ne 0) { exit 1 }
