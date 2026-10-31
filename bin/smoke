@@ -120,6 +120,42 @@ else
   no "skills: ${have:-0} baked in, ${want:-0} in kit/skills.txt"
 fi
 
+head_ "model catalog"
+
+# serve.sh refreshes pi's catalog before t3 serve. pi keeps the refreshed
+# catalog in <agent-dir>/models-store.json; a non-empty one written after this
+# start's `t3 serve starting` marker means the refresh ran and fetched, rather
+# than the sandbox falling back to the catalog baked into the image. Compare
+# against the marker, not the log's mtime: tee appends t3's output after the
+# catalog write, so the live log is always newer than the store.
+catalog_out=$(in_sbx sh -c '
+  log="${T3CODE_HOME:-$HOME/.t3}/serve.log"
+  store="$HOME/.pi/agent/models-store.json"
+  started=$(sed -n "s/^--- \([^ ]*\) t3 serve starting$/\1/p" "$log" 2>/dev/null | tail -1)
+  started_epoch=0
+  [ -n "$started" ] && started_epoch=$(date -d "$started" +%s 2>/dev/null || echo 0)
+  store_epoch=$(stat -c %Y "$store" 2>/dev/null || echo 0)
+  if [ -s "$store" ] && grep -q "\"models\"" "$store" && grep -q "\"id\"" "$store" && [ "$store_epoch" -ge "$started_epoch" ]; then
+    echo "pi_catalog=fresh"
+  elif [ -s "$store" ] && grep -q "\"models\"" "$store" && grep -q "\"id\"" "$store"; then
+    echo "pi_catalog=stale"
+  else
+    echo "pi_catalog=missing"
+  fi
+' | tr -d '\r')
+pi_catalog=$(printf '%s\n' "$catalog_out" | sed -n 's/^pi_catalog=//p' | head -1)
+case "$pi_catalog" in
+  fresh)
+    ok "pi's model catalog refreshed at startup"
+    ;;
+  stale)
+    no "pi's model catalog is older than this start — the startup refresh did not run (see: t3-code-kit logs $NAME)"
+    ;;
+  *)
+    no "pi's model catalog is missing — the startup refresh did not fetch one (blocked pi.dev or no provider credential; see: t3-code-kit logs $NAME)"
+    ;;
+esac
+
 head_ "egress and credentials"
 
 if in_sbx git ls-remote --exit-code "$REPO" HEAD >/dev/null; then
