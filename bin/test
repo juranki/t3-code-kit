@@ -23,9 +23,11 @@ no()   { fail=$((fail + 1)); printf 'FAIL  %s\n' "$*"; }
 
 # --- the stub -------------------------------------------------------------
 #
-# Answers `secret ls` from $STUB_SECRET_OUTPUT and $STUB_SECRET_STATUS, and
-# fails anything else loudly: the secret check runs before every other sbx
-# call, so reaching another call means the check did not run.
+# Answers `secret ls` from $STUB_SECRET_OUTPUT and $STUB_SECRET_STATUS. The
+# lifecycle verbs (`create`, `run`, `stop`, `rm`, `ports`, `ls`) succeed
+# silently, so `up` runs to the end and the git-identity assertions can see
+# what it did. Anything else fails loudly: a verb the launcher is not expected
+# to call is a surprise worth failing on.
 STUB_DIR=$(mktemp -d)
 trap 'rm -rf "$STUB_DIR"' EXIT
 
@@ -35,6 +37,18 @@ if [ "$1" = secret ] && [ "$2" = ls ]; then
   printf '%s' "${STUB_SECRET_OUTPUT-}"
   exit "${STUB_SECRET_STATUS-0}"
 fi
+# `up` asserts the git identity with `exec <name> -- git config ...`. Record
+# the argv it used, so the test can assert what crossed the boundary rather
+# than what the launcher meant to send.
+if [ "$1" = exec ]; then
+  shift 2
+  [ "$1" = -- ] && shift
+  printf '%s\n' "$*" >>"${STUB_EXEC_LOG:-/dev/null}"
+  exit 0
+fi
+case "$1" in
+  create|run|stop|rm|ports|ls|volume) exit 0 ;;
+esac
 echo "stub sbx: unexpected call: $*" >&2
 exit 99
 STUB
@@ -44,6 +58,24 @@ chmod +x "$STUB_DIR/sbx"
 # secret. `up` is expected to die later on the stub's unexpected-call exit;
 # only the secret warning is under test, so the exit code is ignored.
 WARNING_TEXT="no 'github' secret on this host: clone/push will fail."
+
+# The host's own git identity is read with `git config --get`, so the stub git
+# answers from $STUB_HOST_NAME / $STUB_HOST_EMAIL (unset = not configured, which
+# is the exit-1 shape real git uses) and records the sandbox-side config writes.
+cat > "$STUB_DIR/git" <<'STUB'
+#!/bin/sh
+# Host side: `git config --get user.name` / `user.email`.
+if [ "$1" = config ] && [ "$2" = --get ]; then
+  case "$3" in
+    user.name)  [ -n "${STUB_HOST_NAME-}" ]  && { printf '%s\n' "$STUB_HOST_NAME";  exit 0; } ;;
+    user.email) [ -n "${STUB_HOST_EMAIL-}" ] && { printf '%s\n' "$STUB_HOST_EMAIL"; exit 0; } ;;
+  esac
+  exit 1
+fi
+echo "stub git: unexpected call: $*" >&2
+exit 99
+STUB
+chmod +x "$STUB_DIR/git"
 
 # --- bash launcher --------------------------------------------------------
 
@@ -138,6 +170,94 @@ if command -v pwsh >/dev/null 2>&1; then
   run_secret_cases secret_case_ps
 else
   printf '\nskipping PowerShell launcher: no pwsh on PATH\n'
+fi
+
+# --- git identity ---------------------------------------------------------
+#
+# `up` must leave the sandbox with `Agent for <host name>` and the host's own
+# email, so a sandbox commit is honestly labelled and still links to the
+# account. The name is what the user sees; the email is what GitHub matches.
+#
+# Asserted on the argv that crossed `sbx exec`, not on the launcher's intent:
+# the space in "Juhani Ränkimies" and the non-ASCII ä are the whole hazard, and
+# a value re-split by a shell would show up here as extra argv words.
+
+exec_argv() { sed -n 's/^git config --global //p' "$1" 2>/dev/null; }
+
+identity_case_bash() {
+  _name=$1 _host_name=$2 _host_email=$3 _prefix=$4 _want_name=$5 _want_email=$6
+  _log=$(mktemp)
+
+  STUB_EXEC_LOG=$_log STUB_HOST_NAME=$_host_name STUB_HOST_EMAIL=$_host_email \
+  T3CK_AGENT_NAME_PREFIX=$_prefix \
+  PATH="$STUB_DIR:$PATH" SBX=$STUB_DIR/sbx T3CK_NAME=testprobe \
+  sh "$ROOT/bin/t3-code-kit" up testprobe >/dev/null 2>&1 || true
+
+  _got_name=$(exec_argv "$_log" | sed -n 's/^user\.name \(.*\)$/\1/p')
+  _got_email=$(exec_argv "$_log" | sed -n 's/^user\.email \(.*\)$/\1/p')
+
+  if [ "$_got_name" = "$_want_name" ]; then
+    ok "bash: $_name — name is '$_want_name'"
+  else
+    no "bash: $_name — name: want '$_want_name', got '$_got_name'"
+  fi
+  if [ "$_got_email" = "$_want_email" ]; then
+    ok "bash: $_name — email is '$_want_email'"
+  else
+    no "bash: $_name — email: want '$_want_email', got '$_got_email'"
+  fi
+  rm -f "$_log"
+}
+
+identity_case_ps() {
+  _name=$1 _host_name=$2 _host_email=$3 _prefix=$4 _want_name=$5 _want_email=$6
+  _log=$(mktemp)
+
+  STUB_EXEC_LOG=$_log STUB_HOST_NAME=$_host_name STUB_HOST_EMAIL=$_host_email \
+  T3CK_AGENT_NAME_PREFIX=$_prefix \
+  PATH="$STUB_DIR:$PATH" SBX=$STUB_DIR/sbx T3CK_NAME=testprobe \
+  pwsh -NoProfile -File "$ROOT/bin/t3-code-kit.ps1" up testprobe >/dev/null 2>&1 || true
+
+  _got_name=$(exec_argv "$_log" | sed -n 's/^user\.name \(.*\)$/\1/p')
+  _got_email=$(exec_argv "$_log" | sed -n 's/^user\.email \(.*\)$/\1/p')
+
+  if [ "$_got_name" = "$_want_name" ]; then
+    ok "pwsh: $_name — name is '$_want_name'"
+  else
+    no "pwsh: $_name — name: want '$_want_name', got '$_got_name'"
+  fi
+  if [ "$_got_email" = "$_want_email" ]; then
+    ok "pwsh: $_name — email is '$_want_email'"
+  else
+    no "pwsh: $_name — email: want '$_want_email', got '$_got_email'"
+  fi
+  rm -f "$_log"
+}
+
+printf '\ngit identity — bash launcher\n'
+# The ordinary case: a host that has configured git. The prefix is added to the
+# name; the email passes through untouched so GitHub still links the commit.
+identity_case_bash 'host config present' \
+  'Juhani Ränkimies' 'juhani@example.com' 'Agent for ' \
+  'Agent for Juhani Ränkimies' 'juhani@example.com'
+# No host config: the identity must still be honest. "Agent" names no person.
+identity_case_bash 'host config absent' \
+  '' '' 'Agent for ' 'Agent' 'agent@t3-code-kit'
+# The documented opt-out: an empty prefix leaves the bare host name.
+identity_case_bash 'prefix overridden to empty' \
+  'Juhani Ränkimies' 'juhani@example.com' '' \
+  'Juhani Ränkimies' 'juhani@example.com'
+
+if command -v pwsh >/dev/null 2>&1; then
+  printf '\ngit identity — PowerShell launcher\n'
+  identity_case_ps 'host config present' \
+    'Juhani Ränkimies' 'juhani@example.com' 'Agent for ' \
+    'Agent for Juhani Ränkimies' 'juhani@example.com'
+  identity_case_ps 'host config absent' \
+    '' '' 'Agent for ' 'Agent' 'agent@t3-code-kit'
+  identity_case_ps 'prefix overridden to empty' \
+    'Juhani Ränkimies' 'juhani@example.com' '' \
+    'Juhani Ränkimies' 'juhani@example.com'
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

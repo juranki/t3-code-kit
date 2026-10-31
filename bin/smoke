@@ -245,6 +245,26 @@ else
   no "git ls-remote $REPO — check policy/allow.txt and: sbx secret set github"
 fi
 
+# The identity the launcher asserts. Only its *shape* is checkable here: smoke
+# sees the sandbox, never the host that created it, so "matches the host" is
+# out of reach and "is not the auto-generated placeholder" is the real
+# regression this catches. bin/test asserts the exact value.
+identity_name=$(in_sbx git config --global user.name 2>/dev/null | tr -d '\r')
+identity_email=$(in_sbx git config --global user.email 2>/dev/null | tr -d '\r')
+
+case "$identity_name" in
+  'Agent for '?*) ok "git identity name is '$identity_name'" ;;
+  Agent)          ok "git identity name is 'Agent' (host had no git config)" ;;
+  '')             no "no git user.name in the sandbox — commits get an auto-generated author" ;;
+  *)              no "git user.name is '$identity_name' — expected an 'Agent for ...' prefix" ;;
+esac
+
+case "$identity_email" in
+  ''|agent@t3.t3.docker.internal)
+    no "git user.email is '${identity_email:-unset}' — the auto-generated placeholder" ;;
+  *) ok "git identity email is '$identity_email'" ;;
+esac
+
 head_ "agent round-trip"
 
 # Bounded on purpose. `grep -q` exits at the first match, so a chatty pi cannot
