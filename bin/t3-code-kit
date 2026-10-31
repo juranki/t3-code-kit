@@ -114,10 +114,25 @@ ensure_git_identity() {
 
   # A failure here is not fatal to `up`: the sandbox is already created and the
   # server is what the user asked for. Warn, the way require_secret does.
-  $SBX exec "$n" -- git config --global user.name "$name" \
-    || warn "could not set the git identity in '$n'; commits will carry an auto-generated author"
-  $SBX exec "$n" -- git config --global user.email "$host_email" \
-    || warn "could not set the git identity in '$n'; commits will carry an auto-generated author"
+  set_sandbox_git_config "$n" user.name  "$name"
+  set_sandbox_git_config "$n" user.email "$host_email"
+}
+
+# The value is passed base64-encoded and decoded inside the sandbox, not as a
+# plain argv word.
+#
+# This shell is byte-transparent, so a plain argv word would work here. The
+# PowerShell twin is not: on Windows it converts an outbound argument to a
+# native process through the process's ANSI/OEM code page, so `ä` does not
+# survive the trip and the sandbox stores the mojibake as real characters -
+# which no locale fix downstream can undo. Base64 is pure ASCII, so it survives
+# every encoding layer by construction, and using it in both keeps the twins
+# byte-identical in behaviour rather than merely similar.
+set_sandbox_git_config() {
+  _n=$1 _key=$2 _value=$3
+  _b64=$(printf '%s' "$_value" | base64 | tr -d '\n')
+  $SBX exec "$_n" -- sh -c "git config --global $_key \"\$(printf %s '$_b64' | base64 -d)\"" \
+    || warn "could not set the git identity in '$_n'; commits will carry an auto-generated author"
 }
 
 print_policy() {
