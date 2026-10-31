@@ -134,17 +134,9 @@ cmd_shell() {
 
 cmd_refresh() {
   n=$(sandbox_name "${1:-}")
-  say "refreshing pi's model catalog inside '$n'"
-  $SBX exec "$n" -- pi update --models \
-    || warn "pi update --models failed; check egress to pi.dev"
-  # t3 caches the upstream manifest with a fetchedAtMs; drop it so the next
-  # start fetches instead of reusing the bundled fallback.
-  $SBX exec "$n" -- rm -f /home/agent/.t3/userdata/model-manifest.json || true
-  say "restarting the server so t3 refetches its manifest"
+  say "restarting '$n'; serve.sh refreshes the model catalog on every start"
   $SBX stop "$n" || die "could not stop '$n'"
-  $SBX run -d --name "$n" || die "could not start '$n'"
-  wait_ready "$n" || true
-  cmd_url "$n"
+  cmd_up "$n"
 }
 
 cmd_down() {
@@ -185,7 +177,7 @@ usage: t3-code-kit <verb> [sandbox-name]
   url      print the pairing URL for a running sandbox
   logs     tail the server log inside the sandbox
   shell    open a bash shell inside the sandbox
-  refresh  refresh pi's model catalog and t3's model manifest, then restart
+  refresh  restart, which also refreshes the model catalog
   down     stop the sandbox (volumes and repos survive)
   rebuild  destroy and recreate, forcing a Kit image rebuild (volumes survive)
   nuke     destroy the sandbox and its volumes (loses all repos and t3 state)
