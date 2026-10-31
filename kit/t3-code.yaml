@@ -151,6 +151,11 @@ capabilities:
   # image, under one digest — and `bin/smoke` fails if the two disagree.
   - type: com.docker.sandbox/network-policy@2
     config:
+      # Install-time only. The skills install is pinned to a commit, so the
+      # CLI clones at that sha instead of asking api.github.com for a tree —
+      # which is why api.github.com is in runtime.allow but not here. Unpin
+      # SKILLS_REF and the build starts making a denied request it then falls
+      # back from; it still works, but the log entry is the signal.
       install:
         allow:
           - t3.codes
