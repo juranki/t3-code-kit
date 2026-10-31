@@ -235,6 +235,47 @@ by hand inside a sandbox is wiped by the next rebuild, and a name in
 silently shrinking the set. Why baked in and not a volume: [ADR
 0001](docs/adr/0001-skills-baked-into-image.md).
 
+## Toolchains
+
+The image bakes a default dev toolchain with [`mise`](https://mise.jdx.dev):
+node, go, and python, at the versions in the `nodeVersion`, `goVersion`, and
+`pythonVersion` kit args. mise comes from the base image's apt source, not a
+`curl | sh` installer. Its shims are first on the image's `PATH`, so a
+non-interactive shell — which is what the agent's bash tool runs — resolves
+`node`, `go`, and `python` through mise, with no shell rc file and no
+`mise activate`.
+
+A repo records what it needs in `.mise.toml` at its root:
+
+```toml
+[tools]
+node = "22.23.4"
+python = "3.13.18"
+```
+
+mise reads that from the repo under `/home/agent/workspace`, and the project
+config wins over the image's global default. What is *installed* is still the
+baked set: the build cannot see the repo, so a `.mise.toml` alone changes which
+version mise selects, not which versions exist. To get a different one, set the
+matching kit arg (and pin it in `.mise.toml`) and rebuild:
+
+```sh
+t3-code-kit rebuild myproject
+```
+
+To bump the baked default, change the `nodeVersion` / `goVersion` /
+`pythonVersion` defaults in [`kit/t3-code.yaml`](kit/t3-code.yaml) (and the
+matching `ARG` in the Dockerfile) the same way `t3Version` and `piVersion` are
+bumped, then rebuild.
+
+Java is not mise's: the image appends the base image's OpenJDK 21 to `PATH`,
+and `mise-java` is deliberately not allowed.
+
+⚠️ **A 403 during a toolchain install is an allowlist line, not a broken
+network.** The build-time hosts are in the descriptor's `install.allow` (and
+[`policy/allow.txt`](policy/allow.txt)); `runtime.allow` deliberately does not
+carry them, so an on-demand `mise install` inside a running sandbox is refused.
+
 ## Verify
 
 ```sh
