@@ -123,8 +123,11 @@ function Test-SandboxExists {
 }
 
 function Test-Secret {
+    # `sbx secret ls` prints SCOPE TYPE NAME SECRET, so the name is the third
+    # column - not the start of the line. Matching '^github' never fired on a
+    # correctly configured host and warned on every run.
     $r = Invoke-Sbx @('secret', 'ls') -StdoutOnly
-    if ($r.Output -notmatch '(?m)^\s*github\b') {
+    if ($r.Output -notmatch '(?m)^\s*\S+\s+\S+\s+github(\s|$)') {
         Warn "no 'github' secret on this host: clone/push will fail."
         Warn 'set one with:  sbx secret set github'
     }

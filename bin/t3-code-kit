@@ -37,7 +37,11 @@ exists() {
 }
 
 require_secret() {
-  if ! $SBX secret ls 2>/dev/null | grep -q '^github'; then
+  # `sbx secret ls` prints SCOPE TYPE NAME SECRET, so the name is the third
+  # column - not the start of the line. Matching '^github' never fired on a
+  # correctly configured host and warned on every run.
+  if ! $SBX secret ls 2>/dev/null \
+       | grep -qE '^[[:space:]]*[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+github([[:space:]]|$)'; then
     warn "no 'github' secret on this host: clone/push will fail."
     warn "set one with:  sbx secret set github"
   fi
