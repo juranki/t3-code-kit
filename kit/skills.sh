@@ -2,7 +2,7 @@
 # The one parser for kit/skills.txt: one skill name per line, blank lines and
 # `#` comments ignored. The Dockerfile bakes the names in and asserts the
 # count; bin/smoke reads the count on the host. bin/smoke.ps1 carries a
-# PowerShell port of the same rule, because a stock Windows host has no sh.
+# PowerShell port of the same rule, because a Windows host has no sh.
 #
 #   skills.sh names <skills.txt>   # the names, space-separated, for `--skill`
 #   skills.sh count <skills.txt>   # how many names
