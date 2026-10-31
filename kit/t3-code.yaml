@@ -179,6 +179,12 @@ capabilities:
           # server, and an unattended agent should not be phoning home.
           - ingest.t3.codes
           - relay.t3.codes
+          # The `skills` CLI's telemetry (`/tele/t` and `/tele/audit`), hit by
+          # `npx skills add ...`. Installing skills itself goes through
+          # registry.npmjs.org and github.com, which stay allowed; only the
+          # phone-home is refused. The CLI treats a failed ping as non-fatal,
+          # and DISABLE_TELEMETRY=1 / DO_NOT_TRACK=1 skip it entirely.
+          - www.skills.sh
 
   - type: com.docker.sandbox/agent-context@1
     optional: true
