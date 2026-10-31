@@ -183,7 +183,7 @@ it.
 t3-code-kit url myproject    # mint a fresh pairing URL
 t3-code-kit logs myproject   # tail the server log inside the sandbox
 t3-code-kit shell myproject  # bash inside the sandbox
-t3-code-kit refresh myproject # refresh pi's catalog + t3's manifest, restart
+t3-code-kit refresh myproject # restart, which also refreshes the catalog
  t3-code-kit down myproject   # stop; repos and threads survive
 t3-code-kit rebuild myproject # recreate, forcing a Kit image rebuild
 t3-code-kit nuke myproject   # destroy the sandbox and its volumes
@@ -267,17 +267,20 @@ stop the sandbox afterwards.
 
 ## Troubleshooting
 
-**The model list is stale, or missing models that exist.** Run
-`t3-code-kit refresh <name>`: it refreshes pi's catalog (`pi update --models`),
-deletes t3's cached `model-manifest.json`, and restarts the server. If the
-provider record in the UI still shows the old list, refresh it there — t3
-exposes that as `server.refreshProviders` in provider settings. A model list
-that is stale *after* a refresh is a t3 caching issue, not the sandbox.
+**The model list is stale, or missing models that exist.** Every start of the
+sandbox attempts to refresh the catalog: `kit/serve.sh` runs
+`pi update --models` best-effort and clears t3's cached `model-manifest.json`
+before `t3 serve`.
+Restart to force it: `t3-code-kit refresh <name>` (or `down` then `up`). The
+refresh is best-effort — a blocked or slow `pi.dev` is logged in
+`/home/agent/.t3/serve.log` and the sandbox falls back to the catalog baked
+into the image, which ages. If the provider record in the UI still shows the
+old list, refresh it there — t3 exposes that as `server.refreshProviders` in
+provider settings. A model list that is stale *after* a restart is a t3
+caching issue, not the sandbox.
 
-t3 fetches its model
-manifest from `raw.githubusercontent.com` and pi checks its catalog on
-`pi.dev`; both are in the allowlist for that reason. A blocked fetch is silent
-— t3 falls back to the manifest bundled in the image, which ages. Check with
+t3 fetches its model manifest from `raw.githubusercontent.com` and pi checks
+its catalog on `pi.dev`; both are in the allowlist for that reason. Check with
 `sbx exec <name> -- curl -sI https://raw.githubusercontent.com/ | head -1`.
 
 **The terminal in the UI has no history, no completion, and no colors.** t3
