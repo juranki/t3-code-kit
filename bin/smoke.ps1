@@ -9,6 +9,8 @@
     Leaves the sandbox running unless SMOKE_DOWN=1.
     WARNING: the agent round-trip spends real model tokens.
     Set SMOKE_SKIP_AGENT=1 to skip it.
+    The round-trip is killed after SMOKE_AGENT_TIMEOUT seconds (120), so a
+    wedged pi fails the check instead of blocking the run.
 
 .EXAMPLE
     .\smoke.ps1
@@ -386,8 +388,23 @@ if ($env:SMOKE_SKIP_AGENT -eq '1') {
     Meh 'pi prompt skipped (SMOKE_SKIP_AGENT=1)'
 }
 else {
-    $r = Invoke-InSandbox @('pi', '-p', 'Reply with exactly: OK', '--no-tools', '--no-session')
-    if ($r.Output -match 'OK') {
+    # Bounded on purpose, and bounded *inside* the sandbox.
+    #
+    # Invoke-InSandbox collects output with `... | ForEach-Object { ... }`, which
+    # waits for the stream to close. A pi that never exits therefore never closes
+    # the exec session's stdout, and the whole suite waits forever - the failure
+    # this check used to have. Killing pi inside the sandbox is what closes the
+    # pipe; a host-side timeout would abandon the session and leave pi running,
+    # reparented to PID 1.
+    #
+    # `timeout` is the same tool serve.sh uses as its backstop for pi, and 124 is
+    # its timeout status, so a hang reads as a hang rather than as a bad answer.
+    $agentTimeout = if ($env:SMOKE_AGENT_TIMEOUT) { [int] $env:SMOKE_AGENT_TIMEOUT } else { 120 }
+    $r = Invoke-InSandbox @('sh', '-c', "timeout $agentTimeout pi -p 'Reply with exactly: OK' --no-tools --no-session")
+    if ($r.ExitCode -eq 124) {
+        No "pi did not answer within ${agentTimeout}s and was killed - check the provider key, its binding, and its egress entry"
+    }
+    elseif ($r.Output -match 'OK') {
         Ok 'pi answered through its provider'
     }
     else {
