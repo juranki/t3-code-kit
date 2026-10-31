@@ -402,7 +402,10 @@ else {
     $agentTimeout = if ($env:SMOKE_AGENT_TIMEOUT) { [int] $env:SMOKE_AGENT_TIMEOUT } else { 120 }
     $r = Invoke-InSandbox @('sh', '-c', "timeout $agentTimeout pi -p 'Reply with exactly: OK' --no-tools --no-session")
     if ($r.ExitCode -eq 124) {
-        No "pi did not answer within ${agentTimeout}s and was killed - check the provider key, its binding, and its egress entry"
+        # Not "check the credential": pi answering in ~1s interactively while
+        # hanging here points at the non-TTY exec session, not at the key. Both
+        # are named because the fix differs and guessing wrong costs a run.
+        No "pi did not answer within ${agentTimeout}s and was killed - it hangs under a non-TTY 'sbx exec' even when the provider key, its binding and egress are all fine; re-run with -it to tell the two apart"
     }
     elseif ($r.Output -match 'OK') {
         Ok 'pi answered through its provider'

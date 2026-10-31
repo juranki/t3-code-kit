@@ -254,7 +254,10 @@ else
   agent_out=$(in_sbx sh -c "timeout $agent_timeout pi -p 'Reply with exactly: OK' --no-tools --no-session")
   agent_code=$?
   if [ "$agent_code" = 124 ]; then
-    no "pi did not answer within ${agent_timeout}s and was killed — check the provider key, its binding, and its egress entry"
+    # Not "check the credential": pi answering in ~1s interactively while
+    # hanging here points at the non-TTY exec session, not at the key. Both are
+    # named because the fix differs and guessing wrong costs a run.
+    no "pi did not answer within ${agent_timeout}s and was killed — it hangs under a non-TTY 'sbx exec' even when the provider key, its binding and egress are all fine; re-run with -it to tell the two apart"
   elif printf '%s' "$agent_out" | grep -q OK; then
     ok "pi answered through its provider"
   else
