@@ -51,7 +51,11 @@ function Invoke-InSandbox {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $out = & $Sbx exec $Name -- @Command 2>&1 | Out-String
+        # stderr arrives as ErrorRecord objects even when merged; take their
+        # message, or a warning from inside the sandbox reads like a crash.
+        $out = (& $Sbx exec $Name -- @Command 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ }
+        }) -join "`n"
         $code = $LASTEXITCODE
     }
     finally {

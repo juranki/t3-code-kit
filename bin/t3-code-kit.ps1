@@ -78,7 +78,12 @@ function Invoke-Sbx {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $output = (& $Sbx @SbxArgs 2>&1 | Out-String)
+        # stderr arrives as ErrorRecord objects even when merged; take their
+        # message, or the output reads like a crash ("sbx.exe : ...
+        # NativeCommandError") instead of the build log it actually is.
+        $output = (& $Sbx @SbxArgs 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ }
+        }) -join "`n"
         $code = $LASTEXITCODE
     }
     finally {
