@@ -162,7 +162,8 @@ capabilities:
             header: Authorization
             format: "Bearer %s"
 
-  # Mirrors policy/allow.txt. The descriptor is normative — it travels with the
+  # Mirrors policy/allow.txt (runtime) and policy/install.txt (install-time).
+  # The descriptor is normative — it travels with the
   # image, under one digest — and `bin/smoke` fails if the two disagree.
   - type: com.docker.sandbox/network-policy@2
     config:

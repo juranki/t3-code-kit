@@ -31,20 +31,38 @@ in_sbx() { $SBX exec "$NAME" -- "$@" 2>&1; }
 # ---------------------------------------------------------------- static
 head_ "static checks"
 
-for f in kit/t3-code.yaml kit/t3-code.dockerfile kit/serve.sh kit/skills.txt kit/skills.sh policy/allow.txt; do
+for f in kit/t3-code.yaml kit/t3-code.dockerfile kit/serve.sh kit/skills.txt kit/skills.sh policy/allow.txt policy/install.txt; do
   [ -f "$ROOT/$f" ] && ok "$f exists" || no "$f missing"
 done
 
-# policy/allow.txt must not promise anything the descriptor denies: the
-# descriptor is normative, this file is the readable mirror.
+# The policy mirrors must not promise anything the descriptor denies: the
+# descriptor is normative, these files are the readable copies. allow.txt is
+# runtime egress, install.txt is build-time egress; both are checked.
 if [ -f "$ROOT/policy/allow.txt" ] && [ -f "$ROOT/kit/t3-code.yaml" ]; then
   missing=""
+  for mirror in "$ROOT/policy/allow.txt" "$ROOT/policy/install.txt"; do
+    [ -f "$mirror" ] || continue
+    while IFS= read -r host; do
+      case "$host" in ''|\#*) continue ;; esac
+      grep -q -- "$host" "$ROOT/kit/t3-code.yaml" || missing="$missing $host"
+    done <"$mirror"
+  done
+  [ -z "$missing" ] && ok "policy mirrors match the descriptor" \
+    || no "in a policy mirror but not in kit/t3-code.yaml:$missing"
+fi
+
+# `t3-code-kit policy` prints policy/allow.txt as "egress allowed at runtime",
+# so a build-time host in that file is a permission an agent acts on and then
+# gets a 403 for. The two lists must not be merged.
+if [ -f "$ROOT/policy/allow.txt" ]; then
+  install_hosts=" nodejs.org dl.google.com pypi.org files.pythonhosted.org "
+  leaked=""
   while IFS= read -r host; do
     case "$host" in ''|\#*) continue ;; esac
-    grep -q -- "$host" "$ROOT/kit/t3-code.yaml" || missing="$missing $host"
+    case "$install_hosts" in *" $host "*) leaked="$leaked $host" ;; esac
   done <"$ROOT/policy/allow.txt"
-  [ -z "$missing" ] && ok "policy/allow.txt matches the descriptor" \
-    || no "in policy/allow.txt but not in kit/t3-code.yaml:$missing"
+  [ -z "$leaked" ] && ok "policy/allow.txt lists runtime egress only" \
+    || no "install-time hosts in policy/allow.txt (they belong in policy/install.txt):$leaked"
 fi
 
 # ---------------------------------------------------------------- runtime
