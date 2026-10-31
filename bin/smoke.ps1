@@ -173,6 +173,22 @@ else {
     No '/home/agent/workspace is not a volume'
 }
 
+# The UI's terminal is whatever t3 spawns from the server's $SHELL, and the
+# platform starts the workload with SHELL=/bin/sh - dash, which has no
+# readline: no history, no completion, no prompt colors. serve.sh exports bash.
+# Read the running server's environment, not serve.sh: the failure this catches
+# is a server that started before the export existed.
+$r = Invoke-InSandbox @('sh', '-c', 'tr "\0" "\n" < /proc/$(pgrep -f "^t3 serve" | head -1)/environ 2>/dev/null | sed -n "s/^SHELL=//p"')
+$serverShell = ''
+if ($r.Output -match '(?m)^(/bin/bash)\s*$') { $serverShell = $Matches[1] }
+if ($serverShell -eq '/bin/bash') {
+    Ok 't3 serve runs with SHELL=/bin/bash (the terminal has history and completion)'
+}
+else {
+    $found = if ($serverShell) { $serverShell } else { 'unknown' }
+    No "t3 serve has SHELL=$found - the UI terminal falls back to dash"
+}
+
 # Skills are baked into the image, and the Dockerfile already asserts the
 # count against kit/skills.txt. This is the other failure: an image built
 # before skills were baked in, or a RUN that never executed.

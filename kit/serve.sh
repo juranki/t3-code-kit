@@ -12,6 +12,14 @@ log="${T3CODE_HOME:-$HOME/.t3}/serve.log"
 mkdir -p "$(dirname "$log")"
 printf -- '--- %s t3 serve starting\n' "$(date -Is)" >>"$log"
 
+# t3 spawns the UI's terminal from the server's $SHELL, and only falls back to
+# bash when that spawn *fails* — which it never does here, because the platform
+# starts the workload with SHELL=/bin/sh and /bin/sh is dash. A dash terminal is
+# the bare one: no readline, so no history and no tab completion, and a prompt
+# that never reads ~/.bashrc. Export bash so the terminal panel gets the shell
+# the image was built for.
+export SHELL=/bin/bash
+
 # Not `exec`: the pipe to tee must survive, and tee must keep the log
 # appendable across restarts. Signal handling is the sandbox's problem.
 t3 serve \
