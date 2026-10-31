@@ -29,3 +29,9 @@ pi.dev
 
 # --- package installs inside the sandbox
 registry.npmjs.org
+
+# --- deliberately denied (mirrors network-policy@2 runtime.deny in
+# kit/t3-code.yaml). Listed here so the readable mirror records the decision,
+# not just the omission. These are not egress; do not move them above.
+#   ingest.t3.codes, relay.t3.codes  t3 telemetry and T3 Connect relay
+#   www.skills.sh                    `skills` CLI telemetry (npx skills add)
