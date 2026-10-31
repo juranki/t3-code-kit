@@ -37,16 +37,21 @@ if [ "$1" = secret ] && [ "$2" = ls ]; then
   printf '%s' "${STUB_SECRET_OUTPUT-}"
   exit "${STUB_SECRET_STATUS-0}"
 fi
-# `up` asserts the git identity with `exec <name> -- git config ...`. Record
-# the argv it used, so the test can assert what crossed the boundary rather
-# than what the launcher meant to send.
-# `exec <name> -- <cmd...>`: log the command, not the sandbox name, so the
-# assertions read the argv that crossed the boundary. `shift 2` drops `exec`
-# and the name, leaving `--` at $1.
+# `up` asserts the git identity with `exec <name> -- <cmd...>`. The command is
+# RUN, not just logged, so the assertion sees the value the sandbox would
+# actually end up with - base64 decoding included. Logging the raw argv would
+# assert the encoding, not the result, and an encoding bug would pass.
+#
+# `shift 2` drops `exec` and the sandbox name, leaving `--` at $1.
 if [ "$1" = exec ]; then
   shift 2
   [ "$1" = -- ] && shift
-  printf '%s\n' "$*" >>"${STUB_EXEC_LOG:-/dev/null}"
+  # Run it with git replaced by a recorder that logs the argv it was handed,
+  # so `git config --global user.name '<value>'` lands in the log decoded.
+  # "$@", not "$*": the argv boundary is the thing under test. Joining with
+  # spaces would re-split the base64 command and prove nothing.
+  _log=${STUB_EXEC_LOG:-/dev/null}
+  STUB_GIT_LOG=$_log "$@" 2>/dev/null
   # $STUB_EXEC_STATUS lets a case exercise the "could not set the identity"
   # warning, which is otherwise unreachable: the happy path always exits 0.
   exit "${STUB_EXEC_STATUS:-0}"
@@ -71,6 +76,12 @@ WARNING_TEXT="no 'github' secret on this host: clone/push will fail."
 # is the exit-1 shape real git uses) and records the sandbox-side config writes.
 cat > "$STUB_DIR/git" <<'STUB'
 #!/bin/sh
+# Sandbox side: `git config --global user.name <value>` - record what it was
+# handed, so the test asserts the decoded value, not the encoding.
+if [ "$1" = config ] && [ "$2" = --global ]; then
+  printf '%s %s\n' "$3" "$4" >>"${STUB_GIT_LOG:-/dev/null}"
+  exit 0
+fi
 # Host side: `git config --get user.name` / `user.email`.
 if [ "$1" = config ] && [ "$2" = --get ]; then
   case "$3" in
@@ -189,7 +200,10 @@ fi
 # the space in "Juhani Ränkimies" and the non-ASCII ä are the whole hazard, and
 # a value re-split by a shell would show up here as extra argv words.
 
-exec_argv() { sed -n 's/^git config --global //p' "$1" 2>/dev/null; }
+# The stub git records `user.name <decoded value>` per write, so the log is
+# already in the shape the assertions want. Filtering to config writes keeps a
+# stray `t3 pair` or `tail` exec from being read as an identity.
+exec_argv() { grep -E '^user\.(name|email) ' "$1" 2>/dev/null; }
 
 identity_case_bash() {
   _name=$1 _host_name=$2 _host_email=$3 _prefix=$4 _want_name=$5 _want_email=$6
