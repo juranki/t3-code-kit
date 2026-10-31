@@ -2,9 +2,10 @@
 # comment. Everything not listed here is denied.
 #
 # This file is the readable mirror. The normative copy lives in
-# kit/t3-code.yaml (network-policy@2, runtime.allow) because a Kit carries its
-# authority in the image, under one digest — policy that lives outside the
-# artifact can drift from it. `bin/smoke` fails if the two disagree.
+# kit/t3-code.yaml (network-policy@2, install.allow and runtime.allow) because
+# a Kit carries its authority in the image, under one digest — policy that
+# lives outside the artifact can drift from it. `bin/smoke` fails if the two
+# disagree.
 #
 # ⚠️ A missing host does not look like a network error. The proxy answers
 # HTTP 403 with "Approval required for <host:port>", so an agent that "cannot
@@ -29,6 +30,15 @@ pi.dev
 
 # --- package installs inside the sandbox
 registry.npmjs.org
+
+# --- toolchain install at image build time (mirrors network-policy@2
+# install.allow): node, go and python. Build-time only, not runtime egress.
+# A 403 on a `mise install` means one of these is missing, not a broken
+# network.
+nodejs.org
+dl.google.com
+pypi.org
+files.pythonhosted.org
 
 # --- deliberately denied (mirrors network-policy@2 runtime.deny in
 # kit/t3-code.yaml). Listed here so the readable mirror records the decision,
