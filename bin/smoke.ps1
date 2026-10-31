@@ -403,6 +403,34 @@ else {
     No "git ls-remote $Repo - check policy/allow.txt and: sbx secret set github"
 }
 
+# The identity the launcher asserts. Only its *shape* is checkable here: smoke
+# sees the sandbox, never the host that created it, so "matches the host" is
+# out of reach and "is not the auto-generated placeholder" is the real
+# regression this catches. bin/test asserts the exact value.
+$identityName  = (Invoke-InSandbox @('git', 'config', '--global', 'user.name')).Output.Trim()
+$identityEmail = (Invoke-InSandbox @('git', 'config', '--global', 'user.email')).Output.Trim()
+
+if ($identityName -like 'Agent for *') {
+    Ok "git identity name is '$identityName'"
+}
+elseif ($identityName -eq 'Agent') {
+    Ok "git identity name is 'Agent' (host had no git config)"
+}
+elseif (-not $identityName) {
+    No 'no git user.name in the sandbox - commits get an auto-generated author'
+}
+else {
+    No "git user.name is '$identityName' - expected an 'Agent for ...' prefix"
+}
+
+if (-not $identityEmail -or $identityEmail -eq 'agent@t3.t3.docker.internal') {
+    $shown = if ($identityEmail) { $identityEmail } else { 'unset' }
+    No "git user.email is '$shown' - the auto-generated placeholder"
+}
+else {
+    Ok "git identity email is '$identityEmail'"
+}
+
 Head 'agent round-trip'
 
 if ($env:SMOKE_AGENT -ne '1') {
