@@ -1,0 +1,19 @@
+# Egress the image build may reach. One host per line; `#` starts a comment.
+# Everything not listed here is denied at build time.
+#
+# This file is the readable mirror of network-policy@2 install.allow — the
+# hosts `mise install` needs while the image is being built. It is deliberately
+# separate from policy/allow.txt, which mirrors *runtime* egress: the two lists
+# answer different questions, and `t3-code-kit policy` prints only the runtime
+# one.
+#
+# ⚠️ These hosts are not reachable from a running sandbox. An on-demand
+# `mise install` inside one is a 403 by design — the toolchain is baked at
+# build time, and bumping it is a `rebuild`.
+
+# --- the baked toolchain: node from nodejs.org, go from dl.google.com,
+# python from pypi.org / files.pythonhosted.org
+nodejs.org
+dl.google.com
+pypi.org
+files.pythonhosted.org
