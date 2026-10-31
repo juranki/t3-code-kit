@@ -44,8 +44,20 @@ function Head { param([string] $m) Write-Output ''; Write-Output "== $m" }
 
 function Invoke-InSandbox {
     param([string[]] $Command)
-    $out = & $Sbx exec $Name -- @Command 2>&1 | Out-String
-    return [pscustomobject]@{ Output = $out; Ok = ($LASTEXITCODE -eq 0) }
+    # Same Windows PowerShell 5.1 trap as the launcher: a native command
+    # writing to stderr under $ErrorActionPreference='Stop' raises
+    # NativeCommandError, and 2>&1 does not prevent it. Relax the preference
+    # for the duration and judge the exit code instead.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & $Sbx exec $Name -- @Command 2>&1 | Out-String
+        $code = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+    return [pscustomobject]@{ Output = $out; Ok = ($code -eq 0) }
 }
 
 function Test-Url {

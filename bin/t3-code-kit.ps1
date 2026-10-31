@@ -65,6 +65,28 @@ function Assert-Sbx {
     }
 }
 
+# Windows PowerShell 5.1 raises NativeCommandError whenever a native command
+# writes to stderr while $ErrorActionPreference is 'Stop' — and 2>&1 does not
+# prevent it, it only moves the line into the output stream on the way to the
+# error. `sbx` writes progress, build logs, and even its success banners
+# ("sandbox X — running detached") to stderr, so every call goes through here:
+# the preference is relaxed for the duration, stderr is merged into the output,
+# and the exit code comes back for the caller to judge.
+function Invoke-Sbx {
+    param([string[]] $SbxArgs)
+    $code = 1
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = (& $Sbx @SbxArgs 2>&1 | Out-String)
+        $code = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+    [pscustomobject]@{ Output = $output; Code = $code }
+}
+
 function Get-SandboxName {
     param([string] $Candidate)
     $n = if ($Candidate) { $Candidate } elseif ($env:T3CK_NAME) { $env:T3CK_NAME } else { '' }
@@ -74,13 +96,13 @@ function Get-SandboxName {
 
 function Test-SandboxExists {
     param([string] $Sandbox)
-    $out = & $Sbx ls 2>&1 | Out-String
-    return [bool] ($out -match "(?m)^\s*$([regex]::Escape($Sandbox))\b")
+    $r = Invoke-Sbx @('ls')
+    return [bool] ($r.Output -match "(?m)^\s*$([regex]::Escape($Sandbox))\b")
 }
 
 function Test-Secret {
-    $out = & $Sbx secret ls 2>&1 | Out-String
-    if ($out -notmatch '(?m)^\s*github\b') {
+    $r = Invoke-Sbx @('secret', 'ls')
+    if ($r.Output -notmatch '(?m)^\s*github\b') {
         Warn "no 'github' secret on this host: clone/push will fail."
         Warn 'set one with:  sbx secret set github'
     }
@@ -137,10 +159,10 @@ function Wait-Ready {
 
 function Confirm-Port {
     param([string] $Sandbox)
-    $listing = & $Sbx ports $Sandbox 2>&1 | Out-String
-    if ($listing -match ":${HostPort}\b") { return }
-    & $Sbx ports $Sandbox --publish "127.0.0.1:${HostPort}:$ContainerPort"
-    if ($LASTEXITCODE -ne 0) {
+    $r = Invoke-Sbx @('ports', $Sandbox)
+    if ($r.Output -match ":${HostPort}\b") { return }
+    $r = Invoke-Sbx @('ports', $Sandbox, '--publish', "127.0.0.1:${HostPort}:$ContainerPort")
+    if ($r.Code -ne 0) {
         Warn "could not publish ${HostPort}:$ContainerPort (see: sbx ports $Sandbox)"
     }
 }
@@ -154,12 +176,9 @@ function Invoke-Up {
         # A restart keeps the image the sandbox was created from. Changing
         # anything under kit/ needs `rebuild`, not `up`.
         Write-Output "note: this reuses the sandbox's existing image; run 't3-code-kit.ps1 rebuild $Sandbox' after editing kit/."
-        # 2>&1: a native command writing to stderr under
-        # $ErrorActionPreference='Stop' raises NativeCommandError and kills the
-        # script mid-verb, with the real message buried in the error record.
-        # Merge it and check the exit code instead.
-        & $Sbx run -d --name $Sandbox 2>&1 | Out-String | Write-Output
-        if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
+        $r = Invoke-Sbx @('run', '-d', '--name', $Sandbox)
+        Write-Output $r.Output
+        if ($r.Code -ne 0) { Fail "could not start sandbox '$Sandbox'" }
         # --publish is ignored on re-attach, so the mapping must be re-asked.
         Confirm-Port $Sandbox
     }
@@ -168,13 +187,14 @@ function Invoke-Up {
         # path argument it mounts the *current directory*. `sbx create` with no
         # path is the mountless form - the agent works in the container's own
         # filesystem, which is the whole point here.
-        # `sbx create` builds the Kit, and it writes build progress to stderr:
-        # bare, that aborted the script before the exit code was ever checked.
-        # The output is the build log - print it, then decide.
-        & $Sbx create --name $Sandbox -p "127.0.0.1:${HostPort}:$ContainerPort" $KitDir 2>&1 | Out-String | Write-Output
-        if ($LASTEXITCODE -ne 0) { Fail "could not create sandbox '$Sandbox'" }
-        & $Sbx run -d --name $Sandbox 2>&1 | Out-String | Write-Output
-        if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
+        # `sbx create` builds the Kit and writes the build log to stderr: the
+        # output is the interesting part, so print it, then judge the exit code.
+        $r = Invoke-Sbx @('create', '--name', $Sandbox, '-p', "127.0.0.1:${HostPort}:$ContainerPort", $KitDir)
+        Write-Output $r.Output
+        if ($r.Code -ne 0) { Fail "could not create sandbox '$Sandbox'" }
+        $r = Invoke-Sbx @('run', '-d', '--name', $Sandbox)
+        Write-Output $r.Output
+        if ($r.Code -ne 0) { Fail "could not start sandbox '$Sandbox'" }
         # create published via -p already; asking again is a 409 Conflict.
     }
     Show-Policy
@@ -187,13 +207,13 @@ function Invoke-Url {
     Assert-Sbx
     $pattern = 'http://[^\s"'']*#token=[A-Za-z0-9]+'
 
-    $raw = & $Sbx exec $Sandbox -- t3 pair 2>&1 | Out-String
+    $raw = (Invoke-Sbx @('exec', $Sandbox, '--', 't3', 'pair')).Output
     $m = [regex]::Match($raw, $pattern)
 
     if (-not $m.Success) {
         # t3 prints the pairing URL once at startup; read it back from the log
         # serve.sh keeps rather than minting a second token.
-        $log = & $Sbx exec $Sandbox -- tail -n 500 /home/agent/.t3/serve.log 2>&1 | Out-String
+        $log = (Invoke-Sbx @('exec', $Sandbox, '--', 'tail', '-n', '500', '/home/agent/.t3/serve.log')).Output
         $m = [regex]::Match($log, 'Pairing URL: (' + $pattern + ')')
         if ($m.Success) { $m = [regex]::Match($m.Groups[1].Value, $pattern) }
     }
@@ -210,12 +230,12 @@ function Invoke-Logs {
     param([string] $Sandbox, [string] $Lines)
     Assert-Sbx
     if (-not $Lines) { $Lines = '200' }
-    $out = & $Sbx exec $Sandbox -- tail -n $Lines /home/agent/.t3/serve.log 2>&1 | Out-String
-    if ($LASTEXITCODE -eq 0) { Write-Output $out; return }
+    $r = Invoke-Sbx @('exec', $Sandbox, '--', 'tail', '-n', $Lines, '/home/agent/.t3/serve.log')
+    if ($r.Code -eq 0) { Write-Output $r.Output; return }
     Warn "no /home/agent/.t3/serve.log in '$Sandbox' - serve.sh never started."
     Warn "falling back to the runtime's startup-hook log:"
-    $hook = & $Sbx exec $Sandbox -- tail -n $Lines /var/log/sbx-kit-startup.log 2>&1 | Out-String
-    if ($LASTEXITCODE -eq 0) { Write-Output $hook }
+    $r = Invoke-Sbx @('exec', $Sandbox, '--', 'tail', '-n', $Lines, '/var/log/sbx-kit-startup.log')
+    if ($r.Code -eq 0) { Write-Output $r.Output }
     else { Warn "no startup-hook log either: the lifecycle@1 hook did not run." }
 }
 
@@ -223,25 +243,36 @@ function Invoke-Shell {
     param([string] $Sandbox)
     Assert-Sbx
     # Not piped: an interactive shell needs the real console, and piping it
-    # through Out-String would break the TTY. Stderr stays attached here.
-    & $Sbx exec -it $Sandbox -- bash
-    if ($LASTEXITCODE -ne 0) { & $Sbx attach $Sandbox }
+    # through Out-String would break the TTY. Only the preference is relaxed,
+    # so a command writing to stderr inside the shell does not kill the verb.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $Sbx exec -it $Sandbox -- bash
+        if ($LASTEXITCODE -ne 0) { & $Sbx attach $Sandbox }
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
 }
 
 function Invoke-Refresh {
     param([string] $Sandbox)
     Assert-Sbx
     Write-Output "refreshing pi's model catalog inside '$Sandbox'"
-    & $Sbx exec $Sandbox -- pi update --models 2>&1 | Out-String | Write-Output
-    if ($LASTEXITCODE -ne 0) { Warn 'pi update --models failed; check egress to pi.dev' }
+    $r = Invoke-Sbx @('exec', $Sandbox, '--', 'pi', 'update', '--models')
+    Write-Output $r.Output
+    if ($r.Code -ne 0) { Warn 'pi update --models failed; check egress to pi.dev' }
     # t3 caches the upstream manifest with a fetchedAtMs; drop it so the next
     # start fetches instead of reusing the bundled fallback.
-    & $Sbx exec $Sandbox -- rm -f /home/agent/.t3/userdata/model-manifest.json 2>&1 | Out-Null
+    $null = Invoke-Sbx @('exec', $Sandbox, '--', 'rm', '-f', '/home/agent/.t3/userdata/model-manifest.json')
     Write-Output 'restarting the server so t3 refetches its manifest'
-    & $Sbx stop $Sandbox 2>&1 | Out-String | Write-Output
-    if ($LASTEXITCODE -ne 0) { Fail "could not stop '$Sandbox'" }
-    & $Sbx run -d --name $Sandbox 2>&1 | Out-String | Write-Output
-    if ($LASTEXITCODE -ne 0) { Fail "could not start '$Sandbox'" }
+    $r = Invoke-Sbx @('stop', $Sandbox)
+    Write-Output $r.Output
+    if ($r.Code -ne 0) { Fail "could not stop '$Sandbox'" }
+    $r = Invoke-Sbx @('run', '-d', '--name', $Sandbox)
+    Write-Output $r.Output
+    if ($r.Code -ne 0) { Fail "could not start '$Sandbox'" }
     $null = Wait-Ready $Sandbox
     Invoke-Url $Sandbox
 }
@@ -249,14 +280,14 @@ function Invoke-Refresh {
 function Invoke-Down {
     param([string] $Sandbox)
     Assert-Sbx
-    & $Sbx stop $Sandbox 2>&1 | Out-String | Write-Output
+    Write-Output (Invoke-Sbx @('stop', $Sandbox)).Output
 }
 
 function Invoke-Rebuild {
     param([string] $Sandbox)
     Assert-Sbx
     Write-Output "removing '$Sandbox' to force a Kit rebuild; volumes survive."
-    & $Sbx rm --force $Sandbox 2>&1 | Out-Null
+    $null = Invoke-Sbx @('rm', '--force', $Sandbox)
     Invoke-Up $Sandbox
 }
 
@@ -264,9 +295,9 @@ function Invoke-Nuke {
     param([string] $Sandbox)
     Assert-Sbx
     Write-Output "destroying '$Sandbox' and its volumes. This loses every repo and all t3 state."
-    & $Sbx rm --force $Sandbox 2>&1 | Out-Null
+    $null = Invoke-Sbx @('rm', '--force', $Sandbox)
     # Volume names are the runtime's business, not ours: list and match.
-    $listing = & $Sbx volume ls 2>&1 | Out-String
+    $listing = (Invoke-Sbx @('volume', 'ls')).Output
     # Not $matches: that is an automatic variable, and clobbering it breaks
     # every -match that runs afterwards.
     $volLines = $listing -split "`r?`n" | Where-Object { $_ -match [regex]::Escape($Sandbox) }
@@ -277,8 +308,8 @@ function Invoke-Nuke {
         $id = ($line -split '\s+')[0]
         if (-not $id) { continue }
         Write-Output "  removing volume $id"
-        & $Sbx volume rm $id
-        if ($LASTEXITCODE -ne 0) { Warn "could not remove volume $id" }
+        $r = Invoke-Sbx @('volume', 'rm', $id)
+        if ($r.Code -ne 0) { Warn "could not remove volume $id" }
     }
     Write-Output 'done.'
 }
