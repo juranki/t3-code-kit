@@ -130,9 +130,11 @@ Otherwise `kit/serve.sh` stays CRLF and the server never starts.
 
 ### Nothing else is required
 
-No Docker Desktop, no Docker Engine, no bash on Windows. If you exported
-`SBX_KIT_BUILDER` yourself at some point, unset it: the launchers default to
-the builder sandbox, and `host` fails on a machine without a running Buildx.
+No Docker Desktop, no Docker Engine, no bash on Windows. The one prerequisite
+on Windows is PowerShell 7 (`winget install Microsoft.PowerShell`) — Windows
+PowerShell 5.1 is not supported. If you exported `SBX_KIT_BUILDER` yourself at
+some point, unset it: the launchers default to the builder sandbox, and `host`
+fails on a machine without a running Buildx.
 
 ## Install
 
@@ -143,10 +145,11 @@ git clone https://github.com/juranki/t3-code-kit
 ln -s "$PWD/t3-code-kit/bin/t3-code-kit" ~/.local/bin/t3-code-kit
 ```
 
-Windows (no bash needed — `bin/t3-code-kit.ps1` is a Windows PowerShell 5.1
-port, so a stock Windows 11 runs it as-is):
+Windows (no bash needed — `bin/t3-code-kit.ps1` is a PowerShell 7 port, so it
+needs PowerShell 7 installed but no WSL and no bash):
 
 ```powershell
+winget install Microsoft.PowerShell
 git clone https://github.com/juranki/t3-code-kit
 # then, from the repo:
 .\bin\t3-code-kit.ps1 up myproject
@@ -205,7 +208,7 @@ host port (3773).
 | [`policy/allow.txt`](policy/allow.txt) | Readable mirror of the runtime egress list |
 | [`policy/install.txt`](policy/install.txt) | Readable mirror of the build-time egress list |
 | [`bin/t3-code-kit`](bin/t3-code-kit) | The launcher: eight verbs over `sbx` (POSIX sh) |
-| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1) | The same launcher for a Windows host (PowerShell 5.1+) |
+| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1) | The same launcher for a Windows host (PowerShell 7+) |
 | [`bin/smoke`](bin/smoke) · [`bin/smoke.ps1`](bin/smoke.ps1) | The acceptance test — this is what "it works" means |
 | [`prototype/spike.md`](prototype/spike.md) | What was verified before any of this was written |
 
@@ -289,9 +292,14 @@ bin/smoke            # macOS / Linux
 ```
 
 Checks the static files, brings a sandbox up, waits for the server, mints a
-pairing URL, and proves the toolchain, the volume, GitHub egress, and one pi
-round-trip. Set `SMOKE_SKIP_AGENT=1` to skip the model call, `SMOKE_DOWN=1` to
-stop the sandbox afterwards.
+pairing URL, and proves the toolchain, the volume, and GitHub egress. Set
+`SMOKE_DOWN=1` to stop the sandbox afterwards.
+
+The pi round-trip is **off by default** — it spends real model tokens, and it
+currently fails for a reason outside this repo: pi hangs under a non-TTY
+`sbx exec` and only answers interactively. Run it with `SMOKE_AGENT=1`; it is
+killed after `SMOKE_AGENT_TIMEOUT` seconds (120) so a wedged pi fails the check
+rather than blocking the run.
 
 ## Limits
 
