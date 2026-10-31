@@ -27,6 +27,13 @@ objects.githubusercontent.com
 raw.githubusercontent.com
 pi.dev
 
+# --- t3's agent icons. t3 renders one icon per agent it can drive and fetches
+# it from the Agent Client Protocol (ACP) registry CDN. Cosmetic: denied, the
+# UI just shows no icon.
+# t3 validates the URL against this exact hostname, so a mirror or a vendored
+# copy is not a substitute.
+cdn.agentclientprotocol.com
+
 # --- package installs inside the sandbox
 registry.npmjs.org
 

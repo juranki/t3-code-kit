@@ -178,6 +178,9 @@ capabilities:
           - raw.githubusercontent.com
           # pi's own catalog and version checks.
           - pi.dev
+          # t3's Agent Client Protocol (ACP) icon CDN: one SVG per agent it can
+          # drive. Cosmetic only — denied, the agent list renders without icons.
+          - cdn.agentclientprotocol.com
           - registry.npmjs.org
         deny:
           # t3's telemetry and T3 Connect relay. Not needed to run a local
