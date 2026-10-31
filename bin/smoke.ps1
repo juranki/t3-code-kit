@@ -92,29 +92,51 @@ function Test-Url {
 # ---------------------------------------------------------------- static
 Head 'static checks'
 
-foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', 'kit/skills.txt', 'kit/skills.sh', 'policy/allow.txt')) {
+foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', 'kit/skills.txt', 'kit/skills.sh', 'policy/allow.txt', 'policy/install.txt')) {
     if (Test-Path (Join-Path $Root $f)) { Ok "$f exists" } else { No "$f missing" }
 }
 
-# policy/allow.txt must not promise anything the descriptor denies: the
-# descriptor is normative, this file is the readable mirror.
+# The policy mirrors must not promise anything the descriptor denies: the
+# descriptor is normative, these files are the readable copies. allow.txt is
+# runtime egress, install.txt is build-time egress; both are checked.
 # Nested on purpose: Join-Path takes two positional arguments in Windows
 # PowerShell 5.1; -AdditionalChildPath is PowerShell 6+.
-$policyPath = Join-Path (Join-Path $Root 'policy') 'allow.txt'
+$policyDir = Join-Path $Root 'policy'
+$policyPath = Join-Path $policyDir 'allow.txt'
 $descriptor = Join-Path (Join-Path $Root 'kit') 't3-code.yaml'
 if ((Test-Path $policyPath) -and (Test-Path $descriptor)) {
     $text = Get-Content $descriptor -Raw
     $missing = @()
+    foreach ($mirror in @($policyPath, (Join-Path $policyDir 'install.txt'))) {
+        if (-not (Test-Path $mirror)) { continue }
+        foreach ($line in Get-Content $mirror) {
+            $host_ = ($line -replace '#.*$', '').Trim()
+            if (-not $host_) { continue }
+            if ($text -notmatch [regex]::Escape($host_)) { $missing += $host_ }
+        }
+    }
+    if ($missing.Count -eq 0) {
+        Ok 'policy mirrors match the descriptor'
+    }
+    else {
+        No ("in a policy mirror but not in kit/t3-code.yaml: " + ($missing -join ', '))
+    }
+
+    # `t3-code-kit policy` prints policy/allow.txt as "egress allowed at
+    # runtime", so a build-time host in that file is a permission an agent acts
+    # on and then gets a 403 for. The two lists must not be merged.
+    $installHosts = @('nodejs.org', 'dl.google.com', 'pypi.org', 'files.pythonhosted.org')
+    $leaked = @()
     foreach ($line in Get-Content $policyPath) {
         $host_ = ($line -replace '#.*$', '').Trim()
         if (-not $host_) { continue }
-        if ($text -notmatch [regex]::Escape($host_)) { $missing += $host_ }
+        if ($installHosts -contains $host_) { $leaked += $host_ }
     }
-    if ($missing.Count -eq 0) {
-        Ok 'policy/allow.txt matches the descriptor'
+    if ($leaked.Count -eq 0) {
+        Ok 'policy/allow.txt lists runtime egress only'
     }
     else {
-        No ("in policy/allow.txt but not in kit/t3-code.yaml: " + ($missing -join ', '))
+        No ('install-time hosts in policy/allow.txt (they belong in policy/install.txt): ' + ($leaked -join ', '))
     }
 }
 
