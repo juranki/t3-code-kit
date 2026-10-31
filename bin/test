@@ -24,10 +24,10 @@ no()   { fail=$((fail + 1)); printf 'FAIL  %s\n' "$*"; }
 # --- the stub -------------------------------------------------------------
 #
 # Answers `secret ls` from $STUB_SECRET_OUTPUT and $STUB_SECRET_STATUS. The
-# lifecycle verbs (`create`, `run`, `stop`, `rm`, `ports`, `ls`) succeed
-# silently, so `up` runs to the end and the git-identity assertions can see
-# what it did. Anything else fails loudly: a verb the launcher is not expected
-# to call is a surprise worth failing on.
+# verbs `up` needs (`create`, `run`, `ports`, `ls`) succeed silently, so `up`
+# runs to the end and the git-identity assertions can see what it did. Anything
+# else fails loudly: a verb the launcher is not expected to call is a surprise
+# worth failing on.
 STUB_DIR=$(mktemp -d)
 trap 'rm -rf "$STUB_DIR"' EXIT
 
@@ -40,14 +40,21 @@ fi
 # `up` asserts the git identity with `exec <name> -- git config ...`. Record
 # the argv it used, so the test can assert what crossed the boundary rather
 # than what the launcher meant to send.
+# `exec <name> -- <cmd...>`: log the command, not the sandbox name, so the
+# assertions read the argv that crossed the boundary. `shift 2` drops `exec`
+# and the name, leaving `--` at $1.
 if [ "$1" = exec ]; then
   shift 2
   [ "$1" = -- ] && shift
   printf '%s\n' "$*" >>"${STUB_EXEC_LOG:-/dev/null}"
-  exit 0
+  # $STUB_EXEC_STATUS lets a case exercise the "could not set the identity"
+  # warning, which is otherwise unreachable: the happy path always exits 0.
+  exit "${STUB_EXEC_STATUS:-0}"
 fi
+# Only the verbs `up` actually calls. A wider list would let a future launcher
+# reach a verb the test never meant to allow and still pass.
 case "$1" in
-  create|run|stop|rm|ports|ls|volume) exit 0 ;;
+  create|run|ports|ls) exit 0 ;;
 esac
 echo "stub sbx: unexpected call: $*" >&2
 exit 99
@@ -248,6 +255,51 @@ identity_case_bash 'prefix overridden to empty' \
   'Juhani Ränkimies' 'juhani@example.com' '' \
   'Juhani Ränkimies' 'juhani@example.com'
 
+# A failed `sbx exec` must warn and let `up` finish, not abort it: the sandbox
+# is already created and the server is what the user asked for. The warning is
+# the whole of the behaviour, so assert on it.
+# Run a launcher's `up` with the given extra env, discarding its output.
+run_up_bash() { sh "$ROOT/bin/t3-code-kit" up testprobe; }
+run_up_ps()   { pwsh -NoProfile -File "$ROOT/bin/t3-code-kit.ps1" up testprobe; }
+
+exec_failure_case() {
+  _run=$1 _label=$2
+  _err=$(STUB_EXEC_STATUS=1 STUB_HOST_NAME='Juhani Ränkimies' \
+         STUB_HOST_EMAIL='juhani@example.com' \
+         PATH="$STUB_DIR:$PATH" SBX=$STUB_DIR/sbx T3CK_NAME=testprobe \
+         $_run 2>&1 >/dev/null)
+  case $_err in
+    *'could not set the git identity'*)
+      ok "$_label: failed exec warns" ;;
+    *) no "$_label: failed exec — expected a warning, got: $_err" ;;
+  esac
+}
+
+# `up` re-asserts on every run, so a hand-edited identity is corrected rather
+# than respected. Asserted by running `up` twice against one log and checking
+# the second run wrote the identity again.
+reassert_case() {
+  _run=$1 _label=$2
+  _log=$(mktemp)
+  for _pass in 1 2; do
+    STUB_EXEC_LOG=$_log STUB_HOST_NAME='Juhani Ränkimies' \
+    STUB_HOST_EMAIL='juhani@example.com' \
+    PATH="$STUB_DIR:$PATH" SBX=$STUB_DIR/sbx T3CK_NAME=testprobe \
+    $_run >/dev/null 2>&1 || true
+  done
+  _writes=$(exec_argv "$_log" | grep -c '^user\.name Agent for Juhani Ränkimies$' || true)
+  if [ "$_writes" -eq 2 ]; then
+    ok "$_label: second up re-asserts the identity"
+  else
+    no "$_label: expected 2 identity writes across two ups, got $_writes"
+  fi
+  rm -f "$_log"
+}
+
+printf '\ngit identity — failure and re-assert\n'
+exec_failure_case run_up_bash 'bash'
+reassert_case run_up_bash 'bash'
+
 if command -v pwsh >/dev/null 2>&1; then
   printf '\ngit identity — PowerShell launcher\n'
   identity_case_ps 'host config present' \
@@ -258,6 +310,10 @@ if command -v pwsh >/dev/null 2>&1; then
   identity_case_ps 'prefix overridden to empty' \
     'Juhani Ränkimies' 'juhani@example.com' '' \
     'Juhani Ränkimies' 'juhani@example.com'
+
+  printf '\ngit identity — failure and re-assert (PowerShell)\n'
+  exec_failure_case run_up_ps 'pwsh'
+  reassert_case run_up_ps 'pwsh'
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

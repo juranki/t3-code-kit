@@ -249,20 +249,28 @@ fi
 # sees the sandbox, never the host that created it, so "matches the host" is
 # out of reach and "is not the auto-generated placeholder" is the real
 # regression this catches. bin/test asserts the exact value.
+#
+# "Configured at all" is the assertion, not "has the prefix". The prefix is
+# user-overridable (T3CK_AGENT_NAME_PREFIX, empty for the bare host name), so a
+# name without it is a valid configuration, not a failure. What must never
+# appear is git's own invention from the username and hostname.
 identity_name=$(in_sbx git config --global user.name 2>/dev/null | tr -d '\r')
 identity_email=$(in_sbx git config --global user.email 2>/dev/null | tr -d '\r')
 
 case "$identity_name" in
-  'Agent for '?*) ok "git identity name is '$identity_name'" ;;
-  Agent)          ok "git identity name is 'Agent' (host had no git config)" ;;
-  '')             no "no git user.name in the sandbox — commits get an auto-generated author" ;;
-  *)              no "git user.name is '$identity_name' — expected an 'Agent for ...' prefix" ;;
+  '')       no "no git user.name in the sandbox — commits get an auto-generated author" ;;
+  agent|agent@*) no "git user.name is '$identity_name' — the auto-generated placeholder" ;;
+  *)        ok "git identity name is '$identity_name'" ;;
 esac
 
+# The launcher's own fallback (agent@t3-code-kit) is a correct value here: it is
+# what `up` writes when the host has no git config, so rejecting it would fail
+# smoke on a sandbox the launcher configured exactly as designed.
 case "$identity_email" in
-  ''|agent@t3.t3.docker.internal)
-    no "git user.email is '${identity_email:-unset}' — the auto-generated placeholder" ;;
-  *) ok "git identity email is '$identity_email'" ;;
+  '')        no "no git user.email in the sandbox — commits get an auto-generated author" ;;
+  agent@t3.t3.docker.internal)
+             no "git user.email is '$identity_email' — the auto-generated placeholder" ;;
+  *)         ok "git identity email is '$identity_email'" ;;
 esac
 
 head_ "agent round-trip"
