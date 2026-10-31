@@ -40,8 +40,16 @@ ENV T3CODE_HOME=/home/agent/.t3 \
     PATH=/home/agent/.npm-global/bin:${PATH}
 
 # t3. install.sh honours T3CODE_VERSION, so this is a real pin.
-RUN curl -fsSL https://t3.codes/install.sh \
-      | T3CODE_VERSION="${T3_VERSION}" T3CODE_INSTALL_BIN_DIR=/home/agent/.local/bin sh
+#
+# Not `curl … | sh`. Without pipefail a failed download hands `sh` an empty
+# script, which exits 0, so the build goes green with no t3 in the image — and
+# the sandbox then dies at startup with "t3: command not found" and a
+# root-owned .t3 that serve.sh cannot write to. Download it, run it, and prove
+# the binary is there before the layer is allowed to commit.
+RUN curl -fsSL -o /tmp/t3-install.sh https://t3.codes/install.sh \
+ && T3CODE_VERSION="${T3_VERSION}" T3CODE_INSTALL_BIN_DIR=/home/agent/.local/bin sh /tmp/t3-install.sh \
+ && rm -f /tmp/t3-install.sh \
+ && test -x /home/agent/.local/bin/t3
 
 # pi — the agent harness t3 drives. Adding another provider is one more block
 # like this one, plus its credential and its egress entry.
