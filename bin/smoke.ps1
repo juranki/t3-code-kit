@@ -72,7 +72,7 @@ function Test-Url {
 # ---------------------------------------------------------------- static
 Head 'static checks'
 
-foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', 'policy/allow.txt')) {
+foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', 'kit/skills.txt', 'policy/allow.txt')) {
     if (Test-Path (Join-Path $Root $f)) { Ok "$f exists" } else { No "$f missing" }
 }
 
@@ -151,6 +151,24 @@ if ($r.Ok) {
 }
 else {
     No '/home/agent/workspace is not a volume'
+}
+
+# Skills are baked into the image, and the Dockerfile already asserts the
+# count against kit/skills.txt. This is the other failure: an image built
+# before skills shipped, or a RUN that never executed.
+$manifest = Join-Path (Join-Path $Root 'kit') 'skills.txt'
+$skillsWant = 0
+if (Test-Path $manifest) {
+    $skillsWant = @(Get-Content $manifest | Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*#' }).Count
+}
+$r = Invoke-InSandbox @('sh', '-c', 'ls -1 /home/agent/.agents/skills 2>/dev/null | wc -l')
+$skillsHave = 0
+if ($r.Output -match '(\d+)') { $skillsHave = [int] $Matches[1] }
+if ($skillsWant -gt 0 -and $skillsHave -eq $skillsWant) {
+    Ok "$skillsWant skills installed, kit/skills.txt agrees"
+}
+else {
+    No "skills: $skillsHave installed, $skillsWant in kit/skills.txt"
 }
 
 Head 'egress and credentials'
