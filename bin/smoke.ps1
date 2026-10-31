@@ -207,13 +207,18 @@ function Get-ArgDefault {
 # One round trip, one parse: the sandbox normalises the version strings so this
 # port and bin/smoke cannot disagree about their formats.
 $shims = '/home/agent/.local/share/mise/shims'
+# ⚠️ No double quotes in this payload. Windows PowerShell 5.1 does not escape
+# embedded `"` when it builds a native command line, so sbx.exe receives a
+# mangled script and prints nothing - every tool then "resolves to nothing" on
+# a sandbox where the shims are correct. Same reason the launcher's parse-only
+# calls read stdout and this port normalises versions here rather than in sed.
 $shimScript = @'
-echo "node=$(node --version 2>&1 | sed s/^v//)"
-echo "go=$(go version 2>&1 | sed "s/^go version go\([0-9][0-9.]*\).*/\1/")"
-echo "python=$(python --version 2>&1 | sed "s/^Python //")"
-echo "node_path=$(command -v node)"
-echo "go_path=$(command -v go)"
-echo "python_path=$(command -v python)"
+echo node=$(node --version)
+echo go=$(go version)
+echo python=$(python --version)
+echo node_path=$(command -v node)
+echo go_path=$(command -v go)
+echo python_path=$(command -v python)
 '@
 $r = Invoke-InSandbox @('sh', '-c', $shimScript)
 $shim = @{}
@@ -225,8 +230,18 @@ foreach ($line in ($r.Output -split "`r?`n")) {
 
 function Test-ShimTool {
     param([string] $Tool, [string] $Want)
-    $got = $shim[$Tool]
+    $raw = $shim[$Tool]
     $path = $shim["${Tool}_path"]
+    $got = ''
+    if ($Tool -eq 'go') {
+        if ($raw -match 'go(\d+\.\d+\.\d+)') { $got = $Matches[1] }
+    }
+    elseif ($Tool -eq 'python') {
+        if ($raw -match '(\d+\.\d+\.\d+)') { $got = $Matches[1] }
+    }
+    else {
+        $got = ($raw -replace '^v', '')
+    }
     if (-not $Want) {
         No "${Tool}: no $($Tool)Version default in kit/t3-code.yaml"
     }
@@ -289,7 +304,9 @@ else {
 # readline: no history, no completion, no prompt colors. serve.sh exports bash.
 # Read the running server's environment, not serve.sh: the failure this catches
 # is a server that started before the export existed.
-$r = Invoke-InSandbox @('sh', '-c', 'tr "\0" "\n" < /proc/$(pgrep -f "^t3 serve" | head -1)/environ 2>/dev/null | sed -n "s/^SHELL=//p"')
+# No double quotes: see the note above $shimScript. tr takes the escapes
+# unquoted, and `t3.serve` is the same pattern as '^t3 serve' with a dot.
+$r = Invoke-InSandbox @('sh', '-c', 'tr \0 \n < /proc/$(pgrep -f t3.serve | head -1)/environ | sed -n s/^SHELL=//p')
 $serverShell = ''
 if ($r.Output -match '(?m)^(/bin/bash)\s*$') { $serverShell = $Matches[1] }
 if ($serverShell -eq '/bin/bash') {
@@ -310,7 +327,8 @@ $skillsWant = 0
 if (Test-Path $manifest) {
     $skillsWant = @(Get-Content $manifest | Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*#' }).Count
 }
-$r = Invoke-InSandbox @('sh', '-c', 'echo "skills=$(ls -1 /home/agent/.agents/skills 2>/dev/null | wc -l | tr -d " ")"')
+# No double quotes: see the note above $shimScript.
+$r = Invoke-InSandbox @('sh', '-c', 'echo skills=$(ls -1 /home/agent/.agents/skills | wc -l)')
 $skillsHave = 0
 # The same sentinel bin/smoke reads: merged stderr must not be counted.
 if ($r.Output -match '(?m)^skills=(\d+)\s*$') { $skillsHave = [int] $Matches[1] }
@@ -329,33 +347,31 @@ Head 'model catalog'
 # than the sandbox falling back to the catalog baked into the image. Compare
 # against the marker, not the log's mtime: tee appends t3's output after the
 # catalog write, so the live log is always newer than the store.
-$catalogProbe = @'
-log="${T3CODE_HOME:-$HOME/.t3}/serve.log"
-store="$HOME/.pi/agent/models-store.json"
-started=$(sed -n "s/^--- \([^ ]*\) t3 serve starting$/\1/p" "$log" 2>/dev/null | tail -1)
-started_epoch=0
-[ -n "$started" ] && started_epoch=$(date -d "$started" +%s 2>/dev/null || echo 0)
-store_epoch=$(stat -c %Y "$store" 2>/dev/null || echo 0)
-if [ -s "$store" ] && grep -q "\"models\"" "$store" && grep -q "\"id\"" "$store" && [ "$store_epoch" -ge "$started_epoch" ]; then
-  echo "pi_catalog=fresh"
-elif [ -s "$store" ] && grep -q "\"models\"" "$store" && grep -q "\"id\"" "$store"; then
-  echo "pi_catalog=stale"
-else
-  echo "pi_catalog=missing"
-fi
-'@
-$r = Invoke-InSandbox @('sh', '-c', $catalogProbe)
-$piCatalog = if ($r.Output -match 'pi_catalog=(\w+)') { $Matches[1] } else { 'missing' }
-switch ($piCatalog) {
-    'fresh' {
-        Ok "pi's model catalog refreshed at startup"
-    }
-    'stale' {
-        No "pi's model catalog is older than this start - the startup refresh did not run (see: t3-code-kit logs $Name)"
-    }
-    default {
-        No "pi's model catalog is missing - the startup refresh did not fetch one (blocked pi.dev or no provider credential; see: t3-code-kit logs $Name)"
-    }
+# serve.sh refreshes pi's catalog before it starts t3, and says so in
+# serve.log. That log line is the evidence: the refresh ran and pi exited 0.
+#
+# This used to infer the same thing from ~/.pi/agent/models-store.json, which
+# was a guess about pi's on-disk layout - unverified, and it reported "missing"
+# on a sandbox whose catalog had demonstrably refreshed. Assert on what the
+# entrypoint records instead of on where pi happens to keep its cache.
+#
+# No double quotes: see the note above $shimScript.
+$r = Invoke-InSandbox @('sh', '-c', 'tail -n 2000 $HOME/.t3/serve.log')
+$serveLog = $r.Output
+if ($r.ExitCode -ne 0) {
+    No "could not read serve.log (exit $($r.ExitCode)) - serve.sh never ran"
+}
+elseif ($serveLog -match 'model catalog refreshed') {
+    Ok "pi's model catalog refreshed at startup"
+}
+elseif ($serveLog -match 'model catalog refresh failed') {
+    No 'the startup refresh ran and failed - check egress to pi.dev (see: t3-code-kit logs <name>)'
+}
+elseif ($serveLog -match 'model catalog refresh timed out') {
+    No 'the startup refresh timed out - check egress to pi.dev (see: t3-code-kit logs <name>)'
+}
+else {
+    No 'no refresh line in serve.log - the startup refresh did not run'
 }
 
 Head 'egress and credentials'
