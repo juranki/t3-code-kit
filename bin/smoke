@@ -111,6 +111,21 @@ for cmd in "t3 --version" "pi --version" "git --version" "mise --version"; do
   if in_sbx sh -c "$cmd" >/dev/null; then ok "$cmd"; else no "$cmd"; fi
 done
 
+# A UTF-8 locale, or a terminal in the sandbox cannot type a non-ASCII
+# character and renders correct UTF-8 as mojibake. Checked by round-tripping a
+# real character rather than by reading $LANG: the variable being set is not
+# the same as the locale working.
+if in_sbx sh -c 'printf "\303\244" | od -An -c | grep -q "303 244"'; then
+  ok "non-ASCII bytes survive a round-trip"
+else
+  no "non-ASCII bytes do not survive a round-trip"
+fi
+
+case "$(in_sbx sh -c 'printf "%s" "$LC_ALL"' 2>/dev/null | tr -d '\r')" in
+  *UTF-8|*utf8|*UTF8) ok "sandbox locale is UTF-8" ;;
+  *) no "sandbox locale is not UTF-8 (LC_ALL is not set to a UTF-8 locale)" ;;
+esac
+
 # The baked versions are the descriptor's build-arg defaults — read them here
 # rather than keeping a second copy that drifts from kit/t3-code.yaml.
 arg_default() {

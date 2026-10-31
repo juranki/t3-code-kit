@@ -193,6 +193,26 @@ foreach ($cmd in $toolchain) {
     if ($r.ExitCode -eq 0) { Ok $label } else { No $label }
 }
 
+# A UTF-8 locale, or a terminal in the sandbox cannot type a non-ASCII
+# character and renders correct UTF-8 as mojibake. Checked by round-tripping a
+# real character rather than by reading $LANG: the variable being set is not
+# the same as the locale working.
+$r = Invoke-InSandbox @('sh', '-c', 'printf "\303\244" | od -An -c')
+if ($r.Output -match '303\s+244') {
+    Ok 'non-ASCII bytes survive a round-trip'
+}
+else {
+    No 'non-ASCII bytes do not survive a round-trip'
+}
+
+$r = Invoke-InSandbox @('sh', '-c', 'printf %s "$LC_ALL"')
+if ($r.Output -match '(?i)utf-?8') {
+    Ok 'sandbox locale is UTF-8'
+}
+else {
+    No 'sandbox locale is not UTF-8 (LC_ALL is not set to a UTF-8 locale)'
+}
+
 # The baked versions are the descriptor's build-arg defaults - read them here
 # rather than keeping a second copy that drifts from kit/t3-code.yaml.
 function Get-ArgDefault {

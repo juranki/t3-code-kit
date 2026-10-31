@@ -69,6 +69,12 @@ capabilities:
           env:
             - HOME
             - PATH
+            # The startup hook sees only what it declares, so the image's
+            # UTF-8 locale is not inherited: without these two, serve.sh and
+            # the terminal t3 spawns from it run LC_ALL=C, where a Scandinavian
+            # character cannot be typed and correct UTF-8 renders as mojibake.
+            - LANG
+            - LC_ALL
             - T3CODE_HOME
             - T3CODE_HOST
             - T3CODE_PORT
