@@ -157,12 +157,101 @@ Head 'toolchain inside the sandbox'
 $toolchain = @(
     @('t3', '--version'),
     @('pi', '--version'),
-    @('git', '--version')
+    @('git', '--version'),
+    @('mise', '--version')
 )
 foreach ($cmd in $toolchain) {
     $r = Invoke-InSandbox $cmd
     $label = $cmd -join ' '
     if ($r.ExitCode -eq 0) { Ok $label } else { No $label }
+}
+
+# The baked versions are the descriptor's build-arg defaults - read them here
+# rather than keeping a second copy that drifts from kit/t3-code.yaml.
+function Get-ArgDefault {
+    param([string] $Key)
+    $descriptorText = Get-Content (Join-Path (Join-Path $Root 'kit') 't3-code.yaml') -Raw
+    $pattern = '(?m)^\s*' + [regex]::Escape($Key) + ':\s*\r?\n\s*default:\s*"([^"]+)"'
+    if ($descriptorText -match $pattern) { return $Matches[1] }
+    return ''
+}
+
+# mise's shims, not the base image's node 24 / go / python. `sbx exec` runs a
+# non-interactive shell, which is exactly where `mise activate` would never
+# have fired - so this is the assertion that catches a PATH-ordering
+# regression here, instead of it surfacing later as "the agent used the wrong
+# node".
+#
+# One round trip, one parse: the sandbox normalises the version strings so this
+# port and bin/smoke cannot disagree about their formats.
+$shims = '/home/agent/.local/share/mise/shims'
+$shimScript = @'
+echo "node=$(node --version 2>&1 | sed s/^v//)"
+echo "go=$(go version 2>&1 | sed "s/^go version go\([0-9][0-9.]*\).*/\1/")"
+echo "python=$(python --version 2>&1 | sed "s/^Python //")"
+echo "node_path=$(command -v node)"
+echo "go_path=$(command -v go)"
+echo "python_path=$(command -v python)"
+'@
+$r = Invoke-InSandbox @('sh', '-c', $shimScript)
+$shim = @{}
+foreach ($line in ($r.Output -split "`r?`n")) {
+    if ($line -match '^(node|go|python)(_path)?=(.*)$') {
+        $shim[$Matches[1] + $Matches[2]] = $Matches[3].Trim()
+    }
+}
+
+function Test-ShimTool {
+    param([string] $Tool, [string] $Want)
+    $got = $shim[$Tool]
+    $path = $shim["${Tool}_path"]
+    if (-not $Want) {
+        No "${Tool}: no $($Tool)Version default in kit/t3-code.yaml"
+    }
+    elseif ($path -ne "$shims/$Tool") {
+        $found = if ($path) { $path } else { 'nothing' }
+        No "$Tool resolves to $found, not the mise shim ($shims/$Tool)"
+    }
+    elseif ($got -ne $Want) {
+        $found = if ($got) { $got } else { 'nothing' }
+        No "$Tool reports $found, want $Want (the baked version)"
+    }
+    else {
+        Ok "$Tool $got through the mise shim"
+    }
+}
+
+Test-ShimTool 'node' (Get-ArgDefault 'nodeVersion')
+Test-ShimTool 'go' (Get-ArgDefault 'goVersion')
+Test-ShimTool 'python' (Get-ArgDefault 'pythonVersion')
+
+# Java is the base image's OpenJDK 21, not mise's: mise-java.jdx.dev is not in
+# the allowlist and the base image already carries a JDK. This asserts the PATH
+# append actually reaches it.
+$r = Invoke-InSandbox @('java', '-version')
+if ($r.Output -match 'openjdk version "21') {
+    Ok "java -version is the base image's OpenJDK 21"
+}
+else {
+    $first = @($r.Output -split "`r?`n" | Where-Object { $_ }) | Select-Object -First 1
+    $found = if ($first) { $first } else { 'nothing' }
+    No "java -version is not OpenJDK 21: $found"
+}
+
+# mise pulls ca-certificates-bundle, which ships its own copy of
+# /etc/ssl/certs/ca-certificates.crt. Without --force-confold dpkg stops at the
+# conffile prompt and leaves both packages in state iU: mise still runs, but
+# the next apt operation fails. dpkg --audit is the assertion that the flag is
+# there; replacing the bundle instead shows up as a TLS failure in the egress
+# check below.
+$r = Invoke-InSandbox @('sh', '-c', 'echo "audit=$(dpkg --audit 2>&1 | tr "\n" " ")"')
+$audit = ''
+if ($r.Output -match '(?m)^audit=(.*)$') { $audit = $Matches[1].Trim() }
+if (-not $audit) {
+    Ok 'dpkg --audit is clean'
+}
+else {
+    No "dpkg --audit reports unconfigured packages: $audit"
 }
 
 $r = Invoke-InSandbox @('sh', '-c', 'mountpoint -q /home/agent/workspace')
