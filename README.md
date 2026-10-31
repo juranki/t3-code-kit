@@ -198,8 +198,9 @@ host port (3773).
 | Path | What it is |
 |---|---|
 | [`kit/t3-code.yaml`](kit/t3-code.yaml) | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
-| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3, pi, and the skills, pinned |
+| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3, pi, and the skills (the pins are build args) |
 | [`kit/skills.txt`](kit/skills.txt) | The skills baked into the image, one per line |
+| [`kit/skills.sh`](kit/skills.sh) | The one parser for `kit/skills.txt`: names for the build, count for the checks |
 | [`kit/serve.sh`](kit/serve.sh) | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook |
 | [`policy/allow.txt`](policy/allow.txt) | Readable mirror of the runtime egress list |
 | [`bin/t3-code-kit`](bin/t3-code-kit) | The launcher: eight verbs over `sbx` (POSIX sh) |
@@ -214,14 +215,14 @@ read, and `bin/smoke` fails if the two disagree.
 ## Skills
 
 The agent workflow these docs describe — `/triage`, `/code-review`,
-`/grill-with-docs`, `/wayfinder` — ships **inside the image**, at
-`/home/agent/.agents/skills`. It is installed at build time from
+`/grill-with-docs`, `/wayfinder` — is **baked into the image**, at
+`/home/agent/.agents/skills`. The build adds it from
 [`mattpocock/skills`](https://github.com/mattpocock/skills), pinned twice:
 `SKILLS_REF` to a commit, `SKILLS_VERSION` to a CLI version. The selection
 lives in [`kit/skills.txt`](kit/skills.txt) — 27 of the repo's 38; the rest are
 in-progress writing experiments and Claude-specific one-offs.
 
-Updating them is a rebuild, not an in-sandbox update:
+Changing them is a `rebuild`, not an in-sandbox change:
 
 ```sh
 t3-code-kit rebuild myproject
@@ -256,8 +257,8 @@ stop the sandbox afterwards.
 - ⚠️ **Kits v3 is Early Access and the spec is experimental** (a final version
   is targeted for Q4 2026). The kit descriptor, the base image reference, and
   the `sbx` verbs are the parts most likely to move under you.
-- ⚠️ **No self-update inside the sandbox.** t3, pi, and the skills are pinned
-  as build args; bumping is a `rebuild`.
+- ⚠️ **No self-update inside the sandbox.** t3 and the skills are pinned as
+  build args; pi defaults to `latest`. Bumping any of them is a `rebuild`.
 - ⚠️ **One provider ships in v1** (pi). Adding another is one Dockerfile block,
   one credential, and one egress entry.
 - ⚠️ **Not verified end to end on a host yet.** See

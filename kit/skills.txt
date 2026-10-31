@@ -2,14 +2,16 @@
 # -s, so the names have to match the source exactly.
 #
 # ⚠️ A name that no longer exists upstream is dropped silently — the CLI exits
-# 0 having installed fewer skills. That is why kit/t3-code.dockerfile asserts
-# the installed count against this file: a SKILLS_REF bump that renames a skill
-# fails the build instead of shipping 26.
+# 0 having baked in fewer skills. That is why kit/t3-code.dockerfile asserts
+# the count in the image against this file: a SKILLS_REF bump that renames a
+# skill fails the build instead of baking in 26.
 #
 # Source: mattpocock/skills, pinned by SKILLS_REF in kit/t3-code.dockerfile.
-# This is the 27 picked in the install wizard on 2026-10-31, not the repo's
+# This is the 27 picked in the CLI's wizard on 2026-10-31, not the repo's
 # full 38: the rest are in-progress writing experiments and one-off
 # setup/migration skills, several of them Claude-specific.
+#
+# Parsed by kit/skills.sh, the one implementation of this format.
 ask-matt
 chief-of-staff
 code-review
