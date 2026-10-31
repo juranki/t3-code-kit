@@ -1,12 +1,12 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     t3-code-kit - run T3 Code + pi inside a Docker Sandbox, driven from a browser.
 
 .DESCRIPTION
     PowerShell port of bin/t3-code-kit, for a Windows host with no bash.
-    Same verbs, same behaviour. Written for Windows PowerShell 5.1 and up, so
-    it runs on a stock Windows 11 without installing anything.
+    Same verbs, same behaviour. Written for PowerShell 7 and up: install it
+    with `winget install Microsoft.PowerShell`.
 
 .PARAMETER Verb
     up | url | logs | shell | refresh | down | rebuild | nuke | policy | help
@@ -34,9 +34,7 @@ $ErrorActionPreference = 'Stop'
 
 $Root       = Split-Path -Parent $PSScriptRoot
 $KitDir     = Join-Path $Root 'kit'
-# Nested on purpose: Join-Path takes two positional arguments in Windows
-# PowerShell 5.1; -AdditionalChildPath is PowerShell 6+.
-$PolicyFile = Join-Path (Join-Path $Root 'policy') 'allow.txt'
+$PolicyFile = Join-Path $Root 'policy' 'allow.txt'
 
 $Sbx           = if ($env:SBX) { $env:SBX } else { 'sbx' }
 # Build the Kit in a builder sandbox, not with the host's Docker Buildx. The
@@ -65,13 +63,13 @@ function Assert-Sbx {
     }
 }
 
-# Windows PowerShell 5.1 raises NativeCommandError whenever a native command
-# writes to stderr while $ErrorActionPreference is 'Stop' — and 2>&1 does not
-# prevent it, it only moves the line into the output stream on the way to the
-# error. `sbx` writes progress, build logs, and even its success banners
+# `sbx` writes progress, build logs, and even its success banners
 # ("sandbox X — running detached") to stderr, so every call goes through here:
-# the preference is relaxed for the duration, stderr is merged into the output,
-# and the exit code comes back for the caller to judge.
+# stderr is merged into the output and the exit code comes back for the caller
+# to judge. The preference is relaxed for the duration because a native
+# command's non-zero exit becomes a terminating error under 'Stop' once
+# $PSNativeCommandUseErrorActionPreference is on — and a non-zero exit is a
+# result here, not a crash.
 function Invoke-Sbx {
     param(
         [string[]] $SbxArgs,
@@ -95,8 +93,8 @@ function Invoke-Sbx {
         }
         else {
             # stderr arrives as ErrorRecord objects even when merged; take their
-            # message, or the output reads like a crash ("sbx.exe : ...
-            # NativeCommandError") instead of the build log it actually is.
+            # message, or the output reads like a crash ("sbx.exe : ...") instead
+            # of the build log it actually is.
             $output = (& $Sbx @SbxArgs 2>&1 | ForEach-Object {
                 if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ }
             }) -join "`n"

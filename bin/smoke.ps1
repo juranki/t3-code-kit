@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Acceptance test for t3-code-kit, on a Windows host with no bash.
@@ -48,10 +48,10 @@ function Invoke-InSandbox {
     # standalone port of bin/smoke and must run without the launcher, the same
     # way the two launchers are deliberate duplicates. Keep the two in step.
     #
-    # The trap: a native command writing to stderr under
-    # $ErrorActionPreference='Stop' raises NativeCommandError, and 2>&1 does
-    # not prevent it. Relax the preference for the duration and judge the exit
-    # code instead.
+    # The trap: a native command's non-zero exit becomes a terminating error
+    # under $ErrorActionPreference='Stop' once
+    # $PSNativeCommandUseErrorActionPreference is on. Relax the preference for
+    # the duration and judge the exit code instead.
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
@@ -99,11 +99,9 @@ foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', '
 # The policy mirrors must not promise anything the descriptor denies: the
 # descriptor is normative, these files are the readable copies. allow.txt is
 # runtime egress, install.txt is build-time egress; both are checked.
-# Nested on purpose: Join-Path takes two positional arguments in Windows
-# PowerShell 5.1; -AdditionalChildPath is PowerShell 6+.
 $policyDir = Join-Path $Root 'policy'
 $policyPath = Join-Path $policyDir 'allow.txt'
-$descriptor = Join-Path (Join-Path $Root 'kit') 't3-code.yaml'
+$descriptor = Join-Path $Root 'kit' 't3-code.yaml'
 if ((Test-Path $policyPath) -and (Test-Path $descriptor)) {
     $text = Get-Content $descriptor -Raw
     $missing = @()
@@ -192,7 +190,7 @@ foreach ($cmd in $toolchain) {
 # rather than keeping a second copy that drifts from kit/t3-code.yaml.
 function Get-ArgDefault {
     param([string] $Key)
-    $descriptorText = Get-Content (Join-Path (Join-Path $Root 'kit') 't3-code.yaml') -Raw
+    $descriptorText = Get-Content (Join-Path $Root 'kit' 't3-code.yaml') -Raw
     $pattern = '(?m)^\s*' + [regex]::Escape($Key) + ':\s*\r?\n\s*default:\s*"([^"]+)"'
     if ($descriptorText -match $pattern) { return $Matches[1] }
     return ''
@@ -207,10 +205,8 @@ function Get-ArgDefault {
 # One round trip, one parse: the sandbox normalises the version strings so this
 # port and bin/smoke cannot disagree about their formats.
 $shims = '/home/agent/.local/share/mise/shims'
-# ⚠️ No double quotes in this payload. Windows PowerShell 5.1 does not escape
-# embedded `"` when it builds a native command line, so sbx.exe receives a
-# mangled script and prints nothing - every tool then "resolves to nothing" on
-# a sandbox where the shims are correct. Same reason the launcher's parse-only
+# The payload stays free of double quotes so it reads the same as bin/smoke's
+# probes and survives being pasted into either shell. The launcher's parse-only
 # calls read stdout and this port normalises versions here rather than in sed.
 $shimScript = @'
 echo node=$(node --version)
@@ -304,7 +300,7 @@ else {
 # readline: no history, no completion, no prompt colors. serve.sh exports bash.
 # Read the running server's environment, not serve.sh: the failure this catches
 # is a server that started before the export existed.
-# No double quotes: see the note above $shimScript. tr takes the escapes
+# No double quotes, same as the $shimScript probes. tr takes the escapes
 # unquoted, and `t3.serve` is the same pattern as '^t3 serve' with a dot.
 $r = Invoke-InSandbox @('sh', '-c', 'tr \0 \n < /proc/$(pgrep -f t3.serve | head -1)/environ | sed -n s/^SHELL=//p')
 $serverShell = ''
@@ -321,13 +317,13 @@ else {
 # count against kit/skills.txt. This is the other failure: an image built
 # before skills were baked in, or a RUN that never executed.
 # Port of kit/skills.sh's rule (one name per line, blank lines and #-comments
-# ignored); a stock Windows host has no sh to call it.
-$manifest = Join-Path (Join-Path $Root 'kit') 'skills.txt'
+# ignored); a Windows host has no sh to call it.
+$manifest = Join-Path $Root 'kit' 'skills.txt'
 $skillsWant = 0
 if (Test-Path $manifest) {
     $skillsWant = @(Get-Content $manifest | Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*#' }).Count
 }
-# No double quotes: see the note above $shimScript.
+# No double quotes, same as the $shimScript probes.
 $r = Invoke-InSandbox @('sh', '-c', 'echo skills=$(ls -1 /home/agent/.agents/skills | wc -l)')
 $skillsHave = 0
 # The same sentinel bin/smoke reads: merged stderr must not be counted.
@@ -355,7 +351,7 @@ Head 'model catalog'
 # on a sandbox whose catalog had demonstrably refreshed. Assert on what the
 # entrypoint records instead of on where pi happens to keep its cache.
 #
-# No double quotes: see the note above $shimScript.
+# No double quotes, same as the $shimScript probes.
 $r = Invoke-InSandbox @('sh', '-c', 'tail -n 2000 $HOME/.t3/serve.log')
 $serveLog = $r.Output
 if ($r.ExitCode -ne 0) {
