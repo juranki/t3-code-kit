@@ -24,6 +24,17 @@ note "t3 serve starting"
 # the image was built for.
 export SHELL=/bin/bash
 
+# Same reasoning for the locale, and the same reason it cannot be left to the
+# image: a startup hook inherits only the variables its env list declares, and
+# an unset locale means LC_ALL=C. In the C locale the terminal cannot type a
+# non-ASCII character and renders correct UTF-8 as mojibake - `Ränkimies` shows
+# up as `R├ñnkimies`. C.UTF-8 is the one UTF-8 locale glibc always has without a
+# locale-gen step.
+#
+# Defaulted, not forced: a user who sets LANG deliberately keeps it.
+export LANG=${LANG:-C.UTF-8}
+export LC_ALL=${LC_ALL:-C.UTF-8}
+
 # Refresh pi's model catalog before the server starts. Best-effort on purpose:
 # a blocked or slow pi.dev must not keep the server from starting, because the
 # catalog baked into the image is a usable fallback. pi has its own 15s
