@@ -307,9 +307,25 @@ else {
 # readline: no history, no completion, no prompt colors. serve.sh exports bash.
 # Read the running server's environment, not serve.sh: the failure this catches
 # is a server that started before the export existed.
-# No double quotes, same as the $shimScript probes. tr takes the escapes
-# unquoted, and `t3.serve` is the same pattern as '^t3 serve' with a dot.
-$r = Invoke-InSandbox @('sh', '-c', 'tr \0 \n < /proc/$(pgrep -f t3.serve | head -1)/environ | sed -n s/^SHELL=//p')
+# This probe mirrors bin/smoke, which is the reference for this port. Two
+# things had drifted, and each one reports `unknown` on a sandbox whose
+# terminal is fine:
+#
+#  - The tr escapes were unquoted. `tr \0 \n` reaches the shell as `tr 0 n`:
+#    the backslashes are eaten, so the NULs are never turned into newlines and
+#    sed sees one long line with no ^SHELL= to match. Quote them.
+#  - The pattern was unanchored. `t3.serve` means t3 + any char + serve, which
+#    also matches serve.sh - the wrapper the platform starts with SHELL=/bin/sh.
+#    pgrep lists lowest PID first and the wrapper starts before the server, so
+#    head -1 picked the wrapper. Anchor it, as bin/smoke does.
+#
+# Either one alone is enough to fail, so both are fixed; the quoting one is the
+# defect that shows up on every host, the anchor the one that shows up when a
+# serve.sh wrapper is in the process table.
+#
+# 2>/dev/null keeps a failed /proc read (a PID that already exited) a clean
+# empty result instead of noise.
+$r = Invoke-InSandbox @('sh', '-c', 'tr "\0" "\n" < /proc/$(pgrep -f "^t3 serve" | head -1)/environ 2>/dev/null | sed -n "s/^SHELL=//p"')
 $serverShell = ''
 if ($r.Output -match '(?m)^(/bin/bash)\s*$') { $serverShell = $Matches[1] }
 if ($serverShell -eq '/bin/bash') {
