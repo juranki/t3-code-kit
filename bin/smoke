@@ -92,6 +92,19 @@ else
   no "/home/agent/workspace is not a volume"
 fi
 
+# The UI's terminal is whatever t3 spawns from the server's $SHELL, and the
+# platform starts the workload with SHELL=/bin/sh — dash, which has no
+# readline: no history, no completion, no prompt colors. serve.sh exports bash.
+# Read the *running* server's environment, not serve.sh: the failure this
+# catches is a server that started before the export existed.
+server_shell=$(in_sbx sh -c 'tr "\0" "\n" < /proc/$(pgrep -f "^t3 serve" | head -1)/environ 2>/dev/null | sed -n "s/^SHELL=//p"' \
+                 | tr -d '\r' | head -1)
+if [ "$server_shell" = /bin/bash ]; then
+  ok "t3 serve runs with SHELL=/bin/bash (the terminal has history and completion)"
+else
+  no "t3 serve has SHELL=${server_shell:-unknown}: the UI terminal falls back to dash"
+fi
+
 # Skills are baked into the image, and the Dockerfile already asserts the
 # count against kit/skills.txt. This is the other failure: an image built
 # before skills were baked in, or a RUN that never executed.
