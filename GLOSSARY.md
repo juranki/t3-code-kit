@@ -15,7 +15,8 @@ _Avoid_: plugin, extension, prompt, command
 
 **baked in**:
 Present in the image layer, so every sandbox created from that image starts
-with it and no running sandbox can change it.
+with it, and a change made inside a running sandbox does not survive a
+`rebuild`.
 _Avoid_: installed, bundled, preloaded, shipped
 
 **pin**:

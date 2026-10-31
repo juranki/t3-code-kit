@@ -17,7 +17,7 @@ ARG PI_VERSION=latest
 
 # The skills pin is a commit, not a branch, and that is load-bearing: with a
 # ref set the `skills` CLI clones at that sha instead of asking api.github.com
-# for a repository tree, so the build reaches only github.com and
+# for a repository tree, so this step reaches only github.com and
 # registry.npmjs.org — no new install-time host in network-policy@2. Verified
 # with api.github.com blackholed: same 27 skills, byte-identical, hashes
 # computed locally.
@@ -57,28 +57,30 @@ RUN npm config set prefix /home/agent/.npm-global \
  && npm install -g "@earendil-works/pi-coding-agent@${PI_VERSION}"
 
 # Skills — the workflow the docs describe (/triage, /code-review,
-# /grill-with-docs, /wayfinder). Baked in rather than installed at runtime:
-# nothing self-updates inside the sandbox, and a hand install does not survive
-# a rebuild. See docs/adr/0001-skills-baked-into-image.md.
+# /grill-with-docs, /wayfinder). Baked in rather than added at runtime:
+# nothing self-updates inside the sandbox, and a skill you add by hand does
+# not survive a rebuild. See docs/adr/0001-skills-baked-into-image.md.
 #
-# -a pi, not --all: the base image also ships `claude`, and installing to an
-# agent the kit does not support is unexplained surface. --copy, not the
-# default symlinks: the image must not depend on a cache directory that the
-# last line removes. -g puts them in ~/.agents/skills, which is both the CLI's
-# global store and pi's Agent Skills location — one copy, no indirection.
+# -a pi, not --all: the base image also includes `claude`, and adding a copy
+# for an agent the kit does not support is unexplained surface. --copy, not
+# the default symlinks: the image must not depend on a cache directory that
+# the last line removes. -g puts them in ~/.agents/skills, which is both the
+# CLI's global store and pi's Agent Skills location — one copy, no
+# indirection.
 #
 # The count assertion is the point: `-s` silently ignores a name that no
 # longer exists upstream, so a SKILLS_REF bump that renames a skill would
-# otherwise ship one fewer skill with a green build.
-COPY --chown=agent:agent skills.txt /home/agent/skills.txt
+# otherwise bake in one fewer skill with a green build. skills.sh is the one
+# parser for the manifest, shared with bin/smoke.
+COPY --chown=agent:agent skills.txt skills.sh /home/agent/
 RUN DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 \
       npx -y "skills@${SKILLS_VERSION}" add \
         "https://github.com/mattpocock/skills/tree/${SKILLS_REF}" \
-        --skill $(grep -ve '^[[:space:]]*#' -e '^[[:space:]]*$' /home/agent/skills.txt | tr '\n' ' ') \
+        --skill $(sh /home/agent/skills.sh names /home/agent/skills.txt) \
         --agent pi --global --copy --yes \
  && [ "$(ls -1 /home/agent/.agents/skills | wc -l)" -eq \
-      "$(grep -cve '^[[:space:]]*#' -e '^[[:space:]]*$' /home/agent/skills.txt)" ] \
- && rm -f /home/agent/skills.txt \
+      "$(sh /home/agent/skills.sh count /home/agent/skills.txt)" ] \
+ && rm -f /home/agent/skills.txt /home/agent/skills.sh \
  && rm -rf /home/agent/.npm/_npx
 
 COPY --chown=agent:agent serve.sh /home/agent/serve.sh

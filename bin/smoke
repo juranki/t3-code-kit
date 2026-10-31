@@ -31,7 +31,7 @@ in_sbx() { $SBX exec "$NAME" -- "$@" 2>&1; }
 # ---------------------------------------------------------------- static
 head_ "static checks"
 
-for f in kit/t3-code.yaml kit/t3-code.dockerfile kit/serve.sh kit/skills.txt policy/allow.txt; do
+for f in kit/t3-code.yaml kit/t3-code.dockerfile kit/serve.sh kit/skills.txt kit/skills.sh policy/allow.txt; do
   [ -f "$ROOT/$f" ] && ok "$f exists" || no "$f missing"
 done
 
@@ -94,14 +94,17 @@ fi
 
 # Skills are baked into the image, and the Dockerfile already asserts the
 # count against kit/skills.txt. This is the other failure: an image built
-# before skills shipped, or a RUN that never executed.
+# before skills were baked in, or a RUN that never executed.
 manifest="$ROOT/kit/skills.txt"
-want=$(grep -cve '^[[:space:]]*#' -e '^[[:space:]]*$' "$manifest" 2>/dev/null || true)
-have=$(in_sbx sh -c 'ls -1 /home/agent/.agents/skills 2>/dev/null | wc -l' | tr -dc '0-9')
+want=$(sh "$ROOT/kit/skills.sh" count "$manifest" 2>/dev/null || true)
+# A sentinel, not a bare number: sbx's own stderr is merged in, so a stray
+# digit in an error message must not be read as the count.
+have=$(in_sbx sh -c 'echo "skills=$(ls -1 /home/agent/.agents/skills 2>/dev/null | wc -l | tr -d " ")"' \
+         | tr -d '\r' | sed -n 's/^skills=\([0-9][0-9]*\)$/\1/p' | head -1 || true)
 if [ "${want:-0}" -gt 0 ] && [ "${have:-0}" -eq "${want:-0}" ]; then
-  ok "$want skills installed, kit/skills.txt agrees"
+  ok "$want skills baked in, kit/skills.txt agrees"
 else
-  no "skills: ${have:-0} installed, ${want:-0} in kit/skills.txt"
+  no "skills: ${have:-0} baked in, ${want:-0} in kit/skills.txt"
 fi
 
 head_ "egress and credentials"
