@@ -261,6 +261,12 @@ stop the sandbox afterwards.
   build args; pi defaults to `latest`. Bumping any of them is a `rebuild`.
 - ⚠️ **One provider ships in v1** (pi). Adding another is one Dockerfile block,
   one credential, and one egress entry.
+- ⚠️ **GitHub is the only git host wired in.** t3 itself supports Bitbucket,
+  GitLab, and Gitea/Codeberg too, but the Kit ships one credential and one
+  host's allowlist entries; adding another is the same kind of three-part change
+  as adding a provider — a credential, its `inject` rule, and its runtime
+  allowlist entry. Until then a `403` on that host is a policy decision, not a
+  broken network.
 - ⚠️ **Not verified end to end on a host yet.** See
   [`prototype/spike.md`](prototype/spike.md) for exactly which claims are proven
   and which are not.
