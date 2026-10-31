@@ -154,7 +154,11 @@ function Invoke-Up {
         # A restart keeps the image the sandbox was created from. Changing
         # anything under kit/ needs `rebuild`, not `up`.
         Write-Output "note: this reuses the sandbox's existing image; run 't3-code-kit.ps1 rebuild $Sandbox' after editing kit/."
-        & $Sbx run -d --name $Sandbox
+        # 2>&1: a native command writing to stderr under
+        # $ErrorActionPreference='Stop' raises NativeCommandError and kills the
+        # script mid-verb, with the real message buried in the error record.
+        # Merge it and check the exit code instead.
+        & $Sbx run -d --name $Sandbox 2>&1 | Out-String | Write-Output
         if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
         # --publish is ignored on re-attach, so the mapping must be re-asked.
         Confirm-Port $Sandbox
@@ -164,9 +168,12 @@ function Invoke-Up {
         # path argument it mounts the *current directory*. `sbx create` with no
         # path is the mountless form - the agent works in the container's own
         # filesystem, which is the whole point here.
-        & $Sbx create --name $Sandbox -p "127.0.0.1:${HostPort}:$ContainerPort" $KitDir
+        # `sbx create` builds the Kit, and it writes build progress to stderr:
+        # bare, that aborted the script before the exit code was ever checked.
+        # The output is the build log - print it, then decide.
+        & $Sbx create --name $Sandbox -p "127.0.0.1:${HostPort}:$ContainerPort" $KitDir 2>&1 | Out-String | Write-Output
         if ($LASTEXITCODE -ne 0) { Fail "could not create sandbox '$Sandbox'" }
-        & $Sbx run -d --name $Sandbox
+        & $Sbx run -d --name $Sandbox 2>&1 | Out-String | Write-Output
         if ($LASTEXITCODE -ne 0) { Fail "could not start sandbox '$Sandbox'" }
         # create published via -p already; asking again is a 409 Conflict.
     }
@@ -215,6 +222,8 @@ function Invoke-Logs {
 function Invoke-Shell {
     param([string] $Sandbox)
     Assert-Sbx
+    # Not piped: an interactive shell needs the real console, and piping it
+    # through Out-String would break the TTY. Stderr stays attached here.
     & $Sbx exec -it $Sandbox -- bash
     if ($LASTEXITCODE -ne 0) { & $Sbx attach $Sandbox }
 }
@@ -229,9 +238,9 @@ function Invoke-Refresh {
     # start fetches instead of reusing the bundled fallback.
     & $Sbx exec $Sandbox -- rm -f /home/agent/.t3/userdata/model-manifest.json 2>&1 | Out-Null
     Write-Output 'restarting the server so t3 refetches its manifest'
-    & $Sbx stop $Sandbox
+    & $Sbx stop $Sandbox 2>&1 | Out-String | Write-Output
     if ($LASTEXITCODE -ne 0) { Fail "could not stop '$Sandbox'" }
-    & $Sbx run -d --name $Sandbox
+    & $Sbx run -d --name $Sandbox 2>&1 | Out-String | Write-Output
     if ($LASTEXITCODE -ne 0) { Fail "could not start '$Sandbox'" }
     $null = Wait-Ready $Sandbox
     Invoke-Url $Sandbox
@@ -240,7 +249,7 @@ function Invoke-Refresh {
 function Invoke-Down {
     param([string] $Sandbox)
     Assert-Sbx
-    & $Sbx stop $Sandbox
+    & $Sbx stop $Sandbox 2>&1 | Out-String | Write-Output
 }
 
 function Invoke-Rebuild {
