@@ -9,7 +9,7 @@
     it runs on a stock Windows 11 without installing anything.
 
 .PARAMETER Verb
-    up | url | logs | shell | down | rebuild | nuke | policy | help
+    up | url | logs | shell | refresh | down | rebuild | nuke | policy | help
 
 .PARAMETER Name
     Sandbox name. Defaults to $env:T3CK_NAME.
@@ -275,22 +275,11 @@ function Invoke-Shell {
 function Invoke-Refresh {
     param([string] $Sandbox)
     Assert-Sbx
-    Write-Output "refreshing pi's model catalog inside '$Sandbox'"
-    $r = Invoke-Sbx @('exec', $Sandbox, '--', 'pi', 'update', '--models')
-    Write-Output $r.Output
-    if ($r.ExitCode -ne 0) { Warn 'pi update --models failed; check egress to pi.dev' }
-    # t3 caches the upstream manifest with a fetchedAtMs; drop it so the next
-    # start fetches instead of reusing the bundled fallback.
-    $null = Invoke-Sbx @('exec', $Sandbox, '--', 'rm', '-f', '/home/agent/.t3/userdata/model-manifest.json')
-    Write-Output 'restarting the server so t3 refetches its manifest'
+    Write-Output "restarting '$Sandbox'; serve.sh refreshes the model catalog on every start"
     $r = Invoke-Sbx @('stop', $Sandbox)
     Write-Output $r.Output
     if ($r.ExitCode -ne 0) { Fail "could not stop '$Sandbox'" }
-    $r = Invoke-Sbx @('run', '-d', '--name', $Sandbox)
-    Write-Output $r.Output
-    if ($r.ExitCode -ne 0) { Fail "could not start '$Sandbox'" }
-    $null = Wait-Ready $Sandbox
-    Invoke-Url $Sandbox
+    Invoke-Up $Sandbox
 }
 
 function Invoke-Down {
@@ -341,7 +330,7 @@ usage: t3-code-kit.ps1 <verb> [sandbox-name]
   url      print the pairing URL for a running sandbox
   logs     tail the server log inside the sandbox (optional: line count)
   shell    open a bash shell inside the sandbox
-  refresh  refresh pi's model catalog and t3's model manifest, then restart
+  refresh  restart, which also refreshes the model catalog
   down     stop the sandbox (volumes and repos survive)
   rebuild  destroy and recreate, forcing a Kit image rebuild (volumes survive)
   nuke     destroy the sandbox and its volumes (loses all repos and t3 state)
