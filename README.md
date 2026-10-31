@@ -292,9 +292,14 @@ bin/smoke            # macOS / Linux
 ```
 
 Checks the static files, brings a sandbox up, waits for the server, mints a
-pairing URL, and proves the toolchain, the volume, GitHub egress, and one pi
-round-trip. Set `SMOKE_SKIP_AGENT=1` to skip the model call, `SMOKE_DOWN=1` to
-stop the sandbox afterwards.
+pairing URL, and proves the toolchain, the volume, and GitHub egress. Set
+`SMOKE_DOWN=1` to stop the sandbox afterwards.
+
+The pi round-trip is **off by default** — it spends real model tokens, and it
+currently fails for a reason outside this repo: pi hangs under a non-TTY
+`sbx exec` and only answers interactively. Run it with `SMOKE_AGENT=1`; it is
+killed after `SMOKE_AGENT_TIMEOUT` seconds (120) so a wedged pi fails the check
+rather than blocking the run.
 
 ## Limits
 
