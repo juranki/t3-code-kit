@@ -29,6 +29,11 @@ With no host config at all the identity is `Agent <agent@t3-code-kit>`: it
 names no person, which is the point. `up` warns and continues rather than
 failing — a missing git config is not a reason to refuse to start a server.
 
+That fallback does **not** link commits to an account, so the issue's second
+harm is only closed on a host that has a git config. That is the honest trade:
+the alternative is inventing an email address to link with, which is the same
+class of mistake as inventing a name.
+
 ## Why the launcher, and not a credential
 
 `credential@1` is the obvious-looking home for this and is the wrong one. It

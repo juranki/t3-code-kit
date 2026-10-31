@@ -407,25 +407,32 @@ else {
 # sees the sandbox, never the host that created it, so "matches the host" is
 # out of reach and "is not the auto-generated placeholder" is the real
 # regression this catches. bin/test asserts the exact value.
+#
+# "Configured at all" is the assertion, not "has the prefix". The prefix is
+# user-overridable (T3CK_AGENT_NAME_PREFIX, empty for the bare host name), so a
+# name without it is a valid configuration, not a failure. What must never
+# appear is git's own invention from the username and hostname.
 $identityName  = (Invoke-InSandbox @('git', 'config', '--global', 'user.name')).Output.Trim()
 $identityEmail = (Invoke-InSandbox @('git', 'config', '--global', 'user.email')).Output.Trim()
 
-if ($identityName -like 'Agent for *') {
-    Ok "git identity name is '$identityName'"
-}
-elseif ($identityName -eq 'Agent') {
-    Ok "git identity name is 'Agent' (host had no git config)"
-}
-elseif (-not $identityName) {
+if (-not $identityName) {
     No 'no git user.name in the sandbox - commits get an auto-generated author'
 }
+elseif ($identityName -eq 'agent' -or $identityName -like 'agent@*') {
+    No "git user.name is '$identityName' - the auto-generated placeholder"
+}
 else {
-    No "git user.name is '$identityName' - expected an 'Agent for ...' prefix"
+    Ok "git identity name is '$identityName'"
 }
 
-if (-not $identityEmail -or $identityEmail -eq 'agent@t3.t3.docker.internal') {
-    $shown = if ($identityEmail) { $identityEmail } else { 'unset' }
-    No "git user.email is '$shown' - the auto-generated placeholder"
+# The launcher's own fallback (agent@t3-code-kit) is a correct value here: it is
+# what `up` writes when the host has no git config, so rejecting it would fail
+# smoke on a sandbox the launcher configured exactly as designed.
+if (-not $identityEmail) {
+    No 'no git user.email in the sandbox - commits get an auto-generated author'
+}
+elseif ($identityEmail -eq 'agent@t3.t3.docker.internal') {
+    No "git user.email is '$identityEmail' - the auto-generated placeholder"
 }
 else {
     Ok "git identity email is '$identityEmail'"

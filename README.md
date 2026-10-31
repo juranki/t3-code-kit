@@ -199,7 +199,8 @@ host port (3773).
 ### Commits made in the sandbox
 
 `up` sets the sandbox's git identity from your host's own config, so a commit
-made by the agent is authored by you and links to your GitHub account:
+made by the agent is authored by you — and, because the email is yours, links
+to your GitHub account:
 
 ```
 Agent for Juhani Ränkimies <juhani@example.com>
