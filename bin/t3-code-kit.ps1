@@ -121,14 +121,23 @@ function Test-SandboxExists {
 }
 
 function Test-Secret {
+    # The check has three outcomes, not two: present, absent, and could-not-tell.
+    # Only 'absent' may warn. A non-zero exit from `sbx secret ls` means we never
+    # saw the listing, so claiming the secret is missing would invite the user to
+    # overwrite a working credential - stay quiet instead.
+    #
     # `sbx secret ls` prints SCOPE TYPE NAME SECRET, so the name is the third
     # column - not the start of the line. Matching '^github' never fired on a
     # correctly configured host and warned on every run.
     $r = Invoke-Sbx @('secret', 'ls') -StdoutOnly
-    if ($r.Output -notmatch '(?m)^\s*\S+\s+\S+\s+github(\s|$)') {
-        Warn "no 'github' secret on this host: clone/push will fail."
-        Warn 'set one with:  sbx secret set github'
-    }
+    if ($r.ExitCode -ne 0) { return }
+
+    # Exit zero means the listing is trustworthy, so no matching row is a real
+    # absence. The delimiter guard keeps 'github-enterprise' from counting.
+    if ($r.Output -match '(?m)^\s*\S+\s+\S+\s+github(\s|$)') { return }
+
+    Warn "no 'github' secret on this host: clone/push will fail."
+    Warn 'set one with:  sbx secret set github'
 }
 
 function Show-Policy {

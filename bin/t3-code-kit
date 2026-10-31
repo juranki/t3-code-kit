@@ -37,14 +37,28 @@ exists() {
 }
 
 require_secret() {
+  # The check has three outcomes, not two: present, absent, and could-not-tell.
+  # Only 'absent' may warn. A non-zero exit from `sbx secret ls` means we never
+  # saw the listing, so claiming the secret is missing would invite the user to
+  # overwrite a working credential - stay quiet instead.
+  #
   # `sbx secret ls` prints SCOPE TYPE NAME SECRET, so the name is the third
   # column - not the start of the line. Matching '^github' never fired on a
   # correctly configured host and warned on every run.
-  if ! $SBX secret ls 2>/dev/null \
+  status=0
+  listing=$($SBX secret ls 2>/dev/null) || status=$?
+  [ "$status" -eq 0 ] || return 0
+
+  # Exit zero means the listing is trustworthy, so no matching row is a real
+  # absence. The delimiter guard keeps 'github-enterprise' from counting.
+  # `if`, not `&&`, so a non-matching grep cannot trip `set -e`.
+  if printf '%s\n' "$listing" \
        | grep -qE '^[[:space:]]*[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+github([[:space:]]|$)'; then
-    warn "no 'github' secret on this host: clone/push will fail."
-    warn "set one with:  sbx secret set github"
+    return 0
   fi
+
+  warn "no 'github' secret on this host: clone/push will fail."
+  warn "set one with:  sbx secret set github"
 }
 
 print_policy() {
