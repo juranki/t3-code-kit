@@ -15,6 +15,13 @@ FROM ${BASE}
 ARG T3_VERSION=0.1.5
 ARG PI_VERSION=latest
 
+# The baked mise toolchain. These are mise versions, not image tags: bumping
+# one is a `rebuild`, the same as T3_VERSION and PI_VERSION. Java is
+# deliberately not here — it is the base image's OpenJDK 21, put on PATH below.
+ARG NODE_VERSION=22.23.4
+ARG GO_VERSION=1.25.14
+ARG PYTHON_VERSION=3.13.18
+
 # The skills pin is a commit, not a branch, and that is load-bearing: with a
 # ref set the `skills` CLI clones at that sha instead of asking api.github.com
 # for a repository tree, so this step reaches only github.com and
@@ -24,20 +31,59 @@ ARG PI_VERSION=latest
 ARG SKILLS_VERSION=1.7.4
 ARG SKILLS_REF=a496f5513d4a4cf889bc48e189e579f4b0bdf6aa
 
-# t3 ships prebuilt native modules that link libatomic.
+# t3 ships prebuilt native modules that link libatomic. mise is the toolchain
+# manager, and it comes from the base image's apt source — no installer script
+# and no new egress.
+#
+# --force-confold is load-bearing. mise pulls ca-certificates-bundle, which
+# ships its own /etc/ssl/certs/ca-certificates.crt. The base image already has
+# that file (created by the image, not by dpkg), so dpkg treats it as a
+# modified conffile and stops at a prompt; non-interactively that leaves both
+# packages in state iU and the next apt operation fails. Keeping the existing
+# file is the point: that bundle is where the proxy CA lives, so --force-confnew
+# (or deleting the file) breaks TLS for every curl in the sandbox.
 USER root
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libatomic1 \
+ && apt-get install -y --no-install-recommends \
+      -o Dpkg::Options::=--force-confold \
+      libatomic1 mise \
  && rm -rf /var/lib/apt/lists/*
 
 USER agent
 # Append, never replace: the base already puts /home/agent/.local/bin,
 # /opt/python/bin, /go/bin and /usr/local/go/bin on PATH.
+#
+# mise's shims come *first*, so a non-interactive shell resolves node, go and
+# python through mise. Not `mise activate`: that only hooks interactive shells,
+# and the agent's bash tool is non-interactive, so every node call would
+# silently fall back to the base image's 24. Java is not mise's — the base
+# image's OpenJDK 21 is appended instead of taking egress for mise-java.
 ENV T3CODE_HOME=/home/agent/.t3 \
     T3CODE_HOST=0.0.0.0 \
     T3CODE_PORT=3773 \
     T3CODE_NO_BROWSER=1 \
-    PATH=/home/agent/.npm-global/bin:${PATH}
+    PATH=/home/agent/.local/share/mise/shims:/home/agent/.npm-global/bin:${PATH}:/usr/lib/jvm/java-21-openjdk-amd64/bin
+
+# The baked default toolchain. mise reads this as its *global* config, so a
+# repo that ships its own .mise.toml under /home/agent/workspace overrides it
+# per project — but only for versions that are installed. A version that is
+# not baked is a runtime `mise install`, which this kit deliberately does not
+# allow (see install.allow vs runtime.allow in kit/t3-code.yaml).
+#
+# `mise install` writes the shims the ENV above puts first on PATH; reshim is
+# belt and braces so the directory exists even on a mise that does not reshim
+# on install. `mise trust` is the same belt: a config mise does not trust is
+# skipped, and a skipped config leaves the shims with no version to resolve.
+#
+# This layer sits before t3 and pi on purpose: npm and npx then resolve through
+# the shims, so pi's native modules are built for the node that will run them.
+RUN mkdir -p /home/agent/.config/mise \
+ && printf '[tools]\nnode = "%s"\ngo = "%s"\npython = "%s"\n' \
+      "${NODE_VERSION}" "${GO_VERSION}" "${PYTHON_VERSION}" \
+      > /home/agent/.config/mise/config.toml \
+ && mise trust /home/agent/.config/mise/config.toml \
+ && mise install \
+ && mise reshim
 
 # t3. install.sh honours T3CODE_VERSION, so this is a real pin.
 #
