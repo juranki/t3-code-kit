@@ -203,14 +203,18 @@ host port (3773).
 | [`kit/skills.sh`](kit/skills.sh) | The one parser for `kit/skills.txt`: names for the build, count for the checks |
 | [`kit/serve.sh`](kit/serve.sh) | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook |
 | [`policy/allow.txt`](policy/allow.txt) | Readable mirror of the runtime egress list |
+| [`policy/install.txt`](policy/install.txt) | Readable mirror of the build-time egress list |
 | [`bin/t3-code-kit`](bin/t3-code-kit) | The launcher: eight verbs over `sbx` (POSIX sh) |
 | [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1) | The same launcher for a Windows host (PowerShell 5.1+) |
 | [`bin/smoke`](bin/smoke) · [`bin/smoke.ps1`](bin/smoke.ps1) | The acceptance test — this is what "it works" means |
 | [`prototype/spike.md`](prototype/spike.md) | What was verified before any of this was written |
 
 The descriptor is normative. A Kit carries its authority in the image, under
-one digest, so the egress list lives there; `policy/allow.txt` is the copy you
-read, and `bin/smoke` fails if the two disagree.
+one digest, so the egress lists live there; `policy/allow.txt` (runtime) and
+`policy/install.txt` (build time) are the copies you read, and `bin/smoke`
+fails if any of them disagrees with the descriptor. They are separate files on
+purpose: `t3-code-kit policy` prints only the runtime one, so a build-time host
+listed there would read as a runtime permission.
 
 ## Skills
 
@@ -273,8 +277,9 @@ and `mise-java` is deliberately not allowed.
 
 ⚠️ **A 403 during a toolchain install is an allowlist line, not a broken
 network.** The build-time hosts are in the descriptor's `install.allow` (and
-[`policy/allow.txt`](policy/allow.txt)); `runtime.allow` deliberately does not
-carry them, so an on-demand `mise install` inside a running sandbox is refused.
+[`policy/install.txt`](policy/install.txt)); `runtime.allow` deliberately does
+not carry them, so an on-demand `mise install` inside a running sandbox is
+refused.
 
 ## Verify
 
