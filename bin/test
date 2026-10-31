@@ -1,0 +1,144 @@
+#!/bin/sh
+# t3-code-kit — tests for the launchers themselves.
+#
+# `bin/smoke` proves a running sandbox works. This proves the launchers decide
+# correctly, on a host that has no sandbox at all: every `sbx` call is answered
+# by a stub, so the cases are the ones a real host cannot be talked into.
+#
+# The secret check is the reason this exists. It shipped a regression where the
+# NAME column was matched at the start of the line, and nothing caught it
+# because no test ever ran the launchers' own logic. The three outcomes it has
+# to tell apart — present, absent, could-not-tell — are asserted below, for both
+# launchers, because they are twins and drift is the whole risk.
+set -u
+
+SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH= cd -- "$SELF/.." && pwd)
+
+pass=0
+fail=0
+
+ok()   { pass=$((pass + 1)); printf 'ok    %s\n' "$*"; }
+no()   { fail=$((fail + 1)); printf 'FAIL  %s\n' "$*"; }
+
+# --- the stub -------------------------------------------------------------
+#
+# Answers `secret ls` from $STUB_SECRET_OUTPUT and $STUB_SECRET_STATUS, and
+# fails anything else loudly: the secret check runs before every other sbx
+# call, so reaching another call means the check did not run.
+STUB_DIR=$(mktemp -d)
+trap 'rm -rf "$STUB_DIR"' EXIT
+
+cat > "$STUB_DIR/sbx" <<'STUB'
+#!/bin/sh
+if [ "$1" = secret ] && [ "$2" = ls ]; then
+  printf '%s' "${STUB_SECRET_OUTPUT-}"
+  exit "${STUB_SECRET_STATUS-0}"
+fi
+echo "stub sbx: unexpected call: $*" >&2
+exit 99
+STUB
+chmod +x "$STUB_DIR/sbx"
+
+# Run a launcher's `up` against the stub and report what it said about the
+# secret. `up` is expected to die later on the stub's unexpected-call exit;
+# only the secret warning is under test, so the exit code is ignored.
+WARNING_TEXT="no 'github' secret on this host: clone/push will fail."
+
+# --- bash launcher --------------------------------------------------------
+
+secret_case_bash() {
+  _name=$1 _output=$2 _status=$3 _expect=$4
+
+  _err=$(STUB_SECRET_OUTPUT=$_output STUB_SECRET_STATUS=$_status \
+         SBX=$STUB_DIR/sbx T3CK_NAME=testprobe \
+         sh "$ROOT/bin/t3-code-kit" up testprobe 2>&1 >/dev/null)
+
+  case $_expect in
+    warn)
+      case $_err in
+        *"$WARNING_TEXT"*) ok "bash: $_name — warns" ;;
+        *) no "bash: $_name — expected a warning, got: $_err" ;;
+      esac ;;
+    quiet)
+      case $_err in
+        *"$WARNING_TEXT"*) no "bash: $_name — warned, must stay quiet: $_err" ;;
+        *) ok "bash: $_name — quiet" ;;
+      esac ;;
+  esac
+}
+
+# --- PowerShell launcher --------------------------------------------------
+
+secret_case_ps() {
+  _name=$1 _output=$2 _status=$3 _expect=$4
+
+  _err=$(STUB_SECRET_OUTPUT=$_output STUB_SECRET_STATUS=$_status \
+         SBX=$STUB_DIR/sbx T3CK_NAME=testprobe \
+         pwsh -NoProfile -File "$ROOT/bin/t3-code-kit.ps1" up testprobe 2>&1 >/dev/null)
+
+  case $_expect in
+    warn)
+      case $_err in
+        *"$WARNING_TEXT"*) ok "pwsh: $_name — warns" ;;
+        *) no "pwsh: $_name — expected a warning, got: $_err" ;;
+      esac ;;
+    quiet)
+      case $_err in
+        *"$WARNING_TEXT"*) no "pwsh: $_name — warned, must stay quiet: $_err" ;;
+        *) ok "pwsh: $_name — quiet" ;;
+      esac ;;
+  esac
+}
+
+# --- the cases ------------------------------------------------------------
+#
+# One table, run against both launchers. Whatever `sbx secret ls` really looks
+# like, these are the four situations the check must tell apart.
+
+run_secret_cases() {
+  _run=$1
+
+  # Present: a github row in the third column. Silent.
+  $_run 'github row present' \
+    'SCOPE  TYPE   NAME    SECRET
+global api    github  ****' 0 quiet
+
+  # Absent: the listing parsed, and no row names github. Warn.
+  $_run 'no github row' \
+    'SCOPE  TYPE   NAME        SECRET
+global api    anthropic   ****' 0 warn
+
+  # Absent, near miss: github-enterprise is not github. The delimiter guard.
+  $_run 'only github-enterprise' \
+    'SCOPE  TYPE   NAME               SECRET
+global api    github-enterprise  ****' 0 warn
+
+  # Could not tell: sbx failed. Silent — never advise overwriting a credential
+  # we could not read.
+  $_run 'sbx secret ls fails' '' 1 quiet
+
+  # Could not tell by exit, even though output looked like an absence. The exit
+  # code is the signal, not the text.
+  $_run 'sbx fails with header output' \
+    'SCOPE  TYPE   NAME    SECRET' 1 quiet
+
+  # Absent: exit zero and a header with no rows is a real, empty listing.
+  $_run 'header only' 'SCOPE  TYPE   NAME    SECRET' 0 warn
+
+  # Absent: exit zero and no output at all is still a listing we read.
+  $_run 'empty output' '' 0 warn
+}
+
+printf 'secret check — bash launcher\n'
+run_secret_cases secret_case_bash
+
+if command -v pwsh >/dev/null 2>&1; then
+  printf '\nsecret check — PowerShell launcher\n'
+  run_secret_cases secret_case_ps
+else
+  printf '\nskipping PowerShell launcher: no pwsh on PATH\n'
+fi
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
