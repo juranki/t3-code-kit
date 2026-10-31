@@ -44,8 +44,28 @@ function Head { param([string] $m) Write-Output ''; Write-Output "== $m" }
 
 function Invoke-InSandbox {
     param([string[]] $Command)
-    $out = & $Sbx exec $Name -- @Command 2>&1 | Out-String
-    return [pscustomobject]@{ Output = $out; Ok = ($LASTEXITCODE -eq 0) }
+    # Deliberately a copy of the launcher's Invoke-Sbx: this script is a
+    # standalone port of bin/smoke and must run without the launcher, the same
+    # way the two launchers are deliberate duplicates. Keep the two in step.
+    #
+    # The trap: a native command writing to stderr under
+    # $ErrorActionPreference='Stop' raises NativeCommandError, and 2>&1 does
+    # not prevent it. Relax the preference for the duration and judge the exit
+    # code instead.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        # stderr arrives as ErrorRecord objects even when merged; take their
+        # message, or a warning from inside the sandbox reads like a crash.
+        $out = (& $Sbx exec $Name -- @Command 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ }
+        }) -join "`n"
+        $code = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+    return [pscustomobject]@{ Output = $out; ExitCode = $code }
 }
 
 function Test-Url {
@@ -72,7 +92,7 @@ function Test-Url {
 # ---------------------------------------------------------------- static
 Head 'static checks'
 
-foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', 'policy/allow.txt')) {
+foreach ($f in @('kit/t3-code.yaml', 'kit/t3-code.dockerfile', 'kit/serve.sh', 'kit/skills.txt', 'kit/skills.sh', 'policy/allow.txt')) {
     if (Test-Path (Join-Path $Root $f)) { Ok "$f exists" } else { No "$f missing" }
 }
 
@@ -142,21 +162,42 @@ $toolchain = @(
 foreach ($cmd in $toolchain) {
     $r = Invoke-InSandbox $cmd
     $label = $cmd -join ' '
-    if ($r.Ok) { Ok $label } else { No $label }
+    if ($r.ExitCode -eq 0) { Ok $label } else { No $label }
 }
 
 $r = Invoke-InSandbox @('sh', '-c', 'mountpoint -q /home/agent/workspace')
-if ($r.Ok) {
+if ($r.ExitCode -eq 0) {
     Ok '/home/agent/workspace is a volume, not a host mount'
 }
 else {
     No '/home/agent/workspace is not a volume'
 }
 
+# Skills are baked into the image, and the Dockerfile already asserts the
+# count against kit/skills.txt. This is the other failure: an image built
+# before skills were baked in, or a RUN that never executed.
+# Port of kit/skills.sh's rule (one name per line, blank lines and #-comments
+# ignored); a stock Windows host has no sh to call it.
+$manifest = Join-Path (Join-Path $Root 'kit') 'skills.txt'
+$skillsWant = 0
+if (Test-Path $manifest) {
+    $skillsWant = @(Get-Content $manifest | Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*#' }).Count
+}
+$r = Invoke-InSandbox @('sh', '-c', 'echo "skills=$(ls -1 /home/agent/.agents/skills 2>/dev/null | wc -l | tr -d " ")"')
+$skillsHave = 0
+# The same sentinel bin/smoke reads: merged stderr must not be counted.
+if ($r.Output -match '(?m)^skills=(\d+)\s*$') { $skillsHave = [int] $Matches[1] }
+if ($skillsWant -gt 0 -and $skillsHave -eq $skillsWant) {
+    Ok "$skillsWant skills baked in, kit/skills.txt agrees"
+}
+else {
+    No "skills: $skillsHave baked in, $skillsWant in kit/skills.txt"
+}
+
 Head 'egress and credentials'
 
 $r = Invoke-InSandbox @('git', 'ls-remote', '--exit-code', $Repo, 'HEAD')
-if ($r.Ok) {
+if ($r.ExitCode -eq 0) {
     Ok "git ls-remote $Repo (network + github credential)"
 }
 else {
