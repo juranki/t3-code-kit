@@ -59,38 +59,46 @@ them with `--legacy-peer-deps`.
 npm run check
 ```
 
-`fmt:check` → `lint` → `typecheck` → `test`, ~45 s, no sandbox and no network.
-Expected counts differ by platform because the `sh` launcher is skipped on
-Windows, not because a test is missing:
+`fmt:check` → `lint` → `typecheck` → `test`, ~50 s, no sandbox and no network.
+Expected counts differ by platform because the `sh` launcher and the v2
+characterization are skipped on Windows, not because a test is missing:
 
-| Host          | Files | Tests                              |
-| ------------- | ----- | ---------------------------------- |
-| Linux / macOS | 2     | 89 (9 layout + 40 `sh` + 40 `ps1`) |
-| Windows       | 2     | 49 (9 layout + 40 `ps1`)           |
+| Host          | Files | Tests                                                                                                                          |
+| ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Linux / macOS | 10    | 182 passed (9 layout + 40 `sh` + 40 `ps1` + 33 v2 + 12 seam + 25 CLI + 4 pairing + 1 policy + 9 config + 5 support + 4 runner) |
+| Windows       | 10    | 109 passed, 33 skipped (the v2 characterization)                                                                               |
 
-A Linux run that reports 49 has lost `pwsh` from `PATH` and the characterization
-suite quietly dropped its reference launcher. A Windows run that reports more
-than 49 is running launchers it should not.
+A Linux run that reports 142 passed has lost `pwsh` from `PATH` and the
+characterization suite quietly dropped its reference launcher. A Windows run
+that reports more than 109 passed is running launchers it should not.
+
+The v2 characterization is skipped on Windows because its fake `sbx` is a
+PowerShell shim and the v2 seam spawns `$SBX` directly. The production binary is
+a real `sbx.exe`; the Windows proof is a manual run against a scratch sandbox
+until #40 ports the smoke suite.
 
 Individual steps: `npm run fmt`, `npm run fmt:check`, `npm run lint`,
 `npm run typecheck`, `npm test`.
 
 ## What needs a sandbox
 
-| Check                  | Command                                         | Needs                                         |
-| ---------------------- | ----------------------------------------------- | --------------------------------------------- |
-| layout invariants      | `npm test` (`scripts/layout.test.ts`)           | nothing                                       |
-| characterization       | `npm test` (`scripts/characterization.test.ts`) | nothing — fake `sbx`/`git`/`curl`/`sleep`     |
-| smoke                  | `bin/smoke` · `.\bin\smoke.ps1`                 | real `sbx`, a scratch sandbox, stored secrets |
-| real-`sbx` integration | —                                               | not ported yet (#35, #37, #39, #40)           |
+| Check                  | Command                                            | Needs                                         |
+| ---------------------- | -------------------------------------------------- | --------------------------------------------- |
+| layout invariants      | `npm test` (`scripts/layout.test.ts`)              | nothing                                       |
+| launcher parity        | `npm test` (`scripts/characterization.test.ts`)    | nothing — fake `sbx`/`git`/`curl`/`sleep`     |
+| v2 parity (#37 verbs)  | `npm test` (`scripts/v2-characterization.test.ts`) | nothing — same fakes; skipped on Windows      |
+| seam and verb tests    | `npm test` (`packages/sbx`, `apps/cli`)            | nothing — fake `Sbx`/`ProcessRunner` layers   |
+| smoke                  | `bin/smoke` · `.\bin\smoke.ps1`                    | real `sbx`, a scratch sandbox, stored secrets |
+| real-`sbx` integration | manual: `npm run up` on the host                   | real `sbx`, a scratch sandbox                 |
 
-The characterization suite is the parity guardrail: 40 golden cases over both
-launchers, `ps1` as the reference, each recording the argv sequence, exit code
-and warnings. It needs no sandbox because every external command is an
-executable fake on `PATH`. On Windows the `sbx` fake is a PowerShell shim and
-the rest are `.cmd`: the identity call passes a base64 blob as a single
-argument, and `cmd.exe` re-parses the `|` and `$` inside it before the fake ever
-runs.
+The launcher characterization is the parity guardrail: 40 golden cases over
+both launchers, `ps1` as the reference, each recording the argv sequence, exit
+code and warnings. The v2 characterization runs the same cases against
+`apps/cli/src/bin.ts` for the verbs #37 ports (`rebuild`/`nuke` join it in #39).
+Both need no sandbox because every external command is an executable fake on
+`PATH`. On Windows the `sbx` fake is a PowerShell shim and the rest are `.cmd`:
+the identity call passes a base64 blob as a single argument, and `cmd.exe`
+re-parses the `|` and `$` inside it before the fake ever runs.
 
 ## How `sbx` is invoked
 
@@ -115,16 +123,19 @@ takes 10–25 minutes; later runs are 3–6.
 `SMOKE_DOWN=1` stops the sandbox but does not remove it — the volume objects
 stay allocated (ADR 0003). `sbx rm <name>` when you are done with it.
 
-## The v2 CLI is still a stub
+## The v2 CLI
 
-`npm run <verb>` reaches `apps/cli/src/bin.ts`, which prints
-`t3-code-kit: the v2 CLI is not implemented yet (v2 map #29)` and exits 2 until
-#37 and #39 land. `npm run -s shell -- <name>` in an interactive terminal
-therefore proves only that `npm run -s` passes the terminal through and keeps
-the exit code; the attach assertion waits for the `shell` verb.
+`npm run <verb>` reaches `apps/cli/src/bin.ts`. The non-destructive verbs are
+live: `up`, `url`, `logs`, `shell`, `refresh`, `down`, and `policy`. They run
+through the `Sbx` seam in `packages/sbx` (`ProcessRunner` → `sbx`), and the v2
+characterization suite compares their argv/exit contract with the launchers.
 
-`npm run smoke` does not exist yet either — the smoke suite is `bin/smoke*`
-until #40 ports it.
+`rebuild` and `nuke` are still the old launchers' job until #39 ports them; the
+v2 CLI reports them as unknown verbs. `npm run smoke` does not exist yet either
+— the smoke suite is `bin/smoke*` until #40 ports it.
+
+`npm run -s shell -- <name>` in an interactive terminal now exercises the real
+`shell` verb, including the `sbx attach` fallback.
 
 ## The image
 

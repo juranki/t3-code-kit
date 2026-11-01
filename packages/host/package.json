@@ -3,9 +3,17 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./Git": {
+      "types": "./src/Git.ts",
+      "import": "./src/Git.ts"
+    },
     "./HostProcess": {
       "types": "./src/HostProcess.ts",
       "import": "./src/HostProcess.ts"
+    },
+    "./ProcessRunner": {
+      "types": "./src/ProcessRunner.ts",
+      "import": "./src/ProcessRunner.ts"
     }
   },
   "dependencies": {

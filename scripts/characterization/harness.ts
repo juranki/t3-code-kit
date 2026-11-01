@@ -14,7 +14,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
-export type LauncherName = "sh" | "ps1";
+export type LauncherName = "sh" | "ps1" | "v2";
 
 export interface Rule {
   /** Argv prefix; `*` matches any single word. */
@@ -84,11 +84,18 @@ export const root = join(import.meta.dirname, "..", "..");
 
 const shLauncher = join(root, "bin", "t3-code-kit");
 const psLauncher = join(root, "bin", "t3-code-kit.ps1");
+const v2Launcher = join(root, "apps", "cli", "src", "bin.ts");
 
 let pwshAvailable: boolean | undefined;
 
 export function launcherAvailable(name: LauncherName): boolean {
   if (name === "sh") return process.platform !== "win32";
+  // The v2 seam spawns `$SBX` directly, which is a real `sbx.exe` in
+  // production. The Windows fixture is a PowerShell shim because cmd.exe
+  // re-parses the identity call's `|`; a direct spawn cannot run it. The v2
+  // characterization therefore runs where the fixture is an executable script,
+  // and the Windows proof is the real smoke suite.
+  if (name === "v2") return process.platform !== "win32";
   if (pwshAvailable === undefined) {
     const probe = spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"], {
       stdio: "ignore",
@@ -199,7 +206,9 @@ export async function runCase(
   const [file, args] =
     launcher === "sh"
       ? ["sh", [shLauncher, ...testCase.args]]
-      : ["pwsh", ["-NoProfile", "-File", psLauncher, ...testCase.args]];
+      : launcher === "ps1"
+        ? ["pwsh", ["-NoProfile", "-File", psLauncher, ...testCase.args]]
+        : [process.execPath, [v2Launcher, ...testCase.args]];
 
   const raw = await spawnCapture(file, args, env);
   const context: NormalizeContext = {
@@ -309,8 +318,15 @@ const secretNearMiss: Rule = {
 
 const secretUnknown: Rule = { match: ["secret", "ls"], exit: 1 };
 
-const notExists: Rule = { match: ["ls"], stdout: "other\n" };
-const exists: Rule = { match: ["ls"], stdout: "charprobe\n" };
+// `sbx ls` prints a fixed-width table, not one name per line. The old
+// launchers grep it; the v2 seam slices it by header offsets. A realistic table
+// is the only fixture both can read, and it is what a real `sbx` prints.
+const sandboxTable = (name: string): string =>
+  "  SANDBOX           AGENT             STATUS                 PORTS                                                                       WORKSPACE            CREATED\n" +
+  `  ${name.padEnd(18)}kit               ● running (detached)   127.0.0.1:60006->3773/tcp, ::1:60006->3773/tcp                              D:\\src\\t3-code-kit   43s\n`;
+
+const notExists: Rule = { match: ["ls"], stdout: sandboxTable("other") };
+const exists: Rule = { match: ["ls"], stdout: sandboxTable("charprobe") };
 const createOk: Rule = { match: ["create"], exit: 0 };
 const runOk: Rule = { match: ["run"], exit: 0 };
 const identityOk: Rule = { match: ["exec", "*", "--", "sh", "-c"], exit: 0 };
