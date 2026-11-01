@@ -13,9 +13,11 @@ empty.
 ## The evidence, and the version it holds for
 
 Verified against **`sbx` v0.50.1 (`ddb0268d7124b9cf98955d0b08ffd71a0dfcebe4`)**
-on Windows 11 x64, `sbx.exe`, 2026-11-01. The full capture is on the throwaway
-branch `probe/sbx-capabilities` at
-[`docs/research/sbx-probe-2026-11-01.log`](https://github.com/juranki/t3-code-kit/blob/probe/sbx-capabilities/docs/research/sbx-probe-2026-11-01.log).
+on Windows 11 x64, `sbx.exe`, 2026-11-01. The full capture is
+[`docs/research/sbx-probe-2026-11-01.log`](../research/sbx-probe-2026-11-01.log),
+produced by `scripts/probe-sbx.ts`. The same log is the evidence behind the
+`sbx ls` header, the `sbx ports` table, the `create` name-conflict message, and
+the missing-sandbox message that the v2 seam parses.
 
 | volume          | survives `stop` | survives `rm --force` + `create` | purgeable locally |
 | --------------- | --------------- | -------------------------------- | ----------------- |
