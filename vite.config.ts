@@ -11,6 +11,9 @@ export default defineConfig({
     allowOnly: !process.env.CI,
     // Flaky tests are fixed, not retried.
     retry: 0,
+    // `repos/effect` is vendored reference source, not this workspace's code.
+    // Its own tests must not join our run.
+    exclude: ["**/node_modules/**", "**/dist/**", "repos/**"],
     fakeTimers: {
       toFake: [
         "setTimeout",
@@ -25,11 +28,11 @@ export default defineConfig({
     },
   },
   fmt: {
-    ignorePatterns: ["node_modules", "package-lock.json", "*.tsbuildinfo"],
+    ignorePatterns: ["node_modules", "package-lock.json", "*.tsbuildinfo", "repos"],
     sortPackageJson: {},
   },
   lint: {
-    ignorePatterns: ["node_modules", "package-lock.json", "*.tsbuildinfo"],
+    ignorePatterns: ["node_modules", "package-lock.json", "*.tsbuildinfo", "repos"],
     plugins: ["eslint", "oxc", "unicorn", "typescript"],
     categories: {
       correctness: "warn",
