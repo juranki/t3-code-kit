@@ -1,0 +1,86 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "useDefineForClassFields": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "namespaceImportPackages": ["@effect/platform-node", "effect"],
+        "effectFn": ["span", "inferred-span", "suggested-span"],
+        "diagnosticSeverity": {
+          "missingEffectServiceDependency": "error",
+          "leakingRequirements": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "unknownInEffectCatch": "error",
+          "nodeBuiltinImport": "error",
+          "globalTimers": "error",
+          "globalFetch": "error",
+          "globalDate": "error",
+          "globalConsole": "error",
+          "cryptoRandomUUID": "error",
+          "preferSchemaOverJson": "error",
+          "effectFnOpportunity": "error",
+          "anyUnknownInErrorContext": "error",
+          "unsafeEffectTypeAssertion": "error",
+          "instanceOfSchema": "error",
+          "deterministicKeys": "error",
+          "unnecessaryEffectGen": "error",
+          "runEffectInsideEffect": "error",
+          "tryCatchInEffectGen": "error",
+          "schemaStructWithTag": "error",
+          "preferTypedSchemaDecoder": "error",
+          "catchUnfailableEffect": "error",
+          "redundantMapError": "error",
+          "unnecessaryFailYieldableError": "error",
+          // `@effect/vitest` is the only test API there is, and every test
+          // touches it; the warning would fire on every `it` in the repo.
+          "unstableApiUsage": "off",
+          "returnEffectInGen": "off",
+          "strictEffectProvide": "off",
+          "strictBooleanExpressions": "off",
+          "lazyEffect": "off",
+          "schemaNumber": "off"
+        },
+        "overrides": [
+          {
+            // HostProcess is the one module allowed to read Node globals: it is
+            // where `process` and `node:os` are turned into references.
+            "include": ["packages/host/src/HostProcess.ts"],
+            "options": {
+              "diagnosticSeverity": { "nodeBuiltinImport": "off" }
+            }
+          },
+          {
+            "include": ["**/*.test.ts"],
+            "options": {
+              "diagnosticSeverity": {
+                "preferSchemaOverJson": "off",
+                "effectFnOpportunity": "off",
+                "nodeBuiltinImport": "off"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "scripts/**/*.ts", "vite.config.ts"]
+}
