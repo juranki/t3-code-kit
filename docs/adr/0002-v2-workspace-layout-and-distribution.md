@@ -97,9 +97,9 @@ despite printing its `> script` header on stdout.
   no `files`, no `main`, no `types`.
 - **Exports are subpath-only and point at source**, enforced by
   `scripts/layout.test.ts` together with the package set, the dependency
-  edges, the Node pin, and the `overrides`. The same test carries a quarantined
-  assertion that the image bakes the same Node version, which turns green with
-  #41.
+  edges, the Node pin, and the `overrides`. The same test asserts that the
+  image bakes the same Node version, and that the Vite+ and fd pins match the
+  descriptor.
 - **The `@effect/language-service` diagnostics run in `tsc --noEmit`, not just
   the editor**: `tsc-rs` executes the tsconfig `plugins` block. Verified by the
   `unstableApiUsage` warnings it emitted on every `it` in the layout test, which
