@@ -384,6 +384,30 @@ export const parseSandboxList = (stdout: string): ReadonlyArray<SandboxSummary> 
   });
 };
 
+/** The host ports already published for a sandbox. `sbx ports` prints a table
+ * (`HOST IP / HOST PORT / SANDBOX PORT / PROTOCOL`); `sbx ls` prints the same
+ * mappings inline (`127.0.0.1:3774->3773/tcp4`). The CLI asks one question —
+ * "is this host port already published?" — so accept both shapes. */
+export const publishedHostPorts = (stdout: string): ReadonlyArray<number> => {
+  const ports: Array<number> = [];
+  for (const line of stdout.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+
+    for (const match of trimmed.matchAll(/:(\d+)->\d+\//gu)) {
+      const port = Number.parseInt(match[1] ?? "", 10);
+      if (Number.isInteger(port)) ports.push(port);
+    }
+
+    const columns = trimmed.split(/\s+/u);
+    if (columns.length >= 4 && /^\d+$/u.test(columns[1] ?? "")) {
+      const port = Number.parseInt(columns[1] ?? "", 10);
+      if (Number.isInteger(port)) ports.push(port);
+    }
+  }
+  return ports;
+};
+
 export const parseSecretRows = (stdout: string): ReadonlyArray<SecretRow> =>
   stdout
     .split(/\r?\n/u)

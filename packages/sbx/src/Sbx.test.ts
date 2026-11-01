@@ -10,7 +10,14 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { layer as liveLayer } from "./live.ts";
-import { hostOf, parseSandboxList, parseSecretRows, Sbx, splitStatus } from "./Sbx.ts";
+import {
+  hostOf,
+  parseSandboxList,
+  parseSecretRows,
+  publishedHostPorts,
+  Sbx,
+  splitStatus,
+} from "./Sbx.ts";
 
 const table = (name: string): string =>
   "  SANDBOX           AGENT             STATUS                 PORTS                                                                       WORKSPACE            CREATED\n" +
@@ -73,6 +80,23 @@ describe("Sbx parsers", () => {
   it("reads the third column as the secret name", () => {
     expect(parseSecretRows("SCOPE  TYPE   NAME    SECRET\nglobal api    github  ****\n")).toEqual([
       { scope: "global", type: "api", name: "github" },
+    ]);
+  });
+
+  it("reads host ports from the sbx ports table", () => {
+    expect(
+      publishedHostPorts(
+        "HOST IP     HOST PORT   SANDBOX PORT   PROTOCOL\n" +
+          "127.0.0.1   3799        3773           tcp4\n" +
+          "127.0.0.1   60001       3773           tcp\n" +
+          "::1         60001       3773           tcp\n",
+      ),
+    ).toEqual([3799, 60_001, 60_001]);
+  });
+
+  it("reads host ports from the sbx ls inline form", () => {
+    expect(publishedHostPorts("127.0.0.1:3774->3773/tcp4, 127.0.0.1:60008->3773/tcp\n")).toEqual([
+      3774, 60_008,
     ]);
   });
 
