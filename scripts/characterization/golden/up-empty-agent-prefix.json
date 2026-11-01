@@ -1,0 +1,27 @@
+{
+  "exit": 0,
+  "calls": [
+    ["secret", "ls"],
+    ["ls"],
+    ["create", "--name", "<name>", "-p", "127.0.0.1:<port>:3773", "<kit>"],
+    ["run", "-d", "--name", "<name>"],
+    [
+      "exec",
+      "<name>",
+      "--",
+      "sh",
+      "-c",
+      "git config --global user.name \"$(printf %s '<b64:Test User>')\""
+    ],
+    [
+      "exec",
+      "<name>",
+      "--",
+      "sh",
+      "-c",
+      "git config --global user.email \"$(printf %s '<b64:test@example.com>')\""
+    ],
+    ["exec", "<name>", "--", "t3", "pair"]
+  ],
+  "warnings": []
+}

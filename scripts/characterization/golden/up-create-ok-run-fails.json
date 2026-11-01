@@ -1,0 +1,10 @@
+{
+  "exit": 1,
+  "calls": [
+    ["secret", "ls"],
+    ["ls"],
+    ["create", "--name", "<name>", "-p", "127.0.0.1:<port>:3773", "<kit>"],
+    ["run", "-d", "--name", "<name>"]
+  ],
+  "warnings": ["could not start sandbox '<name>'"]
+}

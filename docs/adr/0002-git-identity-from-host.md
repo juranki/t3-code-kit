@@ -15,7 +15,7 @@ untouched.
 
 A sandbox commit is made by an agent, so the author should say so, and
 `Agent for Juhani Ränkimies` does. But a name is not what GitHub matches on —
-attribution follows the *email*. That is why the two fields are treated
+attribution follows the _email_. That is why the two fields are treated
 differently: the name is decorated, the email is not. Taking only the
 decorated name would have left the issue's second complaint (no contribution
 graph entry) unfixed.
@@ -38,7 +38,7 @@ class of mistake as inventing a name.
 
 `credential@1` is the obvious-looking home for this and is the wrong one. It
 carries a single `apiKey`, and its purpose is a value the proxy swaps in
-*after* traffic leaves the VM — the sandbox itself must never hold the real
+_after_ traffic leaves the VM — the sandbox itself must never hold the real
 secret. A git identity is the opposite: not a secret, and it has to be readable
 inside the sandbox as a plain value so `git` can use it. There is no
 `proxyManaged: false` shape that makes it fit.
@@ -70,6 +70,6 @@ deliberate and not to override it with `--author` or `-c user.name=…`. That
 line is baked into the image, so changing it is a `rebuild`; the launcher half
 takes effect on the next `up`.
 
-`bin/smoke` can only check the identity's *shape* — it inspects a running
+`bin/smoke` can only check the identity's _shape_ — it inspects a running
 sandbox and never sees the host that created it. The exact value is asserted in
 `bin/test`, against a stubbed `sbx` and `git`.
