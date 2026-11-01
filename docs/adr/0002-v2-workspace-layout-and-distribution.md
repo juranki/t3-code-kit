@@ -27,8 +27,8 @@ own dependency), the _unpatched_ `from "vitest"` resolves to it, and
 workspace confirmed the real shape: `vp test run` at the root and
 `vp test run --config ../../vite.config.ts --dir .` from a package both pass,
 and a package imports another's `src/*.ts` through its `exports` subpath. Root
-`overrides` pin `effect`, `vitest` and `vite`, which is the single-copy
-guarantee the catalog was buying.
+`overrides` pin `effect`, `vitest`, `vite` and `typescript`, which is the
+single-copy guarantee the catalog was buying.
 
 The `vite` override is the one that is not obvious. `vite-plus` depends on
 `vite` as an npm alias (`npm:@voidzero-dev/vite-plus-core@1.4.0`), and vitest
@@ -39,6 +39,17 @@ it fails outright with `Cannot find package 'vite'`. Overriding `vite` to the
 alias collapses it to one copy and makes npm warn that it overrode a peer
 range, which is exactly what t3code's `peerDependencyRules.allowAny: [vite]`
 does on the pnpm side.
+
+The `typescript` override is the second. `vite-plus-core` declares
+`peerOptional typescript@^5 || ^6 || ^7`, and the workspace's `typescript` is
+the `@tsc-rs/typescript@0.8.0` alias, so npm wants registry `typescript@7.0.2`
+beside it. On Linux that resolves with a warning; on Windows the same tree
+fails with `ERESOLVE could not resolve`. The failure is platform-dependent,
+which is why a green install on one host proves nothing about the other — and
+why the override, not a `--legacy-peer-deps` flag, is the fix: it makes the
+resolution identical everywhere. t3code needs the same exemption
+(`peerDependencyRules.allowAny: [typescript, vite]`), which is the
+confirmation that this is not a local workaround.
 
 **A single package at the repo root — rejected.** The seam is the point:
 `packages/sbx` has two consumers that must not share a process (the CLI verbs
