@@ -213,6 +213,10 @@ const make = Effect.gen(function* () {
     // Only a name conflict is `SandboxExistsError`. A port conflict also
     // contains "conflict" in some sbx builds, and reporting it as "a sandbox
     // named X already exists" would send the user looking for the wrong thing.
+    // Captured from sbx v0.50.1 on Windows, exit 1
+    // (`docs/research/sbx-probe-2026-11-01.log`):
+    //   error: sandbox 't3ck-probe' already exists; connect to the existing sandbox
+    //     try: sbx run --name t3ck-probe
     if (result.exitCode !== 0 && /already exists/iu.test(result.stderr)) {
       return yield* new SandboxExistsError({ name: input.name });
     }
@@ -336,7 +340,8 @@ export const layer: Layer.Layer<Sbx, never, Adapter> = Layer.effect(Sbx, make);
 
 // `sbx ls` prints a fixed-width table. STATUS, PORTS, and WORKSPACE all
 // contain spaces, so whitespace splitting is wrong; slice by the header's
-// column offsets instead. Confirmed against `sbx` v0.50.1 on Windows:
+// column offsets instead. Confirmed against `sbx` v0.50.1 on Windows
+// (`docs/research/sbx-probe-2026-11-01.log`):
 //
 //   SANDBOX           AGENT             STATUS                 PORTS ... WORKSPACE ... CREATED
 //   spike             kit               ● running (detached)   127.0.0.1:60006->3773/tcp ... ~/src/t3-code-kit   43s

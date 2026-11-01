@@ -24,9 +24,21 @@ export const bound = (output: string): string => {
 
 /** `sbx` has no structured error codes, so these predicates are the quirk
  * boundary. Each one is a guess that the characterization suite and the host
- * probes exist to test. */
+ * probes exist to test.
+ *
+ * Verified against `sbx` v0.50.1 on Windows (`docs/research/sbx-probe-2026-11-01.log`):
+ * `sbx exec|rm|stop <missing>` all print `error: sandbox '<name>' not found`.
+ * `exec` exits 125, `rm` and `stop` exit 1, so the exit code cannot be the
+ * discriminator on its own.
+ *
+ * The word "sandbox" is required. A command missing *inside* a sandbox also
+ * prints "not found" (`sh: 1: curl: not found`, `bash: t3: command not found`,
+ * exit 127) and the sandbox is very much there; matching a bare "not found"
+ * reported those as a missing instance. */
 export const isMissingSandbox = (stderr: string): boolean =>
-  /no such sandbox|does not exist|not found|no sandbox/iu.test(stderr);
+  /\bsandbox\b[^\n]*\b(?:not found|does not exist)\b|\bno such sandbox\b|\bno sandbox\b/iu.test(
+    stderr,
+  );
 
 export const isNotLoggedIn = (stderr: string): boolean =>
   /not logged in|sign in|unauthorized|authentication/iu.test(stderr);
