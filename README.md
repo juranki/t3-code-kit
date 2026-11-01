@@ -196,6 +196,29 @@ t3-code-kit policy           # print the runtime egress allowlist
 One sandbox per project. `T3CK_NAME` sets the default name, `T3CK_PORT` the
 host port (3773).
 
+### Commits made in the sandbox
+
+`up` sets the sandbox's git identity from your host's own config, so a commit
+made by the agent is authored by you — and, because the email is yours, links
+to your GitHub account:
+
+```
+Agent for Juhani Ränkimies <juhani@example.com>
+```
+
+The `Agent for ` prefix is deliberate — it says an agent, not the human, made
+the commit. The email is your real one, because that is what GitHub matches on.
+
+- Set `git config --global user.name` / `user.email` on the host first. With
+  neither set, `up` warns and falls back to `Agent <agent@t3-code-kit>`, which
+  names no person and links to no account.
+- `T3CK_AGENT_NAME_PREFIX` overrides the prefix; set it empty for the bare
+  host name.
+- `up` re-asserts the identity every time, so a `git config` you set by hand
+  inside the sandbox is reverted. It prints the identity it applied.
+
+See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-host.md).
+
 ## What ships
 
 | Path | What it is |

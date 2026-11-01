@@ -21,6 +21,14 @@ export SBX_KIT_BUILDER
 HOST_PORT=${T3CK_PORT:-3773}
 CONTAINER_PORT=3773
 READY_TIMEOUT=${T3CK_READY_TIMEOUT:-120}
+# Prepended to the host's git user.name, because a sandbox commit is made by an
+# agent and should say so. Set it to the empty string to use the bare host
+# name. See docs/adr/0002-git-identity-from-host.md.
+AGENT_NAME_PREFIX=${T3CK_AGENT_NAME_PREFIX-Agent for }
+# The last-resort identity when the host has no git config at all. Names no
+# person, which is the point: the alternative is impersonating one.
+FALLBACK_NAME=Agent
+FALLBACK_EMAIL=agent@t3-code-kit
 
 die() { printf 't3-code-kit: %s\n' "$*" >&2; exit 1; }
 say() { printf '%s\n' "$*"; }
@@ -59,6 +67,72 @@ require_secret() {
 
   warn "no 'github' secret on this host: clone/push will fail."
   warn "set one with:  sbx secret set github"
+}
+
+# The host's git identity, read once. `git config --get` exits 1 when the key
+# is unset, which is the normal "host has no config" case and not an error, so
+# the status is swallowed rather than propagated.
+host_git_name()  { git config --get user.name  2>/dev/null || true; }
+host_git_email() { git config --get user.email 2>/dev/null || true; }
+
+# Leave the sandbox with a git identity, so a commit made in it is authored
+# honestly and still links to the user's account.
+#
+# The value crosses `sbx exec` as its own argv word, never through `sh -c`:
+# "Juhani Ränkimies" has a space and a non-ASCII ä, and a shell in the middle
+# would re-split or mangle both. `git config` writes bytes, so the host's UTF-8
+# lands as-is.
+#
+# Overwritten on every `up` rather than only when unset. A wrong identity that
+# a previous run left behind is exactly the bug this fixes, so "already set"
+# cannot mean "leave it alone" - the printed line is what makes the overwrite
+# visible instead of silent.
+ensure_git_identity() {
+  n=$1
+  host_name=$(host_git_name)
+  host_email=$(host_git_email)
+
+  # Judged before the fallbacks are substituted, or the warning can never
+  # fire: after the substitution both values are non-empty by construction.
+  host_configured=0
+  if [ -n "$host_name" ] && [ -n "$host_email" ]; then
+    host_configured=1
+  fi
+
+  if [ -n "$host_name" ]; then
+    name="$AGENT_NAME_PREFIX$host_name"
+  else
+    name=$FALLBACK_NAME
+  fi
+  [ -n "$host_email" ] || host_email=$FALLBACK_EMAIL
+
+  say "git identity: $name <$host_email>"
+  if [ "$host_configured" -eq 0 ]; then
+    warn "no user.name/user.email on this host; using $name <$host_email>."
+    warn "set them with:  git config --global user.name 'Your Name'"
+  fi
+
+  # A failure here is not fatal to `up`: the sandbox is already created and the
+  # server is what the user asked for. Warn, the way require_secret does.
+  set_sandbox_git_config "$n" user.name  "$name"
+  set_sandbox_git_config "$n" user.email "$host_email"
+}
+
+# The value is passed base64-encoded and decoded inside the sandbox, not as a
+# plain argv word.
+#
+# This shell is byte-transparent, so a plain argv word would work here. The
+# PowerShell twin is not: on Windows it converts an outbound argument to a
+# native process through the process's ANSI/OEM code page, so `ä` does not
+# survive the trip and the sandbox stores the mojibake as real characters -
+# which no locale fix downstream can undo. Base64 is pure ASCII, so it survives
+# every encoding layer by construction, and using it in both keeps the twins
+# byte-identical in behaviour rather than merely similar.
+set_sandbox_git_config() {
+  _n=$1 _key=$2 _value=$3
+  _b64=$(printf '%s' "$_value" | base64 | tr -d '\n')
+  $SBX exec "$_n" -- sh -c "git config --global $_key \"\$(printf %s '$_b64' | base64 -d)\"" \
+    || warn "could not set the git identity in '$_n'; commits will carry an auto-generated author"
 }
 
 print_policy() {
@@ -113,6 +187,7 @@ cmd_up() {
     $SBX run -d --name "$n" || die "could not start sandbox '$n'"
   fi
   # create published via -p already; asking again is a 409 Conflict.
+  ensure_git_identity "$n"
   print_policy
   wait_ready "$n" || true
   cmd_url "$n"

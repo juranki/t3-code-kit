@@ -58,7 +58,24 @@ USER agent
 # and the agent's bash tool is non-interactive, so every node call would
 # silently fall back to the base image's 24. Java is not mise's — the base
 # image's OpenJDK 21 is appended instead of taking egress for mise-java.
-ENV T3CODE_HOME=/home/agent/.t3 \
+# A UTF-8 locale, or non-ASCII is unusable in the terminal.
+#
+# The base image sets none, so the sandbox runs LC_ALL=C and a terminal in it
+# cannot type a Scandinavian character at all - and anything that renders one
+# through the C locale shows mojibake (`Ränkimies` as `R├ñnkimies`, which is
+# CP437's reading of the correct UTF-8 bytes).
+#
+# C.UTF-8 is the one UTF-8 locale that always exists in glibc without a
+# locale-gen step, which is why it is named that and not en_US.UTF-8. It is
+# deliberately not a language-specific locale: the sandbox should not impose
+# collation or date formats on a repo that has its own opinion.
+#
+# This does not affect what `git config` writes - git is byte-transparent and
+# stores the correct UTF-8 either way. It affects whether a human can type the
+# character and whether it displays correctly.
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    T3CODE_HOME=/home/agent/.t3 \
     T3CODE_HOST=0.0.0.0 \
     T3CODE_PORT=3773 \
     T3CODE_NO_BROWSER=1 \

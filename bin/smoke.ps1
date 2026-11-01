@@ -193,6 +193,26 @@ foreach ($cmd in $toolchain) {
     if ($r.ExitCode -eq 0) { Ok $label } else { No $label }
 }
 
+# A UTF-8 locale, or a terminal in the sandbox cannot type a non-ASCII
+# character and renders correct UTF-8 as mojibake. Checked by round-tripping a
+# real character rather than by reading $LANG: the variable being set is not
+# the same as the locale working.
+$r = Invoke-InSandbox @('sh', '-c', 'printf "\303\244" | od -An -c')
+if ($r.Output -match '303\s+244') {
+    Ok 'non-ASCII bytes survive a round-trip'
+}
+else {
+    No 'non-ASCII bytes do not survive a round-trip'
+}
+
+$r = Invoke-InSandbox @('sh', '-c', 'printf %s "$LC_ALL"')
+if ($r.Output -match '(?i)utf-?8') {
+    Ok 'sandbox locale is UTF-8'
+}
+else {
+    No 'sandbox locale is not UTF-8 (LC_ALL is not set to a UTF-8 locale)'
+}
+
 # The baked versions are the descriptor's build-arg defaults - read them here
 # rather than keeping a second copy that drifts from kit/t3-code.yaml.
 function Get-ArgDefault {
@@ -401,6 +421,41 @@ if ($r.ExitCode -eq 0) {
 }
 else {
     No "git ls-remote $Repo - check policy/allow.txt and: sbx secret set github"
+}
+
+# The identity the launcher asserts. Only its *shape* is checkable here: smoke
+# sees the sandbox, never the host that created it, so "matches the host" is
+# out of reach and "is not the auto-generated placeholder" is the real
+# regression this catches. bin/test asserts the exact value.
+#
+# "Configured at all" is the assertion, not "has the prefix". The prefix is
+# user-overridable (T3CK_AGENT_NAME_PREFIX, empty for the bare host name), so a
+# name without it is a valid configuration, not a failure. What must never
+# appear is git's own invention from the username and hostname.
+$identityName  = (Invoke-InSandbox @('git', 'config', '--global', 'user.name')).Output.Trim()
+$identityEmail = (Invoke-InSandbox @('git', 'config', '--global', 'user.email')).Output.Trim()
+
+if (-not $identityName) {
+    No 'no git user.name in the sandbox - commits get an auto-generated author'
+}
+elseif ($identityName -eq 'agent' -or $identityName -like 'agent@*') {
+    No "git user.name is '$identityName' - the auto-generated placeholder"
+}
+else {
+    Ok "git identity name is '$identityName'"
+}
+
+# The launcher's own fallback (agent@t3-code-kit) is a correct value here: it is
+# what `up` writes when the host has no git config, so rejecting it would fail
+# smoke on a sandbox the launcher configured exactly as designed.
+if (-not $identityEmail) {
+    No 'no git user.email in the sandbox - commits get an auto-generated author'
+}
+elseif ($identityEmail -eq 'agent@t3.t3.docker.internal') {
+    No "git user.email is '$identityEmail' - the auto-generated placeholder"
+}
+else {
+    Ok "git identity email is '$identityEmail'"
 }
 
 Head 'agent round-trip'
