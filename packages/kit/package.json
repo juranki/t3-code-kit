@@ -2,6 +2,12 @@
   "name": "@t3ck/kit",
   "private": true,
   "type": "module",
+  "exports": {
+    "./Policy": {
+      "types": "./src/Policy.ts",
+      "import": "./src/Policy.ts"
+    }
+  },
   "dependencies": {
     "effect": "4.0.5"
   },
