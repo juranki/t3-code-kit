@@ -17,12 +17,12 @@ on Windows 11 x64, `sbx.exe`, 2026-11-01. The full capture is on the throwaway
 branch `probe/sbx-capabilities` at
 [`docs/research/sbx-probe-2026-11-01.log`](https://github.com/juranki/t3-code-kit/blob/probe/sbx-capabilities/docs/research/sbx-probe-2026-11-01.log).
 
-| volume            | survives `stop` | survives `rm --force` + `create` | purgeable locally |
-| ----------------- | --------------- | -------------------------------- | ----------------- |
-| `workspace`       | yes             | yes                              | no                |
-| `.t3/userdata`    | yes             | yes                              | no                |
-| `.t3/projects`    | yes             | yes                              | no                |
-| `.t3/worktrees`   | yes             | yes                              | no                |
+| volume          | survives `stop` | survives `rm --force` + `create` | purgeable locally |
+| --------------- | --------------- | -------------------------------- | ----------------- |
+| `workspace`     | yes             | yes                              | no                |
+| `.t3/userdata`  | yes             | yes                              | no                |
+| `.t3/projects`  | yes             | yes                              | no                |
+| `.t3/worktrees` | yes             | yes                              | no                |
 
 Same `.sbx-volume-initialized` timestamp and same backing device
 (`/dev/vde`–`/dev/vdh`) in every phase, so these are the same volumes
