@@ -1,0 +1,5 @@
+{
+  "exit": 1,
+  "calls": [["stop", "<name>"]],
+  "warnings": ["could not stop '<name>'"]
+}

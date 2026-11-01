@@ -69,7 +69,7 @@
             }
           },
           {
-            "include": ["**/*.test.ts"],
+            "include": ["**/*.test.ts", "scripts/characterization/**/*.ts"],
             "options": {
               "diagnosticSeverity": {
                 "preferSchemaOverJson": "off",

@@ -1,0 +1,5 @@
+{
+  "exit": 0,
+  "calls": [["exec", "<name>", "--", "tail", "-n", "200", "/home/agent/.t3/serve.log"]],
+  "warnings": []
+}

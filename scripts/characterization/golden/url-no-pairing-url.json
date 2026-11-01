@@ -1,0 +1,24 @@
+{
+  "exit": 1,
+  "calls": [
+    ["exec", "<name>", "--", "t3", "pair"],
+    ["exec", "<name>", "--", "tail", "-n", "500", "/home/agent/.t3/serve.log"]
+  ],
+  "warnings": ["no pairing URL: is the server up? try: t3-code-kit logs <name>"],
+  "sh": {
+    "exit": 1,
+    "calls": [
+      ["exec", "<name>", "--", "t3", "pair"],
+      [
+        "exec",
+        "<name>",
+        "--",
+        "sh",
+        "-c",
+        "grep -o \"Pairing URL: http://[^[:space:]]*\" \"${T3CODE_HOME:-/home/agent/.t3}/serve.log\" 2>/dev/null | tail -1 | cut -d\" \" -f3"
+      ]
+    ],
+    "warnings": ["no pairing URL: is the server up? try: t3-code-kit logs <name>"],
+    "reason": "sh reads the pairing URL with `sh -c grep`; ps1 uses `tail -n 500`."
+  }
+}
