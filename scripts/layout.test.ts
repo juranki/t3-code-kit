@@ -39,6 +39,12 @@ const workspace = workspaceDirs.map((dir) => ({
 
 const rootManifest = readJson<Manifest>("package.json");
 
+const descriptorText = () => readFileSync(join(root, "kit/t3-code.yaml"), "utf8");
+const dockerfileText = () => readFileSync(join(root, "kit/t3-code.dockerfile"), "utf8");
+const descriptorDefault = (key: string) =>
+  new RegExp(`${key}:\\s*\\n\\s*default:\\s*"([^"]+)"`).exec(descriptorText())?.[1];
+const dockerfileArg = (key: string) => new RegExp(`ARG ${key}=(\\S+)`).exec(dockerfileText())?.[1];
+
 const internalDependencies = (manifest: Manifest): ReadonlyArray<string> =>
   Object.keys({ ...manifest.dependencies, ...manifest.devDependencies })
     .filter((name) => name.startsWith("@t3ck/"))
@@ -115,13 +121,16 @@ describe("v2 workspace layout", () => {
     }),
   );
 
-  // quarantine: #41 the image still bakes 22.23.4; this turns green with the bump.
-  it.skip("bakes the same Node in the image as engines.node", () => {
-    const descriptor = readFileSync(join(root, "kit/t3-code.yaml"), "utf8");
-    const dockerfile = readFileSync(join(root, "kit/t3-code.dockerfile"), "utf8");
-    const fromDescriptor = /nodeVersion:\s*\n\s*default:\s*"([^"]+)"/.exec(descriptor)?.[1];
-    const fromDockerfile = /ARG NODE_VERSION=(\S+)/.exec(dockerfile)?.[1];
-    expect(fromDescriptor).toBe(rootManifest.engines?.node);
-    expect(fromDockerfile).toBe(rootManifest.engines?.node);
+  it("bakes the same Node in the image as engines.node", () => {
+    expect(descriptorDefault("nodeVersion")).toBe(rootManifest.engines?.node);
+    expect(dockerfileArg("NODE_VERSION")).toBe(rootManifest.engines?.node);
+  });
+
+  it("bakes the Vite+ and fd pins the descriptor declares", () => {
+    // Vite+ is the workspace's own devDependency, so the image pin must match
+    // it; fd has no manifest pin, so the descriptor is the source of truth.
+    expect(descriptorDefault("vitePlusVersion")).toBe(rootManifest.devDependencies?.["vite-plus"]);
+    expect(dockerfileArg("VITE_PLUS_VERSION")).toBe(descriptorDefault("vitePlusVersion"));
+    expect(dockerfileArg("FD_VERSION")).toBe(descriptorDefault("fdVersion"));
   });
 });

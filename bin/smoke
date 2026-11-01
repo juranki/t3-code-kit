@@ -166,9 +166,29 @@ check_shim() {
   fi
 }
 
+check_version() {
+  tool=$1 arg=$2 sed_expr=$3
+  want=$(arg_default "$arg")
+  got=$(in_sbx sh -c "$tool --version 2>/dev/null" | tr -d '\r' | sed -n "$sed_expr" | head -1)
+  if [ -z "$want" ]; then
+    no "$tool: no ${arg} default in kit/t3-code.yaml"
+  elif [ "$got" != "$want" ]; then
+    no "$tool reports ${got:-nothing}, want $want (the baked version)"
+  else
+    ok "$tool $got is the baked version"
+  fi
+}
+
 check_shim node "$(arg_default nodeVersion)"
 check_shim go "$(arg_default goVersion)"
 check_shim python "$(arg_default pythonVersion)"
+
+# Vite+ and fd are not mise's: Vite+ is a global npm install and fd is a
+# pinned release binary in /usr/local/bin. They follow the same rule as the
+# shims — the version reported inside the sandbox must be the descriptor's
+# default — so a kit-arg bump that misses the image fails here.
+check_version vp vitePlusVersion 's/^vp v\([0-9][0-9.]*\).*/\1/p'
+check_version fd fdVersion 's/^fd \([0-9][0-9.]*\).*/\1/p'
 
 # Java is the base image's OpenJDK 21, not mise's: mise-java.jdx.dev is not in
 # the allowlist and the base image already carries a JDK. This asserts the PATH
@@ -306,6 +326,8 @@ else
     # hanging here points at the non-TTY exec session, not at the key. Both are
     # named because the fix differs and guessing wrong costs a run.
     no "pi did not answer within ${agent_timeout}s and was killed — it hangs under a non-TTY 'sbx exec' even when the provider key, its binding and egress are all fine; re-run with -it to tell the two apart"
+  elif printf '%s' "$agent_out" | grep -q 'fd not found'; then
+    no "pi tried to download fd — the baked fd is not on PATH"
   elif printf '%s' "$agent_out" | grep -q OK; then
     ok "pi answered through its provider"
   else
