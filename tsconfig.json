@@ -69,6 +69,19 @@
             }
           },
           {
+            // The sbx probe is a throwaway host program: it shells out to `sbx`
+            // and reads the host filesystem, which is the whole point of it.
+            // Wrapping that in Effect services would be a rewrite of the thing
+            // under test, for a file that is never merged.
+            "include": ["scripts/probe-sbx.ts"],
+            "options": {
+              "diagnosticSeverity": {
+                "nodeBuiltinImport": "off",
+                "globalDate": "off"
+              }
+            }
+          },
+          {
             "include": ["**/*.test.ts"],
             "options": {
               "diagnosticSeverity": {
