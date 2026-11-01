@@ -120,7 +120,15 @@ export function makeFixtures(): Fixtures {
   for (const [name, file] of fixtures) {
     const source = join(import.meta.dirname, file);
     if (process.platform === "win32") {
-      writeFileSync(join(bin, `${name}.cmd`), `@echo off\r\nnode "${source}" %*\r\n`);
+      // sbx gets a PowerShell shim, not a .cmd: the identity call carries
+      // `$(printf %s '<b64>' | base64 -d)` as one argument, and cmd.exe
+      // re-parses the `|` and `$` before the fake ever sees them. git's
+      // arguments are plain words, so the cheaper .cmd shim is fine there.
+      if (name === "sbx") {
+        writeFileSync(join(bin, "sbx.ps1"), `& node "${source}" @args\nexit $LASTEXITCODE\n`);
+      } else {
+        writeFileSync(join(bin, `${name}.cmd`), `@echo off\r\nnode "${source}" %*\r\n`);
+      }
     } else {
       // A wrapper, not a copy: an extensionless copy would be treated as
       // CommonJS and choke on the fixture's `import` statements.
@@ -130,7 +138,7 @@ export function makeFixtures(): Fixtures {
     }
   }
 
-  const sbx = process.platform === "win32" ? join(bin, "sbx.cmd") : join(bin, "sbx");
+  const sbx = process.platform === "win32" ? join(bin, "sbx.ps1") : join(bin, "sbx");
   return { dir, bin, sbx, log: join(dir, "sbx.log") };
 }
 
