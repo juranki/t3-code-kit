@@ -1,0 +1,17 @@
+{
+  "name": "@t3ck/cli",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-node": "4.0.5",
+    "@t3ck/host": "*",
+    "@t3ck/kit": "*",
+    "@t3ck/sbx": "*",
+    "effect": "4.0.5"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.5",
+    "@types/node": "24.12.4",
+    "vite-plus": "1.4.0"
+  }
+}
