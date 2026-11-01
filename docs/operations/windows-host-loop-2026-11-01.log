@@ -1,0 +1,153 @@
+════════ evidence: the v2 dev loop on the Windows host (#32) ════════
+host:   Windows 11 Pro (10.0.26300, win32/x64), PowerShell 7.6.9
+repo:   ~/src/t3-code-kit at d8ab695
+run:    2026-11-01T19:56Z
+
+Collected by evidence-32b.ps1. Every command is piped through Tee-Object,
+because Start-Transcript on Windows does not record a native process's stdout.
+ANSI colour and the console-mangled vitest check marks are stripped; nothing
+else is edited.
+
+===== host
+pwsh : 7.6.9
+os   : Microsoft Windows 10.0.26300
+cwd  : ~/src/t3-code-kit
+head : d8ab695
+===== sbx version (the invocation that works)
+sbx version v0.50.1 ddb0268d7124b9cf98955d0b08ffd71a0dfcebe4
+----- sbx version exit: 0
+===== npm ci (native, from the committed lockfile)
+
+added 100 packages, and audited 105 packages in 32s
+
+21 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn install-scripts   @tsc-rs/typescript@0.8.0 (postinstall: node lib/install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+----- npm ci exit: 0
+===== npm run check (fresh install)
+
+> check
+> npm run fmt:check && npm run lint && npm run typecheck && npm test
+
+
+> fmt:check
+> vp fmt --check
+
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 333ms on 69 files using 12 threads.
+
+> lint
+> vp lint
+
+Found 0 warnings and 0 errors.
+Finished in 242ms on 11 files with 133 rules using 12 threads.
+
+> typecheck
+> tsc --noEmit
+
+
+> test
+> vp test run
+
+
+ RUN  v5.0.5 D:/src/t3-code-kit
+
+ ✓ scripts/layout.test.ts (9 tests) 22ms
+ ✓ scripts/characterization.test.ts (40 tests) 42346ms
+   ✓ characterization (40)
+     ✓ ps1 (40)
+       ✓ help 659ms
+       ✓ help flag 656ms
+       ✓ no args 599ms
+       ✓ unknown verb 549ms
+       ✓ missing name 730ms
+       ✓ policy 718ms
+       ✓ up create 1629ms
+       ✓ up create with explicit name 1647ms
+       ✓ up existing 1526ms
+       ✓ up existing port not published 1578ms
+       ✓ up existing port publish fails 1621ms
+       ✓ up create fails 932ms
+       ✓ up create ok run fails 1004ms
+       ✓ up secret absent 1488ms
+       ✓ up secret near miss 1458ms
+       ✓ up secret unknown 1437ms
+       ✓ up identity exec fails 1528ms
+       ✓ up host git absent 1508ms
+       ✓ up empty agent prefix 1548ms
+       ✓ up ready timeout 1468ms
+       ✓ url 728ms
+       ✓ url fallback 791ms
+       ✓ url no pairing url 798ms
+       ✓ logs 696ms
+       ✓ logs line count 708ms
+       ✓ logs fallback 766ms
+       ✓ logs both fail 772ms
+       ✓ shell 679ms
+       ✓ shell attach fallback 785ms
+       ✓ refresh 1656ms
+       ✓ refresh stop fails 707ms
+       ✓ down 697ms
+       ✓ down stop fails 706ms
+       ✓ rebuild 1812ms
+       ✓ rebuild rm fails 1561ms
+       ✓ nuke 869ms
+       ✓ nuke rm fails 879ms
+       ✓ nuke volume unsupported 746ms
+       ✓ nuke volume rm fails 892ms
+       ✓ nuke no matching volume 808ms
+
+ Test Files  2 passed (2)
+      Tests  49 passed (49)
+   Start at  19:56:25
+   Duration  43.40s (tests 97%, import 2%)
+
+----- npm run check exit: 0
+===== npm install-scripts ls
+1 package has install scripts not yet covered by allowScripts:
+  @tsc-rs/typescript@0.8.0 (postinstall: node lib/install.js)
+
+Run `npm install-scripts approve <pkg>` to allow, or `npm install-scripts deny <pkg>` to deny.
+----- npm install-scripts ls exit: 0
+===== npm ci --os=linux --cpu=x64 (cross-target from the same lockfile)
+
+added 95 packages, and audited 100 packages in 27s
+
+20 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn install-scripts   @tsc-rs/typescript@0.8.0 (postinstall: node lib/install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+----- npm ci cross exit: 0
+===== npm ci (restore the native tree)
+
+added 100 packages, and audited 105 packages in 29s
+
+21 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn install-scripts   @tsc-rs/typescript@0.8.0 (postinstall: node lib/install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+----- npm ci restore exit: 0
+
+════════ smoke, same host, same commit ════════
+$env:SMOKE_DOWN = 1; .\bin\smoke.ps1 t3ck-smoke-32
+
+== summary
+  33 passed, 0 failed, 1 skipped
+  sandbox stopped
+
+The skip is the pi round-trip (SMOKE_AGENT=1 to run it).
