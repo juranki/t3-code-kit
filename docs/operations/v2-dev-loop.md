@@ -65,12 +65,12 @@ characterization are skipped on Windows, not because a test is missing:
 
 | Host          | Files | Tests                                                                                                                          |
 | ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Linux / macOS | 10    | 182 passed (9 layout + 40 `sh` + 40 `ps1` + 33 v2 + 12 seam + 25 CLI + 4 pairing + 1 policy + 9 config + 5 support + 4 runner) |
-| Windows       | 10    | 109 passed, 33 skipped (the v2 characterization)                                                                               |
+| Linux / macOS | 10    | 185 passed (9 layout + 40 `sh` + 40 `ps1` + 33 v2 + 14 seam + 26 CLI + 4 pairing + 1 policy + 9 config + 5 support + 4 runner) |
+| Windows       | 10    | 112 passed, 33 skipped (the v2 characterization)                                                                               |
 
-A Linux run that reports 142 passed has lost `pwsh` from `PATH` and the
+A Linux run that reports 145 passed has lost `pwsh` from `PATH` and the
 characterization suite quietly dropped its reference launcher. A Windows run
-that reports more than 109 passed is running launchers it should not.
+that reports more than 112 passed is running launchers it should not.
 
 The v2 characterization is skipped on Windows because its fake `sbx` is a
 PowerShell shim and the v2 seam spawns `$SBX` directly. The production binary is

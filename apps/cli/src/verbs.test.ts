@@ -433,6 +433,29 @@ describe("down and refresh", () => {
       expect(calls[3]).toEqual(["run", "-d", "--name", "charprobe"]);
     }).pipe(Effect.provide(TestConsole.layer));
   });
+
+  it.effect("does not re-publish a port already in the sbx ports table", () => {
+    const fake = makeFakeSbx({
+      rules: [
+        { match: (command) => command.args[0] === "stop", response: { exitCode: 0 } },
+        ...baseRules("charprobe").filter(
+          (rule) => rule.match({ args: ["ports"] } as never) === false,
+        ),
+        {
+          match: (command) => command.args[0] === "ports",
+          response: {
+            stdout:
+              "HOST IP     HOST PORT   SANDBOX PORT   PROTOCOL\n" +
+              "127.0.0.1   40773       3773           tcp4\n",
+          },
+        },
+      ],
+    });
+    return Effect.gen(function* () {
+      expect(yield* runCli(["refresh"], fake)).toBe(0);
+      expect(argsOf(fake).some((call) => call.includes("--publish"))).toBe(false);
+    }).pipe(Effect.provide(TestConsole.layer));
+  });
 });
 
 describe("policy and usage", () => {

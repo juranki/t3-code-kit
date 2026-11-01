@@ -13,6 +13,7 @@ import { Git } from "@t3ck/host/Git";
 import { ProcessRunner } from "@t3ck/host/ProcessRunner";
 import { parsePolicy } from "@t3ck/kit/Policy";
 import {
+  publishedHostPorts,
   Sbx,
   type ExecResult,
   type SandboxSummary,
@@ -124,7 +125,7 @@ const ensurePort = (name: string, hostPort: number): Effect.Effect<void, never, 
     if (
       current !== undefined &&
       current.exitCode === 0 &&
-      new RegExp(`:${hostPort}\\b`, "u").test(current.stdout)
+      publishedHostPorts(current.stdout).includes(hostPort)
     ) {
       return;
     }
