@@ -17,3 +17,8 @@ nodejs.org
 dl.google.com
 pypi.org
 files.pythonhosted.org
+
+# --- Vite+ and fd add no host. Vite+ installs from registry.npmjs.org; fd
+# downloads its pinned release from github.com and
+# objects.githubusercontent.com. All three are already in the descriptor's
+# install.allow.
