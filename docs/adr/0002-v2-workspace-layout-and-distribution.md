@@ -27,8 +27,9 @@ own dependency), the _unpatched_ `from "vitest"` resolves to it, and
 workspace confirmed the real shape: `vp test run` at the root and
 `vp test run --config ../../vite.config.ts --dir .` from a package both pass,
 and a package imports another's `src/*.ts` through its `exports` subpath. Root
-`overrides` pin `effect`, `vitest`, `vite` and `typescript`, which is the
-single-copy guarantee the catalog was buying.
+`overrides` pin `effect`, `vitest`, `vite`, `typescript` and
+`@effect/platform-node-shared`, which is the single-copy guarantee the catalog
+was buying.
 
 The `vite` override is the one that is not obvious. `vite-plus` depends on
 `vite` as an npm alias (`npm:@voidzero-dev/vite-plus-core@1.4.0`), and vitest
@@ -50,6 +51,16 @@ why the override, not a `--legacy-peer-deps` flag, is the fix: it makes the
 resolution identical everywhere. t3code needs the same exemption
 (`peerDependencyRules.allowAny: [typescript, vite]`), which is the
 confirmation that this is not a local workaround.
+
+The `@effect/platform-node-shared` override is the third. `@effect/platform-node@4.0.5`
+declares `@effect/platform-node-shared: ^4.0.5`, so npm installs 4.1.1, and
+4.1.1 imports `effect/dist/process/CommandLine.js` — a path that only exists
+in `effect@4.1.x`, while the root override pins `effect` to 4.0.5. Nothing
+imported `NodeServices` before the live `Sbx` adapter, so the mismatch stayed
+invisible; it only fails when the platform-node entry point is actually
+loaded. Pinning shared to `4.0.5` keeps the pair in step. npm still nests that
+copy under `@effect/platform-node` rather than hoisting it, and the lockfile
+keeps that nested resolution.
 
 **A single package at the repo root — rejected.** The seam is the point:
 `packages/sbx` has two consumers that must not share a process (the CLI verbs
