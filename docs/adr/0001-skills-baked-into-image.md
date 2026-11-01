@@ -5,7 +5,7 @@ The skills the documented workflow depends on (`/triage`, `/code-review`,
 `/home/agent/.agents/skills`, baked in at build time by the `skills` CLI from a
 pinned commit. A skill you add by hand does not survive a rebuild, and a volume
 over `/home/agent/.agents` would shadow whatever the image contains while still
-starting empty on a *new* sandbox — it only helps the sandbox where you already
+starting empty on a _new_ sandbox — it only helps the sandbox where you already
 ran the CLI by hand. Baking in is the only shape where "the image is the
 environment" holds.
 
@@ -15,7 +15,7 @@ environment" holds.
   trap the `.t3` volume note warns about), and a new sandbox still starts with
   no skills. It preserves state, not setup.
 - **Restore from the CLI's lock file (`experimental_install`).** Rejected: it
-  restores a *project-scope* `skills-lock.json` into `.agents/skills` without
+  restores a _project-scope_ `skills-lock.json` into `.agents/skills` without
   agent links, and a lock written without a ref pins content, not a version.
   The Dockerfile's `SKILLS_REF` is the pin.
 
