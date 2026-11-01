@@ -3,6 +3,9 @@
 // value with no layer; a test provides the reference instead of monkey-patching
 // `process`, which is what makes `resolveSbxBinary` testable at all.
 //
+// The one write is `setExitCode`: the CLI entry sets the code the shell sees, and
+// keeping that here is what lets every other module stay free of `process`.
+//
 // Transcribed from t3code's packages/shared/src/HostProcess.ts, trimmed to what
 // a `sbx` launcher reads. Keep the reference names identical to upstream so the
 // `nodeBuiltinImport` exemption in tsconfig.json reads the same as theirs.
@@ -43,3 +46,9 @@ export const Arguments = Context.Reference<ReadonlyArray<string>>(
 );
 
 export const isWindows = Effect.map(Platform, (platform) => platform === "win32");
+
+/** The code the shell sees when the CLI exits. */
+export const setExitCode = (code: number): Effect.Effect<void> =>
+  Effect.sync(() => {
+    process.exitCode = code;
+  });
