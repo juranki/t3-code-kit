@@ -1,0 +1,15 @@
+{
+  "name": "@t3ck/sbx",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@t3ck/host": "*",
+    "effect": "4.0.5"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "4.0.5",
+    "@effect/vitest": "4.0.5",
+    "@types/node": "24.12.4",
+    "vite-plus": "1.4.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@t3ck/host",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./HostProcess": {
+      "types": "./src/HostProcess.ts",
+      "import": "./src/HostProcess.ts"
+    }
+  },
+  "dependencies": {
+    "effect": "4.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.4"
+  }
+}
