@@ -1,0 +1,30 @@
+{
+  "exit": 0,
+  "calls": [
+    ["secret", "ls"],
+    ["ls"],
+    ["create", "--name", "<name>", "-p", "127.0.0.1:<port>:3773", "<kit>"],
+    ["run", "-d", "--name", "<name>"],
+    [
+      "exec",
+      "<name>",
+      "--",
+      "sh",
+      "-c",
+      "git config --global user.name \"$(printf %s '<b64:Agent>')\""
+    ],
+    [
+      "exec",
+      "<name>",
+      "--",
+      "sh",
+      "-c",
+      "git config --global user.email \"$(printf %s '<b64:agent@t3-code-kit>')\""
+    ],
+    ["exec", "<name>", "--", "t3", "pair"]
+  ],
+  "warnings": [
+    "no user.name/user.email on this host; using Agent <agent@t3-code-kit>.",
+    "set them with:  git config --global user.name 'Your Name'"
+  ]
+}
