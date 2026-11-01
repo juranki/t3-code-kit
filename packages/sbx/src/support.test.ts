@@ -15,8 +15,18 @@ describe("support", () => {
   });
 
   it("recognises a missing sandbox", () => {
+    // The real message, captured from sbx v0.50.1 on Windows.
+    expect(isMissingSandbox("error: sandbox 't3ck-probe' not found")).toBe(true);
     expect(isMissingSandbox("no such sandbox: demo")).toBe(true);
     expect(isMissingSandbox("build failed")).toBe(false);
+  });
+
+  it("does not mistake a command missing inside the sandbox for a missing sandbox", () => {
+    // `sbx exec` runs these, so their stderr is the sandbox's, not sbx's. All
+    // three used to match a bare "not found" and report the instance as gone.
+    expect(isMissingSandbox("sh: 1: curl: not found")).toBe(false);
+    expect(isMissingSandbox('exec: "git": executable file not found in $PATH')).toBe(false);
+    expect(isMissingSandbox("bash: t3: command not found")).toBe(false);
   });
 
   it("recognises a sign-in failure", () => {
