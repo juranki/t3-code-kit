@@ -161,16 +161,14 @@ const runChecked = (
   input: Command,
 ): Effect.Effect<RawResult, SbxError> =>
   adapter.run(input).pipe(
-    Effect.flatMap((result): Effect.Effect<RawResult, SbxCommandError> =>
-      result.exitCode === 0
-        ? Effect.succeed(result)
-        : Effect.fail(
-            new SbxCommandError({
-              verb: verbOf(input),
-              exitCode: result.exitCode,
-              stderr: bound(result.stderr),
-            }),
-          ),
+    Effect.filterOrFail(
+      (result) => result.exitCode === 0,
+      (result) =>
+        new SbxCommandError({
+          verb: verbOf(input),
+          exitCode: result.exitCode,
+          stderr: bound(result.stderr),
+        }),
     ),
   );
 
