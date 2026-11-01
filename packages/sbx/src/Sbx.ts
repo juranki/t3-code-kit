@@ -90,14 +90,18 @@ export interface RmInput {
   readonly force: boolean;
 }
 
-/** The only thing a live and a fake implementation have to provide. */
-export interface Adapter {
-  readonly run: (command: Command) => Effect.Effect<RawResult, SbxError>;
-  readonly capabilities: Effect.Effect<Capabilities, SbxError>;
-}
-
 /** A command that never ran, timed out, or failed in the binary itself. */
 export type SbxError = SbxCommandError | SbxTimeoutError | SbxNotFoundError;
+
+/** The only thing a live and a fake implementation have to provide. It is a
+ * service, not a `make` parameter, so the layer's `R` says what the seam needs. */
+export class Adapter extends Context.Service<
+  Adapter,
+  {
+    readonly run: (command: Command) => Effect.Effect<RawResult, SbxError>;
+    readonly capabilities: Effect.Effect<Capabilities, SbxError>;
+  }
+>()("@t3ck/sbx/Sbx/Adapter") {}
 
 export class Sbx extends Context.Service<
   Sbx,
@@ -152,7 +156,10 @@ const sbxCommand = (
   },
 ): Command => command({ bin: "sbx", args, ...extra });
 
-const runChecked = (adapter: Adapter, input: Command): Effect.Effect<RawResult, SbxError> =>
+const runChecked = (
+  adapter: Adapter["Service"],
+  input: Command,
+): Effect.Effect<RawResult, SbxError> =>
   adapter.run(input).pipe(
     Effect.flatMap((result): Effect.Effect<RawResult, SbxCommandError> =>
       result.exitCode === 0
@@ -172,7 +179,9 @@ const missingSandbox = (input: ExecResult, name: string, verb: string) =>
     ? Effect.fail(new SandboxMissingError({ name, verb }))
     : Effect.succeed(input);
 
-export const make = (adapter: Adapter): Sbx["Service"] => {
+const make = Effect.gen(function* () {
+  const adapter = yield* Adapter;
+
   const probe = Effect.fn("Sbx.probe")(function* () {
     return yield* adapter.capabilities;
   });
@@ -268,7 +277,7 @@ export const make = (adapter: Adapter): Sbx["Service"] => {
     const result = yield* adapter.run(sbxCommand(["secret", "ls"]));
     if (result.exitCode !== 0) {
       if (isNotLoggedIn(result.stderr)) {
-        return yield* new SbxNotLoggedInError({ verb: "secret ls" });
+        return yield* new SbxNotLoggedInError({});
       }
       return yield* new SbxCommandError({
         verb: "secret ls",
@@ -315,9 +324,9 @@ export const make = (adapter: Adapter): Sbx["Service"] => {
     secrets,
     probeEgress,
   });
-};
+});
 
-export const layer = (adapter: Adapter): Layer.Layer<Sbx> => Layer.succeed(Sbx, make(adapter));
+export const layer: Layer.Layer<Sbx, never, Adapter> = Layer.effect(Sbx, make);
 
 // --- parsers ---------------------------------------------------------------
 // `sbx` has no JSON output for these verbs. The parsers are deliberately

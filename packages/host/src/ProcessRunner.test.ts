@@ -1,10 +1,12 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 import { ChildProcessSpawner } from "effect/process";
 
 import { layer, ProcessRunner } from "./ProcessRunner.ts";
@@ -39,8 +41,23 @@ const runWith = <A, E>(
     ),
   );
 
+// The sleep that a timeout or a `handle` exit code waits on is registered by a
+// child fiber of `Effect.all`, not by the fiber we forked. One `TestClock.adjust`
+// yields once, which is not enough for that fan-out: it advances time before the
+// sleep exists, the sleep then registers *after* the new "now", and the test
+// hangs. Measured, not assumed — a single `adjust` fails both clock tests below.
+// So yield, advance, and repeat until the fiber settles.
+const advanceUntilDone = <A, E>(fiber: Fiber.Fiber<A, E>, step: Duration.Input) =>
+  Effect.gen(function* () {
+    for (let i = 0; i < 10; i++) {
+      yield* Effect.yieldNow;
+      yield* TestClock.adjust(step);
+      if (fiber.pollUnsafe() !== undefined) return;
+    }
+  });
+
 describe("ProcessRunner", () => {
-  it.live("returns stdout and a non-zero exit as data", () =>
+  it.effect("returns stdout and a non-zero exit as data", () =>
     Effect.gen(function* () {
       const spawner = ChildProcessSpawner.make(() =>
         Effect.succeed(handle(Effect.succeed(ChildProcessSpawner.ExitCode(7)))),
@@ -51,34 +68,42 @@ describe("ProcessRunner", () => {
     }),
   );
 
-  it.live("times out a bounded command", () =>
+  it.effect("times out a bounded command", () =>
     Effect.gen(function* () {
       const spawner = ChildProcessSpawner.make(() => Effect.succeed(handle(Effect.never)));
-      const error = yield* runWith(spawner, (runner) =>
-        Effect.flip(runner.run({ bin: "x", args: [], timeoutMs: 10 })),
+      const fiber = yield* Effect.forkChild(
+        runWith(spawner, (runner) =>
+          Effect.flip(runner.run({ bin: "x", args: [], timeoutMs: 10 })),
+        ),
       );
+      yield* advanceUntilDone(fiber, Duration.millis(10));
+      const error = yield* Fiber.join(fiber);
       // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
       expect(error._tag).toBe("CommandTimeoutError");
     }),
   );
 
-  it.live("does not bound an interactive command", () =>
+  it.effect("does not bound an interactive command", () =>
     Effect.gen(function* () {
+      // Longer than the runner's 60 s default bound. If a TTY command were
+      // bounded, the timeout would fire before this sleep finished.
       const spawner = ChildProcessSpawner.make(() =>
         Effect.succeed(
           handle(
-            Effect.sleep(Duration.millis(20)).pipe(Effect.as(ChildProcessSpawner.ExitCode(0))),
+            Effect.sleep(Duration.minutes(2)).pipe(Effect.as(ChildProcessSpawner.ExitCode(0))),
           ),
         ),
       );
-      const result = yield* runWith(spawner, (runner) =>
-        runner.run({ bin: "x", args: [], tty: true }),
+      const fiber = yield* Effect.forkChild(
+        runWith(spawner, (runner) => runner.run({ bin: "x", args: [], tty: true })),
       );
+      yield* advanceUntilDone(fiber, Duration.minutes(2));
+      const result = yield* Fiber.join(fiber);
       expect(result.exitCode).toBe(0);
     }),
   );
 
-  it.live("maps a not-found spawn failure to CommandNotFoundError", () =>
+  it.effect("maps a not-found spawn failure to CommandNotFoundError", () =>
     Effect.gen(function* () {
       const spawner = ChildProcessSpawner.make(() =>
         Effect.fail(
