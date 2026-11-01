@@ -2,6 +2,32 @@
   "name": "@t3ck/sbx",
   "private": true,
   "type": "module",
+  "exports": {
+    "./Sbx": {
+      "types": "./src/Sbx.ts",
+      "import": "./src/Sbx.ts"
+    },
+    "./capabilities": {
+      "types": "./src/capabilities.ts",
+      "import": "./src/capabilities.ts"
+    },
+    "./command": {
+      "types": "./src/command.ts",
+      "import": "./src/command.ts"
+    },
+    "./errors": {
+      "types": "./src/errors.ts",
+      "import": "./src/errors.ts"
+    },
+    "./fake": {
+      "types": "./src/fake.ts",
+      "import": "./src/fake.ts"
+    },
+    "./live": {
+      "types": "./src/live.ts",
+      "import": "./src/live.ts"
+    }
+  },
   "dependencies": {
     "@t3ck/host": "*",
     "effect": "4.0.5"
