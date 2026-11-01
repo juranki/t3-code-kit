@@ -26,5 +26,34 @@ _Avoid_: lock, freeze, snapshot
 
 **rebuild**:
 Recreate a sandbox from a freshly built image. The only way baked-in content
-changes.
+changes. Durable state survives it; only `nuke` destroys data.
 _Avoid_: restart, refresh, update, recreate
+
+**durable state**:
+The contents of a sandbox's volumes: its repos, t3 threads, projects, and
+worktrees. Everything else in a sandbox is image or ephemeral state.
+_Avoid_: data, files, state (unqualified)
+
+**sandbox instance**:
+One created sandbox, identified by name, that `sbx` starts, stops, and removes.
+_Avoid_: sandbox (unqualified), container, VM
+
+**volume object**:
+The storage `sbx` allocates for a sandbox's volumes, which outlives the
+instance that created it.
+_Avoid_: disk, mount, volume (unqualified)
+
+**volume contents**:
+What lives on a volume object. Destroying contents leaves the object allocated
+and empty.
+_Avoid_: data, volume
+
+**retention**:
+`sbx`'s behaviour of keeping a sandbox's volume objects when the instance is
+removed, so that creating the same name with the same kit reattaches them.
+_Avoid_: persistence, survival
+
+**nuke**:
+Destroy a sandbox's durable state and remove its instance. The only verb that
+destroys data.
+_Avoid_: delete, purge, destroy, wipe
