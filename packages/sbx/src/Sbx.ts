@@ -210,7 +210,10 @@ const make = Effect.gen(function* () {
         },
       ),
     );
-    if (result.exitCode !== 0 && /already exists|conflict/iu.test(result.stderr)) {
+    // Only a name conflict is `SandboxExistsError`. A port conflict also
+    // contains "conflict" in some sbx builds, and reporting it as "a sandbox
+    // named X already exists" would send the user looking for the wrong thing.
+    if (result.exitCode !== 0 && /already exists/iu.test(result.stderr)) {
       return yield* new SandboxExistsError({ name: input.name });
     }
     return result;

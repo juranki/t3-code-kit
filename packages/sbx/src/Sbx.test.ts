@@ -193,6 +193,43 @@ describe("Sbx over a fake process runner", () => {
     );
   });
 
+  it.effect("maps a name conflict to SandboxExistsError", () => {
+    const runner = makeRunner(() =>
+      Effect.succeed({
+        stdout: "",
+        stderr: "error: sandbox 'demo' already exists; connect to the existing sandbox",
+        exitCode: 1,
+      }),
+    );
+    return withSbx(
+      (sbx) =>
+        Effect.gen(function* () {
+          const error = yield* Effect.flip(sbx.create({ name: "demo", kitDir: "/kit" }));
+          // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
+          expect(error._tag).toBe("SandboxExistsError");
+        }),
+      runner,
+    );
+  });
+
+  it.effect("does not treat a port conflict as a name conflict", () => {
+    const runner = makeRunner(() =>
+      Effect.succeed({
+        stdout: "",
+        stderr: "error: port 3774 is already allocated",
+        exitCode: 1,
+      }),
+    );
+    return withSbx(
+      (sbx) =>
+        Effect.gen(function* () {
+          const result = yield* sbx.create({ name: "demo", kitDir: "/kit" });
+          expect(result.exitCode).toBe(1);
+        }),
+      runner,
+    );
+  });
+
   it.effect("builds ports with and without --publish", () => {
     const runner = makeRunner(() => ok());
     return withSbx(
