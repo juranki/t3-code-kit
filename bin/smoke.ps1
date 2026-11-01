@@ -281,9 +281,34 @@ function Test-ShimTool {
     }
 }
 
+function Test-ToolVersion {
+    param([string] $Tool, [string] $Arg, [string] $Pattern)
+    $want = Get-ArgDefault $Arg
+    $r = Invoke-InSandbox @('sh', '-c', "$Tool --version 2>/dev/null")
+    $got = ''
+    if ($r.Output -match $Pattern) { $got = $Matches[1] }
+    if (-not $want) {
+        No "${Tool}: no ${Arg} default in kit/t3-code.yaml"
+    }
+    elseif ($got -ne $want) {
+        $found = if ($got) { $got } else { 'nothing' }
+        No "$Tool reports $found, want $want (the baked version)"
+    }
+    else {
+        Ok "$Tool $got is the baked version"
+    }
+}
+
 Test-ShimTool 'node' (Get-ArgDefault 'nodeVersion')
 Test-ShimTool 'go' (Get-ArgDefault 'goVersion')
 Test-ShimTool 'python' (Get-ArgDefault 'pythonVersion')
+
+# Vite+ and fd are not mise's: Vite+ is a global npm install and fd is a
+# pinned release binary in /usr/local/bin. They follow the same rule as the
+# shims - the version reported inside the sandbox must be the descriptor's
+# default - so a kit-arg bump that misses the image fails here.
+Test-ToolVersion 'vp' 'vitePlusVersion' '(?m)^vp v([0-9][0-9.]*)'
+Test-ToolVersion 'fd' 'fdVersion' '(?m)^fd ([0-9][0-9.]*)'
 
 # Java is the base image's OpenJDK 21, not mise's: mise-java.jdx.dev is not in
 # the allowlist and the base image already carries a JDK. This asserts the PATH
@@ -482,6 +507,9 @@ else {
         # hanging here points at the non-TTY exec session, not at the key. Both
         # are named because the fix differs and guessing wrong costs a run.
         No "pi did not answer within ${agentTimeout}s and was killed - it hangs under a non-TTY 'sbx exec' even when the provider key, its binding and egress are all fine; re-run with -it to tell the two apart"
+    }
+    elseif ($r.Output -match 'fd not found') {
+        No 'pi tried to download fd - the baked fd is not on PATH'
     }
     elseif ($r.Output -match 'OK') {
         Ok 'pi answered through its provider'

@@ -224,7 +224,7 @@ See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-
 | Path                                                        | What it is                                                                                                                   |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | [`kit/t3-code.yaml`](kit/t3-code.yaml)                      | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
-| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile)          | The content: t3, pi, and the skills (the pins are build args)                                                                |
+| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile)          | The content: t3, pi, the skills, Vite+, and fd (the pins are build args)                                                     |
 | [`kit/skills.txt`](kit/skills.txt)                          | The skills baked into the image, one per line                                                                                |
 | [`kit/skills.sh`](kit/skills.sh)                            | The one parser for `kit/skills.txt`: names for the build, count for the checks                                               |
 | [`kit/serve.sh`](kit/serve.sh)                              | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook                           |
@@ -275,11 +275,19 @@ non-interactive shell — which is what the agent's bash tool runs — resolves
 `node`, `go`, and `python` through mise, with no shell rc file and no
 `mise activate`.
 
+Two more tools are baked without mise: **Vite+** (`vp`) is a global npm
+install at the `vitePlusVersion` pin, and **fd** is a pinned release binary in
+`/usr/local/bin` at the `fdVersion` pin. fd is there so pi finds it on `PATH`
+and skips its own first-run download; Vite+ is there because the v2 workspace
+runs its tests, lint, and format through `vp`. Bumping either is a `rebuild`,
+the same as the mise toolchain. `rg` is the base image's, not the kit's: the
+kit does not pin it.
+
 A repo records what it needs in `.mise.toml` at its root:
 
 ```toml
 [tools]
-node = "22.23.4"
+node = "26.13.0"
 python = "3.13.18"
 ```
 
@@ -293,10 +301,15 @@ matching kit arg (and pin it in `.mise.toml`) and rebuild:
 t3-code-kit rebuild myproject
 ```
 
+⚠️ **The baked node is the only node.** A repo whose `.mise.toml` asks for a
+different line gets a resolution mise cannot satisfy, because the build
+installs exactly one version. Change `nodeVersion` (and `NODE_VERSION`) and
+rebuild; the kit does not bake a second line.
+
 To bump the baked default, change the `nodeVersion` / `goVersion` /
-`pythonVersion` defaults in [`kit/t3-code.yaml`](kit/t3-code.yaml) (and the
-matching `ARG` in the Dockerfile) the same way `t3Version` and `piVersion` are
-bumped, then rebuild.
+`pythonVersion` / `vitePlusVersion` / `fdVersion` defaults in
+[`kit/t3-code.yaml`](kit/t3-code.yaml) (and the matching `ARG` in the
+Dockerfile) the same way `t3Version` and `piVersion` are bumped, then rebuild.
 
 Java is not mise's: the image appends the base image's OpenJDK 21 to `PATH`,
 and `mise-java` is deliberately not allowed.
@@ -334,8 +347,9 @@ rather than blocking the run.
 - ⚠️ **Kits v3 is Early Access and the spec is experimental** (a final version
   is targeted for Q4 2026). The kit descriptor, the base image reference, and
   the `sbx` verbs are the parts most likely to move under you.
-- ⚠️ **No self-update inside the sandbox.** t3 and the skills are pinned as
-  build args; pi defaults to `latest`. Bumping any of them is a `rebuild`.
+- ⚠️ **No self-update inside the sandbox.** t3, the skills, Vite+, and fd are
+  pinned as build args; pi defaults to `latest`. Bumping any of them is a
+  `rebuild`.
 - ⚠️ **One provider ships in v1** (pi). Adding another is one Dockerfile block,
   one credential, and one egress entry.
 - ⚠️ **GitHub is the only git host wired in.** t3 itself supports Bitbucket,
