@@ -19,9 +19,9 @@ if (import.meta.main) {
 
   const program = Effect.gen(function* () {
     const argv = yield* HostProcess.Arguments;
-    return yield* run(argv.slice(2));
+    const exitCode = yield* run(argv.slice(2));
+    yield* HostProcess.setExitCode(exitCode);
   });
 
-  const exitCode = await Effect.runPromise(program.pipe(Effect.provide(layer)));
-  process.exitCode = exitCode;
+  await Effect.runPromise(program.pipe(Effect.provide(layer)));
 }

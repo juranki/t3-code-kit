@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import type { Capabilities } from "./capabilities.ts";
 import type { Command } from "./command.ts";
 import { SbxNotFoundError, SbxTimeoutError } from "./errors.ts";
-import { Sbx, make as makeSbx, type Adapter, type RawResult } from "./Sbx.ts";
+import { Adapter, Sbx, layer as sbxLayer, type RawResult } from "./Sbx.ts";
 import { verbOf } from "./support.ts";
 
 export interface FakeResponse {
@@ -29,7 +29,7 @@ export interface FakeOptions {
 }
 
 export interface FakeSbx {
-  readonly adapter: Adapter;
+  readonly adapter: Adapter["Service"];
   readonly layer: Layer.Layer<Sbx>;
   readonly commands: ReadonlyArray<Command>;
   readonly reset: () => void;
@@ -70,14 +70,14 @@ export const make = (options: FakeOptions = {}): FakeSbx => {
     } satisfies RawResult);
   };
 
-  const adapter: Adapter = {
+  const adapter = Adapter.of({
     run,
     capabilities: Effect.succeed(options.capabilities ?? defaultCapabilities),
-  };
+  });
 
   return {
     adapter,
-    layer: Layer.succeed(Sbx, makeSbx(adapter)),
+    layer: sbxLayer.pipe(Layer.provide(Layer.succeed(Adapter, adapter))),
     commands,
     reset: () => {
       commands.length = 0;

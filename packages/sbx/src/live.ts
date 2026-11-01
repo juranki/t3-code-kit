@@ -12,7 +12,7 @@ import * as Schema from "effect/Schema";
 import type { Capabilities } from "./capabilities.ts";
 import type { Command } from "./command.ts";
 import { SbxCommandError, SbxNotFoundError, SbxTimeoutError } from "./errors.ts";
-import { Sbx, make as makeSbx, type Adapter, type RawResult, type SbxError } from "./Sbx.ts";
+import { Adapter, Sbx, layer as sbxLayer, type RawResult, type SbxError } from "./Sbx.ts";
 import { bound, verbOf } from "./support.ts";
 
 const mapProcessError = (
@@ -63,20 +63,20 @@ const probeCapabilities = (
     };
   });
 
-export const make = Effect.gen(function* () {
-  const runner = yield* ProcessRunner;
-  const env = yield* HostProcess.Environment;
-  const binary = env.SBX?.trim() || "sbx";
+const adapter: Layer.Layer<Adapter, never, ProcessRunner> = Layer.effect(
+  Adapter,
+  Effect.gen(function* () {
+    const runner = yield* ProcessRunner;
+    const env = yield* HostProcess.Environment;
+    const binary = env.SBX?.trim() || "sbx";
 
-  const run = (input: Command): Effect.Effect<RawResult, SbxError> =>
-    runner
-      .run({ ...input, bin: binary })
-      .pipe(Effect.mapError((error) => mapProcessError(error, verbOf(input))));
+    const run = (input: Command): Effect.Effect<RawResult, SbxError> =>
+      runner
+        .run({ ...input, bin: binary })
+        .pipe(Effect.mapError((error) => mapProcessError(error, verbOf(input))));
 
-  return { run, capabilities: probeCapabilities(run) } satisfies Adapter;
-});
-
-export const layer: Layer.Layer<Sbx, never, ProcessRunner> = Layer.effect(
-  Sbx,
-  Effect.map(make, (adapter) => makeSbx(adapter)),
+    return Adapter.of({ run, capabilities: probeCapabilities(run) });
+  }),
 );
+
+export const layer: Layer.Layer<Sbx, never, ProcessRunner> = sbxLayer.pipe(Layer.provide(adapter));

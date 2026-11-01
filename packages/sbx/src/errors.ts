@@ -14,15 +14,14 @@ export class SbxNotFoundError extends Schema.TaggedError<SbxNotFoundError>()("Sb
   }
 }
 
-/** `sbx` ran but the host is not signed in to Docker. */
+/** `sbx secret ls` ran but the host is not signed in to Docker. The verb is
+ * fixed, so it belongs in the message rather than in a single-valued attribute. */
 export class SbxNotLoggedInError extends Schema.TaggedError<SbxNotLoggedInError>()(
   "SbxNotLoggedInError",
-  {
-    verb: Schema.String,
-  },
+  {},
 ) {
   override get message(): string {
-    return `sbx ${this.verb} needs a Docker sign-in.`;
+    return "sbx secret ls needs a Docker sign-in.";
   }
 }
 
