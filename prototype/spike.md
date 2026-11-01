@@ -4,14 +4,14 @@ Throwaway. Ran 2026-10-30 **inside** an existing sbx sandbox (not on the host),
 because `sbx` itself is a host-side CLI and is not available from within a
 sandbox. What this proves and what it does not:
 
-| Claim | Status |
-|---|---|
-| `t3 serve --host 0.0.0.0` runs headless in a Linux container | ✅ proven |
-| It prints pairing details (token, URL, QR) with no browser | ✅ proven |
-| `libatomic1`, node, bun, git, gh, pi are enough on a Linux base | ✅ proven |
+| Claim                                                                 | Status                           |
+| --------------------------------------------------------------------- | -------------------------------- |
+| `t3 serve --host 0.0.0.0` runs headless in a Linux container          | ✅ proven                        |
+| It prints pairing details (token, URL, QR) with no browser            | ✅ proven                        |
+| `libatomic1`, node, bun, git, gh, pi are enough on a Linux base       | ✅ proven                        |
 | sbx publishes a host port into the sandbox and the browser reaches it | ❌ **unproven** — needs the host |
-| Kit descriptor validates and builds via the Kit frontend | ❌ **unproven** — needs the host |
-| Proxy-injected secrets work for pi's provider | ❌ **unproven** |
+| Kit descriptor validates and builds via the Kit frontend              | ❌ **unproven** — needs the host |
+| Proxy-injected secrets work for pi's provider                         | ❌ **unproven**                  |
 
 ## Findings
 
