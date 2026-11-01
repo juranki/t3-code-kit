@@ -112,6 +112,10 @@ describe("v2 workspace layout", () => {
     // Without this, npm installs registry typescript for vite-plus-core's peer.
     // Linux merely warns; Windows fails the install outright.
     expect(rootManifest.overrides?.typescript).toBe("npm:@tsc-rs/typescript@0.8.0");
+    // platform-node 4.0.5 asks for shared ^4.0.5, and shared 4.1.1 imports a
+    // path that only exists in effect 4.1.x. Nothing loads NodeServices until
+    // the live Sbx adapter does, so only this pin keeps the pair in step.
+    expect(rootManifest.overrides?.["@effect/platform-node-shared"]).toBe("4.0.5");
   });
 
   it.effect("resolves a workspace package through its subpath export", () =>
