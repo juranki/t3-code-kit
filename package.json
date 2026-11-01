@@ -1,0 +1,41 @@
+{
+  "name": "t3-code-kit",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "up": "node apps/cli/src/bin.ts up",
+    "url": "node apps/cli/src/bin.ts url",
+    "logs": "node apps/cli/src/bin.ts logs",
+    "shell": "node apps/cli/src/bin.ts shell",
+    "refresh": "node apps/cli/src/bin.ts refresh",
+    "down": "node apps/cli/src/bin.ts down",
+    "rebuild": "node apps/cli/src/bin.ts rebuild",
+    "nuke": "node apps/cli/src/bin.ts nuke",
+    "policy": "node apps/cli/src/bin.ts policy",
+    "smoke": "node scripts/smoke.ts",
+    "test": "vp test run",
+    "typecheck": "tsc --noEmit",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "fmt:check": "vp fmt --check",
+    "check": "npm run fmt:check && npm run lint && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.4",
+    "typescript": "npm:@tsc-rs/typescript@0.8.0",
+    "vite-plus": "1.4.0"
+  },
+  "overrides": {
+    "effect": "4.0.5",
+    "typescript": "npm:@tsc-rs/typescript@0.8.0",
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": "26.13.0"
+  }
+}

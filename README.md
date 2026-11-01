@@ -13,16 +13,16 @@ policy, and no mount of your filesystem.
 
 ## The blast radius
 
-| | |
-|---|---|
-| The sandbox can reach | its own volumes, the hosts in [`policy/allow.txt`](policy/allow.txt), and GitHub through a proxy-injected credential |
-| The sandbox cannot reach | your filesystem, your home directory, your other repos, your SSH agent, your keychain |
-| Code goes in | `git clone`, inside the sandbox |
-| Code comes out | `git push` a branch; you review and merge on the host |
-| Survives `stop` / restart | repos, t3 threads, worktrees — they live on volumes (`workspace`, `.t3/userdata`, `.t3/projects`, `.t3/worktrees`) |
-| Survives `nuke` | nothing |
+|                           |                                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| The sandbox can reach     | its own volumes, the hosts in [`policy/allow.txt`](policy/allow.txt), and GitHub through a proxy-injected credential |
+| The sandbox cannot reach  | your filesystem, your home directory, your other repos, your SSH agent, your keychain                                |
+| Code goes in              | `git clone`, inside the sandbox                                                                                      |
+| Code comes out            | `git push` a branch; you review and merge on the host                                                                |
+| Survives `stop` / restart | repos, t3 threads, worktrees — they live on volumes (`workspace`, `.t3/userdata`, `.t3/projects`, `.t3/worktrees`)   |
+| Survives `nuke`           | nothing                                                                                                              |
 
-⚠️ This is a *containment* boundary, not a convenience wrapper. If you want to
+⚠️ This is a _containment_ boundary, not a convenience wrapper. If you want to
 edit the same files in your editor and in the agent's sandbox, this kit is the
 wrong tool — it deliberately gives you no host mount.
 
@@ -69,12 +69,12 @@ as a withheld credential or a stale model list.
 
 ### Once per host
 
-| Step | Why | Verify |
-|---|---|---|
-| `sbx login` | Docker OAuth; no sandbox runs without it | `sbx ls` |
-| `sbx secret set github` | the value git pushes with; the sandbox only ever sees a sentinel | `sbx secret ls` |
-| `sbx secret set <provider>` (default `mistral`) | pi's model key | `sbx secret ls` |
-| Approve the credential binding | a stored secret is **not** an approval | see below |
+| Step                                            | Why                                                              | Verify          |
+| ----------------------------------------------- | ---------------------------------------------------------------- | --------------- |
+| `sbx login`                                     | Docker OAuth; no sandbox runs without it                         | `sbx ls`        |
+| `sbx secret set github`                         | the value git pushes with; the sandbox only ever sees a sentinel | `sbx secret ls` |
+| `sbx secret set <provider>` (default `mistral`) | pi's model key                                                   | `sbx secret ls` |
+| Approve the credential binding                  | a stored secret is **not** an approval                           | see below       |
 
 **The binding is the step that bites.** `sbx` records which kit may use which
 service and domain in `%APPDATA%\sbx\credentials.yaml`, and only asks
@@ -221,19 +221,19 @@ See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-
 
 ## What ships
 
-| Path | What it is |
-|---|---|
-| [`kit/t3-code.yaml`](kit/t3-code.yaml) | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
-| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3, pi, and the skills (the pins are build args) |
-| [`kit/skills.txt`](kit/skills.txt) | The skills baked into the image, one per line |
-| [`kit/skills.sh`](kit/skills.sh) | The one parser for `kit/skills.txt`: names for the build, count for the checks |
-| [`kit/serve.sh`](kit/serve.sh) | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook |
-| [`policy/allow.txt`](policy/allow.txt) | Readable mirror of the runtime egress list |
-| [`policy/install.txt`](policy/install.txt) | Readable mirror of the build-time egress list |
-| [`bin/t3-code-kit`](bin/t3-code-kit) | The launcher: eight verbs over `sbx` (POSIX sh) |
-| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1) | The same launcher for a Windows host (PowerShell 7+) |
-| [`bin/smoke`](bin/smoke) · [`bin/smoke.ps1`](bin/smoke.ps1) | The acceptance test — this is what "it works" means |
-| [`prototype/spike.md`](prototype/spike.md) | What was verified before any of this was written |
+| Path                                                        | What it is                                                                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [`kit/t3-code.yaml`](kit/t3-code.yaml)                      | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
+| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile)          | The content: t3, pi, and the skills (the pins are build args)                                                                |
+| [`kit/skills.txt`](kit/skills.txt)                          | The skills baked into the image, one per line                                                                                |
+| [`kit/skills.sh`](kit/skills.sh)                            | The one parser for `kit/skills.txt`: names for the build, count for the checks                                               |
+| [`kit/serve.sh`](kit/serve.sh)                              | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook                           |
+| [`policy/allow.txt`](policy/allow.txt)                      | Readable mirror of the runtime egress list                                                                                   |
+| [`policy/install.txt`](policy/install.txt)                  | Readable mirror of the build-time egress list                                                                                |
+| [`bin/t3-code-kit`](bin/t3-code-kit)                        | The launcher: eight verbs over `sbx` (POSIX sh)                                                                              |
+| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1)                | The same launcher for a Windows host (PowerShell 7+)                                                                         |
+| [`bin/smoke`](bin/smoke) · [`bin/smoke.ps1`](bin/smoke.ps1) | The acceptance test — this is what "it works" means                                                                          |
+| [`prototype/spike.md`](prototype/spike.md)                  | What was verified before any of this was written                                                                             |
 
 The descriptor is normative. A Kit carries its authority in the image, under
 one digest, so the egress lists live there; `policy/allow.txt` (runtime) and
@@ -284,7 +284,7 @@ python = "3.13.18"
 ```
 
 mise reads that from the repo under `/home/agent/workspace`, and the project
-config wins over the image's global default. What is *installed* is still the
+config wins over the image's global default. What is _installed_ is still the
 baked set: the build cannot see the repo, so a `.mise.toml` alone changes which
 version mise selects, not which versions exist. To get a different one, set the
 matching kit arg (and pin it in `.mise.toml`) and rebuild:
@@ -359,7 +359,7 @@ refresh is best-effort — a blocked or slow `pi.dev` is logged in
 `/home/agent/.t3/serve.log` and the sandbox falls back to the catalog baked
 into the image, which ages. If the provider record in the UI still shows the
 old list, refresh it there — t3 exposes that as `server.refreshProviders` in
-provider settings. A model list that is stale *after* a restart is a t3
+provider settings. A model list that is stale _after_ a restart is a t3
 caching issue, not the sandbox.
 
 t3 fetches its model manifest from `raw.githubusercontent.com` and pi checks
@@ -376,7 +376,7 @@ environment and fails if it is not bash.
 
 **The provider answers `401 Invalid API Key` and the sandbox has
 `MISTRAL_API_KEY=proxy-managed`.** The credential has no `inject` rule, so the
-proxy has nothing to swap the sentinel *for*. `inject` names the domain and
+proxy has nothing to swap the sentinel _for_. `inject` names the domain and
 header the key belongs in; its `domain` cannot be a kit arg, so switching
 provider means editing `provider`, `providerApiKeyEnv`, and the `inject` block
 in `kit/t3-code.yaml` together — and approving the new domain's binding.
