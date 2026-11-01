@@ -69,6 +69,12 @@ capabilities:
           env:
             - HOME
             - PATH
+            # The startup hook sees only what it declares, so the image's
+            # UTF-8 locale is not inherited: without these two, serve.sh and
+            # the terminal t3 spawns from it run LC_ALL=C, where a Scandinavian
+            # character cannot be typed and correct UTF-8 renders as mojibake.
+            - LANG
+            - LC_ALL
             - T3CODE_HOME
             - T3CODE_HOST
             - T3CODE_PORT
@@ -235,3 +241,8 @@ capabilities:
           from the proxy, not a connection error. Report it; do not retry.
         - `/home/agent/workspace` and `/home/agent/.t3/{userdata,projects,worktrees}`
           are volumes and survive a sandbox restart.
+        - The git identity is already configured: `Agent for <your name>`
+          with the user's own email. The `Agent for ` prefix is deliberate -
+          it says an agent, not the human, made the commit. Do not strip it,
+          and do not override it with `--author` or `-c user.name=...`. If a
+          commit needs a different author, ask the user first.

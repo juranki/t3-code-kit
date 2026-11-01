@@ -45,6 +45,18 @@ if (-not $env:SBX_KIT_BUILDER) { $env:SBX_KIT_BUILDER = 'sandbox' }
 $HostPort      = if ($env:T3CK_PORT) { [int] $env:T3CK_PORT } else { 3773 }
 $ContainerPort = 3773
 $ReadyTimeout  = if ($env:T3CK_READY_TIMEOUT) { [int] $env:T3CK_READY_TIMEOUT } else { 180 }
+# Prepended to the host's git user.name, because a sandbox commit is made by an
+# agent and should say so. Set it to the empty string to use the bare host
+# name. See docs/adr/0002-git-identity-from-host.md.
+#
+# The `$null -ne` test is load-bearing: it distinguishes "unset, use the
+# default" from "set to empty, use no prefix". A truthiness test would collapse
+# the two, and the documented opt-out would silently do nothing.
+$AgentNamePrefix = if ($null -ne $env:T3CK_AGENT_NAME_PREFIX) { $env:T3CK_AGENT_NAME_PREFIX } else { 'Agent for ' }
+# The last-resort identity when the host has no git config at all. Names no
+# person, which is the point: the alternative is impersonating one.
+$FallbackName  = 'Agent'
+$FallbackEmail = 'agent@t3-code-kit'
 
 function Fail {
     param([string] $Message)
@@ -140,6 +152,101 @@ function Test-Secret {
     Warn 'set one with:  sbx secret set github'
 }
 
+# The host's git identity, read once. `git config --get` exits 1 when the key
+# is unset, which is the normal "host has no config" case and not an error.
+#
+# Deliberately not Invoke-Sbx: this is the *host's* git, not an sbx call.
+# Routing it through Invoke-Sbx ran `sbx config --get user.name`, which the
+# stub (and a real sbx) rejects - so the identity silently fell back to the
+# unconfigured default on every host that had a perfectly good git config.
+function Get-HostGit {
+    param([string] $Key)
+    # The encoding is the whole point of this function, so it is not left to
+    # the console's default.
+    #
+    # `& git config --get` captures git's *stdout bytes*, and PowerShell decodes
+    # them with [Console]::OutputEncoding - which on a Windows console is the
+    # OEM code page (CP437), not UTF-8. Git emits `C3 A4` for `ä`; CP437 reads
+    # that as the two characters `├ñ`; those then get re-encoded as UTF-8 on the
+    # way to `sbx exec`, so the sandbox stores `E2 94 9C C3 B1` - mojibake
+    # baked in as real characters, which no locale fix downstream can undo.
+    #
+    # Forcing UTF-8 for the duration is what keeps the bytes intact. Restored
+    # afterwards, because the console's encoding is the user's, not ours.
+    $previous = $ErrorActionPreference
+    $previousOut = [Console]::OutputEncoding
+    $ErrorActionPreference = 'Continue'
+    try {
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        $value = (& git config --get $Key 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0) { return '' }
+        return $value.Trim()
+    }
+    catch { return '' }
+    finally {
+        [Console]::OutputEncoding = $previousOut
+        $ErrorActionPreference = $previous
+    }
+}
+
+function Confirm-GitIdentity {
+    param([string] $Sandbox)
+    # Leave the sandbox with a git identity, so a commit made in it is authored
+    # honestly and still links to the user's account.
+    #
+    # The value crosses `sbx exec` as its own array element, never through a
+    # shell: "Juhani Ränkimies" has a space and a non-ASCII ä, and a shell in
+    # the middle would re-split or mangle both. `git config` writes bytes, so
+    # the host's UTF-8 lands as-is.
+    #
+    # Overwritten on every `up` rather than only when unset. A wrong identity
+    # that a previous run left behind is exactly the bug this fixes, so
+    # "already set" cannot mean "leave it alone" - the printed line is what
+    # makes the overwrite visible instead of silent.
+    $hostName = Get-HostGit 'user.name'
+    $hostEmail = Get-HostGit 'user.email'
+
+    # Judged before the fallbacks are substituted, or the warning can never
+    # fire: after the substitution both values are non-empty by construction.
+    $hostConfigured = [bool] ($hostName -and $hostEmail)
+
+    $name = if ($hostName) { "$AgentNamePrefix$hostName" } else { $FallbackName }
+    if (-not $hostEmail) { $hostEmail = $FallbackEmail }
+
+    Write-Output "git identity: $name <$hostEmail>"
+    if (-not $hostConfigured) {
+        Warn "no user.name/user.email on this host; using $name <$hostEmail>."
+        Warn "set them with:  git config --global user.name 'Your Name'"
+    }
+
+    # The value is passed base64-encoded and decoded inside the sandbox, not as
+    # a plain argv word.
+    #
+    # On Windows, PowerShell converts an outbound argument to a native process
+    # through the process's ANSI/OEM code page, so `ä` does not survive the trip
+    # intact - and the sandbox then stores the mojibake as real characters,
+    # which no locale fix downstream can undo. Base64 is pure ASCII, so it
+    # survives every encoding layer by construction.
+    #
+    # A failure here is not fatal to `up`: the sandbox is already created and
+    # the server is what the user asked for. Warn, the way Test-Secret does.
+    Set-SandboxGitConfig -Sandbox $Sandbox -Key 'user.name' -Value $name
+    Set-SandboxGitConfig -Sandbox $Sandbox -Key 'user.email' -Value $hostEmail
+}
+
+function Set-SandboxGitConfig {
+    param([string] $Sandbox, [string] $Key, [string] $Value)
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Value)
+    $b64 = [System.Convert]::ToBase64String($bytes)
+    # `base64 -d` on the sandbox side, so the decoded bytes are exactly the
+    # UTF-8 the host held. Quoted for the inner shell: the b64 alphabet has no
+    # characters a shell would touch, but the quoting is not the hazard here.
+    $r = Invoke-Sbx @('exec', $Sandbox, '--', 'sh', '-c', "git config --global $Key `"`$(printf %s '$b64' | base64 -d)`"")
+    if ($r.ExitCode -ne 0) {
+        Warn "could not set the git identity in '$Sandbox'; commits will carry an auto-generated author"
+    }
+}
+
 function Show-Policy {
     Write-Output ''
     Write-Output 'egress allowed at runtime (everything else denied):'
@@ -229,6 +336,7 @@ function Invoke-Up {
         if ($r.ExitCode -ne 0) { Fail "could not start sandbox '$Sandbox'" }
         # create published via -p already; asking again is a 409 Conflict.
     }
+    Confirm-GitIdentity $Sandbox
     Show-Policy
     $null = Wait-Ready $Sandbox
     Invoke-Url $Sandbox
