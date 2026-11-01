@@ -1,0 +1,11 @@
+{
+  "exit": 1,
+  "calls": [],
+  "warnings": ["unknown verb 'bogus' (try: t3-code-kit help)"],
+  "sh": {
+    "exit": 1,
+    "calls": [],
+    "warnings": ["unknown verb 'bogus' (try: t3-code-kit --help)"],
+    "reason": "ps1 points at `help`; sh points at `--help`."
+  }
+}

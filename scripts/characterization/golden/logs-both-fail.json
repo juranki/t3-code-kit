@@ -1,0 +1,12 @@
+{
+  "exit": 0,
+  "calls": [
+    ["exec", "<name>", "--", "tail", "-n", "200", "/home/agent/.t3/serve.log"],
+    ["exec", "<name>", "--", "tail", "-n", "200", "/var/log/sbx-kit-startup.log"]
+  ],
+  "warnings": [
+    "no /home/agent/.t3/serve.log in '<name>' - serve.sh never started.",
+    "falling back to the runtime's startup-hook log:",
+    "no startup-hook log either: the lifecycle@1 hook did not run."
+  ]
+}
