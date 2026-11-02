@@ -13,14 +13,14 @@ policy, and no mount of your filesystem.
 
 ## The blast radius
 
-|                           |                                                                                                                      |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| The sandbox can reach     | its own volumes, the hosts in [`policy/allow.txt`](policy/allow.txt), and GitHub through a proxy-injected credential |
-| The sandbox cannot reach  | your filesystem, your home directory, your other repos, your SSH agent, your keychain                                |
-| Code goes in              | `git clone`, inside the sandbox                                                                                      |
-| Code comes out            | `git push` a branch; you review and merge on the host                                                                |
-| Survives `stop` / restart | repos, t3 threads, worktrees — they live on volumes (`workspace`, `.t3/userdata`, `.t3/projects`, `.t3/worktrees`)   |
-| Survives `nuke`           | nothing                                                                                                              |
+|                                       |                                                                                                                                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The sandbox can reach                 | its own volumes, the hosts in [`policy/allow.txt`](policy/allow.txt), and GitHub through a proxy-injected credential                                                                    |
+| The sandbox cannot reach              | your filesystem, your home directory, your other repos, your SSH agent, your keychain                                                                                                   |
+| Code goes in                          | `git clone`, inside the sandbox                                                                                                                                                         |
+| Code comes out                        | `git push` a branch; you review and merge on the host                                                                                                                                   |
+| Survives `stop` / `rebuild` / restart | repos, t3 threads, worktrees — they live on volumes (`workspace`, `.t3/userdata`, `.t3/projects`, `.t3/worktrees`); `sbx` reattaches them when the same name and kit are used (v0.50.1) |
+| Survives `nuke`                       | nothing — `nuke` wipes those four volumes' contents, then removes the instance; the volume objects stay allocated, empty                                                                |
 
 ⚠️ This is a _containment_ boundary, not a convenience wrapper. If you want to
 edit the same files in your editor and in the agent's sandbox, this kit is the
@@ -188,10 +188,13 @@ t3-code-kit logs myproject   # tail the server log inside the sandbox
 t3-code-kit shell myproject  # bash inside the sandbox
 t3-code-kit refresh myproject # restart, which also refreshes the catalog
  t3-code-kit down myproject   # stop; repos and threads survive
-t3-code-kit rebuild myproject # recreate, forcing a Kit image rebuild
-t3-code-kit nuke myproject   # destroy the sandbox and its volumes
+t3-code-kit rebuild myproject # recreate from a freshly built image; repos and t3 state survive
+t3-code-kit nuke myproject   # wipe its data, then remove it (volumes stay allocated, empty)
 t3-code-kit policy           # print the runtime egress allowlist
 ```
+
+`nuke` asks you to type the sandbox name before it wipes anything. In a
+non-interactive shell, pass `--yes`.
 
 One sandbox per project. `T3CK_NAME` sets the default name, `T3CK_PORT` the
 host port (3773).
@@ -329,7 +332,12 @@ npm run doctor       # what this host's sbx reports: version and capabilities
 
 Checks the static files, prints the `sbx` capabilities, brings a sandbox up,
 waits for the server, mints a pairing URL, and proves the toolchain, the
-volume, and GitHub egress. Set `SMOKE_DOWN=1` to stop the sandbox afterwards.
+volume, GitHub egress, and the durability model. The durability checks write a
+marker, `rebuild` and read it back, then `nuke` and `up` the same name and
+assert the old contents are gone and the same volume objects reattach. **A
+successful run ends with the sandbox nuked**; `SMOKE_DOWN=1` stops it only when
+a failure leaves it running. `SMOKE_NUKE_TIMEOUT` (2400 seconds) bounds each
+`nuke`.
 
 The pi round-trip is **off by default** — it spends real model tokens, and it
 currently fails for a reason outside this repo: pi hangs under a non-TTY
@@ -343,7 +351,7 @@ rather than blocking the run.
   by design, so the browser must be on the same machine. Remote access needs an
   SSH tunnel; `--tailscale-serve` will not work inside a sandbox (sbx blocks
   UDP and proxies TCP).
-- ⚠️ **`nuke` is the only verb that destroys data**, and it destroys all of it.
+- ⚠️ **`nuke` is the only verb that destroys data**, and it destroys all of it: it wipes the four volumes' contents from inside the sandbox, then removes the instance. `sbx` has no per-sandbox purge, so the volume objects stay allocated, empty.
 - ⚠️ **Kits v3 is Early Access and the spec is experimental** (a final version
   is targeted for Q4 2026). The kit descriptor, the base image reference, and
   the `sbx` verbs are the parts most likely to move under you.

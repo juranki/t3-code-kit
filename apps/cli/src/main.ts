@@ -5,6 +5,7 @@ import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import type * as FileSystem from "effect/FileSystem";
 import type * as Path from "effect/Path";
+import type * as Terminal from "effect/Terminal";
 
 import type { Git } from "@t3ck/host/Git";
 import type { ProcessRunner } from "@t3ck/host/ProcessRunner";
@@ -13,9 +14,15 @@ import type { Sbx } from "@t3ck/sbx/Sbx";
 import { fail, type CliError } from "./cli.ts";
 import { doctor } from "./doctor.ts";
 import { usage } from "./usage.ts";
-import { down, logs, policy, refresh, shell, up, url } from "./verbs.ts";
+import { down, logs, nuke, policy, rebuild, refresh, shell, up, url } from "./verbs.ts";
 
-export type CliEnvironment = Sbx | Git | ProcessRunner | FileSystem.FileSystem | Path.Path;
+export type CliEnvironment =
+  | Sbx
+  | Git
+  | ProcessRunner
+  | FileSystem.FileSystem
+  | Path.Path
+  | Terminal.Terminal;
 
 export const run = (argv: ReadonlyArray<string>): Effect.Effect<number, never, CliEnvironment> =>
   Effect.gen(function* () {
@@ -43,6 +50,10 @@ export const run = (argv: ReadonlyArray<string>): Effect.Effect<number, never, C
         return yield* refresh(args);
       case "down":
         return yield* down(args);
+      case "rebuild":
+        return yield* rebuild(args);
+      case "nuke":
+        return yield* nuke(args);
       case "policy":
         return yield* policy();
       case "doctor":

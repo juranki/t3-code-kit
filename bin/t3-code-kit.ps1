@@ -412,7 +412,7 @@ function Invoke-Down {
 function Invoke-Rebuild {
     param([string] $Sandbox)
     Assert-Sbx
-    Write-Output "removing '$Sandbox' to force a Kit rebuild; volumes survive."
+    Write-Output "recreating '$Sandbox' from a freshly built image; repos and t3 state survive on their volumes."
     $null = Invoke-Sbx @('rm', '--force', $Sandbox)
     Invoke-Up $Sandbox
 }
@@ -450,8 +450,8 @@ usage: t3-code-kit.ps1 <verb> [sandbox-name]
   shell    open a bash shell inside the sandbox
   refresh  restart, which also refreshes the model catalog
   down     stop the sandbox (volumes and repos survive)
-  rebuild  destroy and recreate, forcing a Kit image rebuild (volumes survive)
-  nuke     destroy the sandbox and its volumes (loses all repos and t3 state)
+  rebuild  recreate from a freshly built image; repos and t3 state survive
+  nuke     destroy the sandbox's data and remove it (volumes stay allocated, empty)
   policy   print the runtime egress allowlist
 
 The sandbox name defaults to $env:T3CK_NAME. Host port defaults to

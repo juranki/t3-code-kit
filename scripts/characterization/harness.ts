@@ -19,6 +19,10 @@ export type LauncherName = "sh" | "ps1" | "v2";
 export interface Rule {
   /** Argv prefix; `*` matches any single word. */
   match?: string[];
+  /** Substrings that must appear in some argv element. Used where the argv
+   * word itself is a script (the v2 nuke wipe and verify), so a prefix cannot
+   * tell the two apart. */
+  contains?: ReadonlyArray<string>;
   stdout?: string;
   stderr?: string;
   exit?: number;
@@ -321,7 +325,7 @@ const secretUnknown: Rule = { match: ["secret", "ls"], exit: 1 };
 // `sbx ls` prints a fixed-width table, not one name per line. The old
 // launchers grep it; the v2 seam slices it by header offsets. A realistic table
 // is the only fixture both can read, and it is what a real `sbx` prints.
-const sandboxTable = (name: string): string =>
+export const sandboxTable = (name: string): string =>
   "  SANDBOX           AGENT             STATUS                 PORTS                                                                       WORKSPACE            CREATED\n" +
   `  ${name.padEnd(18)}kit               ● running (detached)   127.0.0.1:60006->3773/tcp, ::1:60006->3773/tcp                              D:\\src\\t3-code-kit   43s\n`;
 
