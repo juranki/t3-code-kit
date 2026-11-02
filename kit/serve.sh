@@ -5,13 +5,13 @@
 #   1. sbx has no `logs` verb, so the only way to read the server's output
 #      after the fact is a file inside the sandbox.
 #   2. The pairing token is printed once at startup; losing it means the
-#      launcher has to mint a new one, which is slower than reading it.
+#      CLI has to mint a new one, which is slower than reading it.
 set -uo pipefail
 
 t3home="${T3CODE_HOME:-$HOME/.t3}"
 log="$t3home/serve.log"
 mkdir -p "$(dirname "$log")"
-# Log to the same file t3's stdout goes to, so `t3-code-kit logs` shows the
+# Log to the same file t3's stdout goes to, so `npm run logs` shows the
 # startup steps above the server output.
 note() { printf -- '--- %s %s\n' "$(date -Is)" "$*" >>"$log"; }
 note "t3 serve starting"

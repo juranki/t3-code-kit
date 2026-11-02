@@ -17,6 +17,7 @@
     "nuke": "node apps/cli/src/bin.ts nuke",
     "policy": "node apps/cli/src/bin.ts policy",
     "doctor": "node apps/cli/src/bin.ts doctor",
+    "help": "node apps/cli/src/bin.ts help",
     "smoke": "node scripts/smoke.ts",
     "test": "vp test run",
     "typecheck": "tsc --noEmit",

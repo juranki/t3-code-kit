@@ -59,7 +59,7 @@ export const run = (argv: ReadonlyArray<string>): Effect.Effect<number, never, C
       case "doctor":
         return yield* doctor();
       default:
-        return yield* fail(`unknown verb '${verb}' (try: t3-code-kit --help)`, 1);
+        return yield* fail(`unknown verb '${verb}' (try: npm run help)`, 1);
     }
   }).pipe(
     Effect.catchTags({

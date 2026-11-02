@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The host's `git`, reduced to the two reads the launchers make. An unset key
+// The host's `git`, reduced to the two reads the CLI makes. An unset key
 // exits 1 with no output, which is the shape real git uses for "not
 // configured"; anything else is a surprise worth failing on.
 const argv = process.argv.slice(2);

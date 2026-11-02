@@ -211,7 +211,7 @@ const waitReady = (
       yield* Effect.sleep(Duration.seconds(2));
       elapsed += 2;
     }
-    yield* warn(`no answer after ${timeoutSeconds}s. Check: t3-code-kit logs ${name}`);
+    yield* warn(`no answer after ${timeoutSeconds}s. Check: npm run logs -- ${name}`);
   });
 
 const printUrl = (name: string, hostPort: number): Effect.Effect<number, CliError, Sbx> =>
@@ -245,7 +245,7 @@ const printUrl = (name: string, hostPort: number): Effect.Effect<number, CliErro
       }
     }
 
-    return yield* fail(`no pairing URL: is the server up? try: t3-code-kit logs ${name}`);
+    return yield* fail(`no pairing URL: is the server up? try: npm run logs -- ${name}`);
   });
 
 export const up = (args: ReadonlyArray<string>): Effect.Effect<number, CliError, UpEnvironment> =>
@@ -270,7 +270,7 @@ export const up = (args: ReadonlyArray<string>): Effect.Effect<number, CliError,
     if (exists) {
       yield* say(`sandbox '${name}' exists; starting it.`);
       yield* say(
-        `note: this reuses the sandbox's existing image; run 't3-code-kit rebuild ${name}' after editing kit/.`,
+        `note: this reuses the sandbox's existing image; run 'npm run rebuild -- ${name}' after editing kit/.`,
       );
       yield* startSandbox(name);
       // create published via -p already; asking again is a 409 Conflict.
@@ -533,7 +533,7 @@ const wipeVolumes = (name: string): Effect.Effect<WipeOutcome, never, Sbx> =>
 const missingSandbox = (name: string): Effect.Effect<never, CliError> =>
   fail(
     `no sandbox named '${name}': its volume contents may still be on disk. ` +
-      `run 't3-code-kit up ${name}', then 't3-code-kit nuke ${name}'`,
+      `run 'npm run up -- ${name}', then 'npm run nuke -- ${name}'`,
     1,
   );
 

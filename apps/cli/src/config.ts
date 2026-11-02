@@ -8,8 +8,9 @@ import { fail, type CliError } from "./cli.ts";
 
 export const CONTAINER_PORT = 3773;
 export const DEFAULT_HOST_PORT = 3773;
-/** The sh launcher's default. A first build is not inside this window: the
- * readiness wait starts after `create` and `run` have returned. */
+/** The readiness window. A first build is not inside it: the wait starts after
+ * `create` and `run` have returned. 180 seconds matches the PowerShell
+ * launcher's default; the retired `sh` launcher used 120. */
 export const DEFAULT_READY_TIMEOUT = 180;
 
 export const resolveName = (candidate: string | undefined): Effect.Effect<string, CliError> =>
@@ -53,7 +54,7 @@ export const agentNamePrefix: Effect.Effect<string> = Effect.map(
 );
 
 /** The builder sandbox `sbx create` uses. A pre-set value wins, as it did in
- * both launchers; an empty value falls back to the default. */
+ * the old launchers; an empty value falls back to the default. */
 export const kitBuilder: Effect.Effect<string> = Effect.map(
   HostProcess.Environment,
   (env) => env.SBX_KIT_BUILDER || "sandbox",
