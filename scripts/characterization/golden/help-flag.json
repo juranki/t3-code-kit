@@ -1,11 +1,5 @@
 {
-  "exit": 1,
+  "exit": 0,
   "calls": [],
-  "warnings": [],
-  "sh": {
-    "exit": 0,
-    "calls": [],
-    "warnings": [],
-    "reason": "ps1 binds `--help` as a PowerShell parameter and exits 1; sh prints usage and exits 0. The v2 CLI should follow sh."
-  }
+  "warnings": []
 }

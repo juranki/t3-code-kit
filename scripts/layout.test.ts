@@ -2,7 +2,7 @@
 // a later change would erode silently, so it is asserted rather than described.
 // This file also proves the toolchain the ADR claims: a root-level program
 // resolving a workspace package through its subpath export, under `it.effect`.
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "@effect/vitest";
@@ -94,6 +94,11 @@ describe("v2 workspace layout", () => {
       expect(expected, `no expected edges for ${name}`).toBeDefined();
       expect(internalDependencies(manifest), name).toEqual(expected);
     }
+  });
+
+  it("has no shell or PowerShell launcher", () => {
+    // #42 retired the `sh` and `ps1` twins; `npm run <verb>` is the interface.
+    expect(existsSync(join(root, "bin"))).toBe(false);
   });
 
   it("pins one exact Node version, in one place", () => {

@@ -83,7 +83,8 @@ them. The tag is the contract; `stderr` is an attribute, never the switch.
 `SecretAbsentError` is defined here but not thrown by `secrets`: the seam
 returns the listing, and the CLI decides absence. That keeps the
 "could-not-tell" case (a failed listing) in the failure channel instead of
-collapsing it into an empty array — the bug `bin/test` exists to prevent.
+collapsing it into an empty array — the bug the seam's failure channel exists
+to prevent.
 
 ## What stays outside the seam
 

@@ -2,7 +2,7 @@ import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 
 export const usage = (): Effect.Effect<void> =>
-  Console.log(`usage: t3-code-kit <verb> [sandbox-name]
+  Console.log(`usage: npm run <verb> [-- sandbox-name]
 
   up       create or start the sandbox, publish the port, print the pairing URL
   url      print the pairing URL for a running sandbox
@@ -15,5 +15,6 @@ export const usage = (): Effect.Effect<void> =>
   policy   print the runtime egress allowlist
   doctor   print the sbx capabilities this host reports
 
-The sandbox name defaults to $T3CK_NAME. Host port defaults to $T3CK_PORT
-(3773). The sbx binary defaults to $SBX.`);
+Bare \`npm run\` lists the verbs; \`npm run help\` prints this. The sandbox name
+defaults to $T3CK_NAME. Host port defaults to $T3CK_PORT (3773). The sbx binary
+defaults to $SBX.`);

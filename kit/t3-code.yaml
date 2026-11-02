@@ -116,7 +116,7 @@ capabilities:
       transport: tcp
 
   # Repos and t3 state live on volumes, so `rm` does not destroy them. Only
-  # `t3-code-kit nuke` does.
+  # `npm run nuke` does.
   - type: com.docker.sandbox/volume@1
     config:
       path: /home/agent/workspace

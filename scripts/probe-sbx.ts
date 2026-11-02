@@ -23,7 +23,7 @@
 //     or any other credential file. `sbx secret ls` is deliberately NOT run: its
 //     output can carry credential material, and this log is meant to be pasted
 //     into a public issue. The secret listing's shape is already pinned by
-//     `bin/test`; nothing here needs it.
+//     `apps/cli/src/verbs.test.ts`; nothing here needs it.
 //   * It publishes a host port (3799 by default; PROBE_PORT overrides) and
 //     removes the sandbox when it is done.
 //
@@ -35,11 +35,10 @@
 // took, so the log says which it was.
 //
 // ── WHY THIS SHAPE ──────────────────────────────────────────────────────────
-// The argv mirrors what `bin/t3-code-kit` actually asks `sbx` (create/run/stop/
-// rm/exec/volume), so the probe asks the same questions the launcher asks. The
-// one deliberate difference is the sandbox name, which is fixed rather than
-// taken from T3CK_NAME: a probe that can be pointed at a real sandbox is a
-// probe that can destroy one.
+// The argv mirrors what the v2 CLI asks `sbx` (create/run/stop/rm/exec), so the
+// probe asks the same questions the CLI asks. The one deliberate difference is
+// the sandbox name, which is fixed rather than taken from T3CK_NAME: a probe
+// that can be pointed at a real sandbox is a probe that can destroy one.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -52,10 +51,10 @@ import { createInterface } from "node:readline/promises";
 /** The only sandbox this script may create, stop, exec in, or remove. */
 const SCRATCH = "t3ck-probe";
 
-/** The kit descriptor directory, as `bin/t3-code-kit` passes it to `create`. */
+/** The kit descriptor directory, as the CLI passes it to `create`. */
 const KIT = resolve(import.meta.dirname, "..", "kit");
 
-/** `sbx` honours $SBX in the launcher, so the probe does too. */
+/** `sbx` honours $SBX in the CLI, so the probe does too. */
 const SBX = process.env.SBX?.trim() || "sbx";
 
 /** Host port for the scratch sandbox. Unused by the probe, published for fidelity. */
@@ -297,7 +296,7 @@ const readState = (phase: string): Snapshot => {
   return { phase, markers, init, mounts, reached };
 };
 
-/** Poll `sbx exec` until the sandbox answers, the way the launcher waits for readiness. */
+/** Poll `sbx exec` until the sandbox answers, the way the CLI waits for readiness. */
 const waitForExec = (timeoutMs = 180_000): boolean => {
   const deadline = Date.now() + timeoutMs;
   let attempt = 0;
@@ -316,7 +315,7 @@ const waitForExec = (timeoutMs = 180_000): boolean => {
   return false;
 };
 
-/** `create` + `run`, the launcher's two-step, timed so the log shows the build cost. */
+/** `create` + `run`, the CLI's two-step, timed so the log shows the build cost. */
 const createAndStart = (label: string): boolean => {
   banner(`create + start (${label})`);
   note("first create builds the kit image; later ones reuse the cached image");
@@ -617,7 +616,7 @@ const main = async (): Promise<void> => {
 
   // ── phase 3: rm --force, inventory, recreate ──────────────────────────────
   banner("scenario 2: rm --force, then create the same name again");
-  note("this is `rebuild`'s sequence in bin/t3-code-kit");
+  note("this is `rebuild`'s sequence in the v2 CLI");
   destroy("scenario 2");
   banner("scenario 3: after rm --force alone, is the volume still visible anywhere?");
   sbx(["ls"], 120_000);
@@ -637,8 +636,8 @@ const main = async (): Promise<void> => {
   }
 
   // ── phase 4: nuke ─────────────────────────────────────────────────────────
-  banner("scenario 4: nuke (rm --force, then the volume loop bin/t3-code-kit's nuke runs)");
-  note("mirrors cmd_nuke exactly: rm --force, list volumes, remove each match by name");
+  banner("scenario 4: the retired launcher's nuke (rm --force, then the volume loop)");
+  note("the pre-ADR-0003 sequence: rm --force, list volumes, remove each match by name");
   destroy("nuke, step 1");
   const volumeListing = sbx(["volume", "ls"], 60_000);
   const matched = volumeListing.stdout

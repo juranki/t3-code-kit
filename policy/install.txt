@@ -4,7 +4,7 @@
 # This file is the readable mirror of network-policy@2 install.allow — the
 # hosts `mise install` needs while the image is being built. It is deliberately
 # separate from policy/allow.txt, which mirrors *runtime* egress: the two lists
-# answer different questions, and `t3-code-kit policy` prints only the runtime
+# answer different questions, and `npm run policy` prints only the runtime
 # one.
 #
 # ⚠️ These hosts are not reachable from a running sandbox. An on-demand

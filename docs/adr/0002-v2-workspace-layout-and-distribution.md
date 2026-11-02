@@ -80,14 +80,15 @@ despite printing its `> script` header on stdout.
 ## Consequences
 
 - **`npm run` is the interface.** One root script per verb
-  (`npm run up -- myproject`), plus `test`, `typecheck`, `lint`, `fmt`,
-  `fmt:check`, `check`, `smoke`. Bare `npm run` is the verb list, which retires
-  the old "no verb prints usage, exit 2" case. The header goes to stdout, so
-  anything capturing output (the pairing URL) uses `npm run -s`.
-- **`bin/` disappears** when the final ticket deletes the old launchers:
-  `bin/test` becomes `npm test` and `bin/smoke` becomes `npm run smoke`. Until
-  then root `bin/` is untouched, so only one program answers to
-  `t3-code-kit`.
+  (`npm run up -- myproject`), plus `help`, `test`, `typecheck`, `lint`, `fmt`,
+  `fmt:check`, `check`, `smoke`. Bare `npm run` is the verb list; `npm run help`
+  prints the usage. The header goes to stdout, so anything capturing output
+  (the pairing URL) uses `npm run -s`.
+- **`bin/` is gone.** #42 deleted the `sh` and PowerShell launchers and the
+  shell test harness: `bin/test` became `npm test`, `bin/smoke` became
+  `npm run smoke`, and the launchers became `apps/cli`. No program answers to
+  `t3-code-kit` any more; the project name survives only in the error prefix
+  and the docs.
 - **One exact Node pin, `26.13.0`**, in `engines.node` and — via #41 — in the
   image's `nodeVersion`/`NODE_VERSION`. `@types/node` stays at t3code's
   `24.12.4`; bump it only when a Node 26 API is actually needed, and say why.

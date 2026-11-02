@@ -12,6 +12,17 @@ The five canonical triage roles use their default label strings (`needs-triage`,
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Workspace
+
+Node 26.13.0, npm workspaces, Vite+ 1.4.0, Effect 4.0.5. `npm ci` installs the
+workspace; `npm run check` is the fast gate (format, lint, typecheck, tests) and
+`npm run smoke` is the host acceptance. There is no `bin/` launcher: `npm run
+<verb>` is the interface, `npm run help` prints the verbs, and the old `sh` and
+PowerShell twins are gone (#42). The CLI is `apps/cli`; the typed `sbx` seam is
+`packages/sbx`; process and git services are `packages/host`; shared kit data is
+`packages/kit`. See `docs/operations/v2-dev-loop.md` and
+`docs/adr/0002-v2-workspace-layout-and-distribution.md`.
+
 ### Durability
 
 `rebuild` recreates a sandbox from a freshly built image and keeps its durable
