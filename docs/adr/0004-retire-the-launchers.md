@@ -76,7 +76,9 @@ are recorded in the goldens.
 
 ## Verification
 
-The Linux sandbox run of `npm run check` is recorded in
-[`docs/operations/v2-final-acceptance.md`](../operations/v2-final-acceptance.md).
-The Windows host smoke is the remaining acceptance step: it is the only place
-with a real `sbx.exe`, and it is run by the human from a fresh clone.
+Recorded in
+[`docs/operations/v2-final-acceptance.md`](../operations/v2-final-acceptance.md):
+the Linux sandbox runs `npm run check` (143 passed), and the Windows host runs
+the same gate (103 passed, 40 skipped) plus the real-`sbx` smoke (42 passed, 0
+failed, 1 skipped, sandbox nuked). The Windows run is the one that proves the
+loop without PowerShell as a launcher.

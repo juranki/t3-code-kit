@@ -38,7 +38,30 @@ with the launchers.
 The Linux sandbox cannot run the real-`sbx` smoke: there is no `sbx` binary and
 no sandbox runtime here. That is the one host-only step below.
 
-## What only the Windows host can prove
+## What the Windows host proves
+
+Run on 2026-11-02 from a fresh clone of `t3/implement-ticket-42-map-29` on
+Windows 11 with `sbx` v0.50.1:
+
+```console
+$ npm run check
+Test Files  9 passed | 1 skipped (10)
+     Tests  103 passed | 40 skipped (143)
+
+$ npm run smoke -- t3ck-smoke-42
+...
+  42 passed, 0 failed, 1 skipped
+  sandbox was nuked by the durability checks
+```
+
+The only skip is the pi round-trip (`SMOKE_AGENT=1` to run it). The durability
+checks passed: `rebuild` kept the marker in `.t3/userdata` and `workspace`;
+`nuke` refused without `--yes` on a non-TTY and removed nothing; it then wiped
+the volumes, left no marker in any of the four, and left `workspace` empty
+after `nuke` + `up`; the same four volume objects reattached; and `nuke` on a
+missing instance exited non-zero.
+
+### How to reproduce
 
 Run this from a **fresh clone** of the branch, in a new directory, with no
 `bin/` from an older checkout. The point is to prove the v2 loop works without
@@ -102,7 +125,8 @@ PowerShell as a launcher.
    directory and no `*.ps1` launcher in the tree.
 
 6. **Record the result** in a comment on #42 (and, if you want a durable log,
-   `docs/operations/v2-final-acceptance-<date>.log`).
+   `docs/operations/v2-final-acceptance-<date>.log`). The 2026-11-02 run is
+   recorded above.
 
 ## Parity matrix
 
