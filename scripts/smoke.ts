@@ -850,10 +850,13 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
         // and ext4's `lost+found` are metadata, not durable state.
         const workspace = VOLUME_PATHS[0];
         const metadataFilter = VOLUME_METADATA.map((entry) => `! -name '${entry}'`).join(" ");
+        // `-maxdepth 1` is load-bearing: `lost+found` is root-owned and mode
+        // 700, so descending into it makes `find` exit non-zero with EACCES
+        // even though the only entry is metadata.
         const workspaceEntries = yield* exec([
           "sh",
           "-c",
-          `find ${workspace} -mindepth 1 ${metadataFilter} -print`,
+          `find ${workspace} -mindepth 1 -maxdepth 1 ${metadataFilter} -print`,
         ]).pipe(Effect.result);
         if (
           Result.isSuccess(workspaceEntries) &&
@@ -862,13 +865,13 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
         ) {
           yield* reporter.pass("workspace has no entries after nuke + up");
         } else {
-          yield* reporter.fail(
-            `workspace is not empty after nuke + up: ${
-              Result.isSuccess(workspaceEntries)
-                ? workspaceEntries.success.stdout.trim() || "non-zero exit"
-                : "could not read it"
-            }`,
-          );
+          const detail = Result.isFailure(workspaceEntries)
+            ? workspaceEntries.failure.message
+            : workspaceEntries.success.exitCode !== 0
+              ? workspaceEntries.success.stderr.trim() ||
+                `exit ${workspaceEntries.success.exitCode}`
+              : workspaceEntries.success.stdout.trim();
+          yield* reporter.fail(`workspace is not empty after nuke + up: ${detail}`);
         }
 
         const devicesAfter = yield* readDevices(VOLUME_PATHS);
