@@ -23,5 +23,5 @@
     ],
     ["exec", "<name>", "--", "t3", "pair"]
   ],
-  "warnings": ["no answer after 0s. Check: t3-code-kit logs <name>"]
+  "warnings": ["no answer after 0s. Check: npm run logs -- <name>"]
 }

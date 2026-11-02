@@ -28,6 +28,9 @@ wrong tool — it deliberately gives you no host mount.
 
 ## Requirements
 
+- **Node 26.13.0 and Vite+ 1.4.0 (`vp`)** on the host. The Vite+ installer
+  provides both on macOS, Linux, and Windows; there is no separate Node install
+  to keep in step. See [Install](#install).
 - [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/install/) (`sbx`) on
   the host: macOS 14+ on Apple silicon, Windows 11 x64, or Ubuntu 24.04+ with
   KVM. `sbx login` once.
@@ -41,7 +44,7 @@ wrong tool — it deliberately gives you no host mount.
 
 ⚠️ **A stored secret is not an approval.** `sbx` keeps a binding in
 `~/.config/sbx/credentials.yaml` recording which kit may use which service, and
-it only asks for that approval **interactively**. The launcher creates sandboxes
+it only asks for that approval **interactively**. The CLI creates sandboxes
 detached, so the first run starts with the credential withheld and warns. Do the
 first run by hand, once:
 
@@ -58,7 +61,7 @@ accepts connections and immediately resets, and nothing serves. Approving a
 credential with no stored secret binds nothing, which is why the approval
 prompt can be followed by `no binding authorizes this service`.
 
-After that `t3-code-kit up myproject` reuses the binding.
+After that `npm run up -- myproject` reuses the binding.
 
 ## Manual setup on the host
 
@@ -78,9 +81,9 @@ as a withheld credential or a stale model list.
 
 **The binding is the step that bites.** `sbx` records which kit may use which
 service and domain in `%APPDATA%\sbx\credentials.yaml`, and only asks
-interactively. The launcher creates sandboxes detached, so the first one starts
-with the credential withheld. Either create the first sandbox by hand and
-answer the prompt:
+interactively. The CLI creates sandboxes detached, so the first one starts with
+the credential withheld. Either create the first sandbox by hand and answer the
+prompt:
 
 ```powershell
 sbx create --name myproject -p 127.0.0.1:3773:3773 .\kit   # approve when asked
@@ -112,10 +115,18 @@ host port for the kit:
 $env:T3CK_PORT = 3774
 ```
 
+```sh
+export T3CK_PORT=3774
+```
+
 ### Once, if you cloned before `.gitattributes` existed
 
 ```powershell
 git rm --cached -r . | Out-Null; git reset --hard
+```
+
+```sh
+git rm --cached -r . && git reset --hard
 ```
 
 Otherwise `kit/serve.sh` stays CRLF and the server never starts.
@@ -126,47 +137,48 @@ Otherwise `kit/serve.sh` stays CRLF and the server never starts.
   it does not create t3's provider records.
 - Refresh its model list from provider settings (`server.refreshProviders`).
   This is t3's own state in `statev2.sqlite` and the one cache a shell cannot
-  reach — `t3-code-kit refresh` covers the other two.
+  reach — `npm run refresh -- <name>` covers the other two.
 
 ### Nothing else is required
 
-No Docker Desktop, no Docker Engine, no bash on Windows. The one prerequisite
-on Windows is PowerShell 7 (`winget install Microsoft.PowerShell`) — Windows
-PowerShell 5.1 is not supported. If you exported `SBX_KIT_BUILDER` yourself at
-some point, unset it: the launchers default to the builder sandbox, and `host`
-fails on a machine without a running Buildx.
+No Docker Desktop, no Docker Engine, no bash on Windows, and no PowerShell
+launcher. The host needs Node 26.13.0 and Vite+ 1.4.0 (the Vite+ installer
+provides both); PowerShell is only the Windows shell you happen to type in. If
+you exported `SBX_KIT_BUILDER` yourself at some point, unset it: the CLI
+defaults to the builder sandbox, and `host` fails on a machine without a
+running Buildx.
 
 ## Install
 
-macOS / Linux:
+The host needs Node 26.13.0 and Vite+ 1.4.0. The Vite+ installer provides both:
+
+```sh
+# macOS / Linux
+curl -fsSL https://vite.plus | bash
+```
+
+```powershell
+# Windows — PowerShell ships with Windows; this is not a PowerShell launcher
+irm https://vite.plus/ps1 | iex
+```
+
+Then clone and install the workspace:
 
 ```sh
 git clone https://github.com/juranki/t3-code-kit
-ln -s "$PWD/t3-code-kit/bin/t3-code-kit" ~/.local/bin/t3-code-kit
+cd t3-code-kit
+npm ci
+npm run up -- myproject
 ```
 
-Windows (no bash needed — `bin/t3-code-kit.ps1` is a PowerShell 7 port, so it
-needs PowerShell 7 installed but no WSL and no bash):
-
-```powershell
-winget install Microsoft.PowerShell
-git clone https://github.com/juranki/t3-code-kit
-# then, from the repo:
-.\bin\t3-code-kit.ps1 up myproject
-```
-
-Optionally put `bin` on `PATH` and drop the `.ps1`. No installer, no package.
-It is a launcher, a Dockerfile, and a descriptor.
-
-⚠️ The two launchers are deliberate duplicates — `bin/t3-code-kit` (POSIX sh)
-and `bin/t3-code-kit.ps1` (PowerShell) — because the alternative is telling a
-Windows user to install bash. They can drift; `npm run smoke` covers the same
-acceptance ground on either host.
+`npm run` lists the verbs; `npm run help` prints the usage. There is no
+installer, no npm package, and no `bin/` shim: it is an npm workspace, a
+Dockerfile, and a descriptor.
 
 ## Use
 
 ```sh
-t3-code-kit up myproject     # create, publish the port, print the pairing URL
+npm run up -- myproject     # create, publish the port, print the pairing URL
 ```
 
 `up` uses `sbx create`, not `sbx run`: `run` always bind-mounts a workspace, and
@@ -183,14 +195,15 @@ sandbox that still contains the old image, and the fix you just pulled is not in
 it.
 
 ```sh
-t3-code-kit url myproject    # mint a fresh pairing URL
-t3-code-kit logs myproject   # tail the server log inside the sandbox
-t3-code-kit shell myproject  # bash inside the sandbox
-t3-code-kit refresh myproject # restart, which also refreshes the catalog
- t3-code-kit down myproject   # stop; repos and threads survive
-t3-code-kit rebuild myproject # recreate from a freshly built image; repos and t3 state survive
-t3-code-kit nuke myproject   # wipe its data, then remove it (volumes stay allocated, empty)
-t3-code-kit policy           # print the runtime egress allowlist
+npm run url -- myproject      # mint a fresh pairing URL
+npm run logs -- myproject     # tail the server log inside the sandbox
+npm run shell -- myproject    # bash inside the sandbox
+npm run refresh -- myproject  # restart, which also refreshes the catalog
+npm run down -- myproject     # stop; repos and threads survive
+npm run rebuild -- myproject  # recreate from a freshly built image; repos and t3 state survive
+npm run nuke -- myproject     # wipe its data, then remove it (volumes stay allocated, empty)
+npm run policy                # print the runtime egress allowlist
+npm run doctor                # what this host's sbx reports
 ```
 
 `nuke` asks you to type the sandbox name before it wipes anything. In a
@@ -233,8 +246,10 @@ See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-
 | [`kit/serve.sh`](kit/serve.sh)                     | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook                           |
 | [`policy/allow.txt`](policy/allow.txt)             | Readable mirror of the runtime egress list                                                                                   |
 | [`policy/install.txt`](policy/install.txt)         | Readable mirror of the build-time egress list                                                                                |
-| [`bin/t3-code-kit`](bin/t3-code-kit)               | The launcher: eight verbs over `sbx` (POSIX sh)                                                                              |
-| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1)       | The same launcher for a Windows host (PowerShell 7+)                                                                         |
+| [`apps/cli/src/`](apps/cli/src/)                   | The CLI: ten verbs plus `help`, run with `npm run <verb>` (Node 26 + Effect 4)                                               |
+| [`packages/sbx/`](packages/sbx/)                   | The typed `sbx` seam: argv construction, output parsing, the error taxonomy                                                  |
+| [`packages/host/`](packages/host/)                 | The process and git services the CLI runs on                                                                                 |
+| [`packages/kit/`](packages/kit/)                   | Pure data shared by the CLI and the smoke suite: the policy and volume paths                                                 |
 | [`scripts/smoke.ts`](scripts/smoke.ts)             | The acceptance test — this is what "it works" means                                                                          |
 | [`prototype/spike.md`](prototype/spike.md)         | What was verified before any of this was written                                                                             |
 
@@ -242,7 +257,7 @@ The descriptor is normative. A Kit carries its authority in the image, under
 one digest, so the egress lists live there; `policy/allow.txt` (runtime) and
 `policy/install.txt` (build time) are the copies you read, and `npm run smoke`
 fails if any of them disagrees with the descriptor. They are separate files on
-purpose: `t3-code-kit policy` prints only the runtime one, so a build-time host
+purpose: `npm run policy` prints only the runtime one, so a build-time host
 listed there would read as a runtime permission.
 
 ## Skills
@@ -258,7 +273,7 @@ in-progress writing experiments and Claude-specific one-offs.
 Changing them is a `rebuild`, not an in-sandbox change:
 
 ```sh
-t3-code-kit rebuild myproject
+npm run rebuild -- myproject
 ```
 
 Bump `SKILLS_REF` (and `SKILLS_VERSION` if the CLI moved) in
@@ -301,7 +316,7 @@ version mise selects, not which versions exist. To get a different one, set the
 matching kit arg (and pin it in `.mise.toml`) and rebuild:
 
 ```sh
-t3-code-kit rebuild myproject
+npm run rebuild -- myproject
 ```
 
 ⚠️ **The baked node is the only node.** A repo whose `.mise.toml` asks for a
@@ -326,8 +341,11 @@ refused.
 ## Verify
 
 ```sh
+npm ci               # the workspace, from the committed lockfile
+npm run check        # fmt, lint, typecheck, and the unit/characterization suite
 npm run smoke        # macOS, Linux, and Windows; uses t3ck-smoke
 npm run doctor       # what this host's sbx reports: version and capabilities
+npm run help         # the verbs, if `npm run` is not enough
 ```
 
 `npm run smoke` uses the sandbox name `t3ck-smoke` unless `T3CK_NAME` is set.
@@ -370,9 +388,10 @@ rather than blocking the run.
   as adding a provider — a credential, its `inject` rule, and its runtime
   allowlist entry. Until then a `403` on that host is a policy decision, not a
   broken network.
-- ⚠️ **Not verified end to end on a host yet.** See
-  [`prototype/spike.md`](prototype/spike.md) for exactly which claims are proven
-  and which are not.
+- ⚠️ **The real-`sbx` proof is host-only.** The Linux sandbox runs the fast
+  gate; the Windows host runs the smoke suite against `sbx.exe`. The acceptance
+  run is recorded in
+  [`docs/operations/v2-final-acceptance.md`](docs/operations/v2-final-acceptance.md).
 
 ## Troubleshooting
 
@@ -380,7 +399,7 @@ rather than blocking the run.
 sandbox attempts to refresh the catalog: `kit/serve.sh` runs
 `pi update --models` best-effort and clears t3's cached `model-manifest.json`
 before `t3 serve`.
-Restart to force it: `t3-code-kit refresh <name>` (or `down` then `up`). The
+Restart to force it: `npm run refresh -- <name>` (or `down` then `up`). The
 refresh is best-effort — a blocked or slow `pi.dev` is logged in
 `/home/agent/.t3/serve.log` and the sandbox falls back to the catalog baked
 into the image, which ages. If the provider record in the UI still shows the
@@ -416,14 +435,14 @@ Review and respond with: sbx policy approval ls
 ```
 
 Add the host to `kit/t3-code.yaml` (`network-policy@2`, `runtime.allow`) and to
-`policy/allow.txt`, then `t3-code-kit rebuild`.
+`policy/allow.txt`, then `npm run rebuild -- <name>`.
 
 **The pairing URL does not open.** `t3 serve` prints the sandbox's outbound
-interface address, which the host cannot reach; the launcher rewrites it to
-`http://localhost:<port>`. If `up` printed nothing, run `t3-code-kit logs`.
+interface address, which the host cannot reach; the CLI rewrites it to
+`http://localhost:<port>`. If `up` printed nothing, run `npm run logs -- <name>`.
 
 **The Kit build fails with `dockerDesktopLinuxEngine: The system cannot find the
-file`.** `sbx` tried the host's Docker Buildx. The launchers default to
+file`.** `sbx` tried the host's Docker Buildx. The CLI defaults to
 `SBX_KIT_BUILDER=sandbox`; if you exported `SBX_KIT_BUILDER` yourself, unset it.
 
 **The Kit build fails with `OCI exporter is not supported for the docker

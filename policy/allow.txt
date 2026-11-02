@@ -7,7 +7,7 @@
 # drift from it. `npm run smoke` fails if the two disagree.
 #
 # Install-time egress is a different list with a different meaning, and lives
-# in policy/install.txt. Do not merge the two: `t3-code-kit policy` prints
+# in policy/install.txt. Do not merge the two: `npm run policy` prints
 # *this* file as "egress allowed at runtime", so a build-time host here reads
 # as a runtime permission an agent will then act on.
 #

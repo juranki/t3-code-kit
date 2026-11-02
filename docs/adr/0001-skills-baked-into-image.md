@@ -21,7 +21,7 @@ environment" holds.
 
 ## Consequences
 
-Changing a skill is a `SKILLS_REF` bump and a `t3-code-kit rebuild`;
+Changing a skill is a `SKILLS_REF` bump and an `npm run rebuild`;
 `skills add` inside a running sandbox is wiped by the next rebuild.
 `kit/skills.txt` is the selection, and the build fails if the count in the
 image disagrees with it — the CLI ignores an unknown name silently, so without

@@ -1,11 +1,5 @@
 {
   "exit": 1,
   "calls": [["stop", "<name>"]],
-  "warnings": ["could not stop '<name>'"],
-  "sh": {
-    "exit": 1,
-    "calls": [["stop", "<name>"]],
-    "warnings": [],
-    "reason": "sh exits 1 on a failed stop without a message; ps1 prints `could not stop`."
-  }
+  "warnings": ["could not stop '<name>'"]
 }

@@ -130,7 +130,7 @@ export class Sbx extends Context.Service<
     }) => Effect.Effect<ExecResult, SbxError | SandboxMissingError>;
     readonly rm: (input: RmInput) => Effect.Effect<ExecResult, SbxError | SandboxMissingError>;
     /** A failure means "we never saw the listing", not "no secret". The old
-     * `bin/test` three-outcome rule, as the failure channel. */
+     * three-outcome rule from the old shell test, as the failure channel. */
     readonly secrets: () => Effect.Effect<
       ReadonlyArray<SecretRow>,
       SbxError | SbxOutputError | SbxNotLoggedInError

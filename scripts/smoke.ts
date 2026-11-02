@@ -19,10 +19,9 @@
 // forever. The agent round-trip adds the in-sandbox `timeout` backstop, so a
 // wedged pi is killed where it runs rather than left reparented to PID 1.
 //
-// The old `bin/smoke` and `bin/smoke.ps1` are deleted here. `rebuild` and
-// `nuke` are still the old launchers' job until #39; the durability assertions
-// from ADR 0003 land in this file when those verbs do, not in the deleted
-// scripts.
+// The old `bin/smoke` and `bin/smoke.ps1` are gone; this is the only smoke
+// suite. `rebuild` and `nuke` are the v2 CLI's verbs, and the durability
+// assertions from ADR 0003 live here.
 import { NodeServices } from "@effect/platform-node";
 import { renderCapabilities } from "@t3ck/cli/capabilities";
 import * as HostProcess from "@t3ck/host/HostProcess";
@@ -277,7 +276,7 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
       yield* reporter.fail(`in a policy mirror but not in kit/t3-code.yaml: ${missing.join(", ")}`);
     }
 
-    // `t3-code-kit policy` prints policy/allow.txt as "egress allowed at
+    // `npm run policy` prints policy/allow.txt as "egress allowed at
     // runtime", so a build-time host in that file is a permission an agent acts
     // on and then gets a 403 for. The two lists must not be merged. Read the
     // install mirror rather than keeping a second copy of its hosts: adding a
@@ -639,11 +638,11 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     yield* reporter.pass("pi's model catalog refreshed at startup");
   } else if (serveLog.success.stdout.includes("model catalog refresh failed")) {
     yield* reporter.fail(
-      `the startup refresh ran and failed - check egress to pi.dev (see: t3-code-kit logs ${name})`,
+      `the startup refresh ran and failed - check egress to pi.dev (see: npm run logs -- ${name})`,
     );
   } else if (serveLog.success.stdout.includes("model catalog refresh timed out")) {
     yield* reporter.fail(
-      `the startup refresh timed out - check egress to pi.dev (see: t3-code-kit logs ${name})`,
+      `the startup refresh timed out - check egress to pi.dev (see: npm run logs -- ${name})`,
     );
   } else {
     yield* reporter.fail("no refresh line in serve.log - the startup refresh did not run");
@@ -663,7 +662,7 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     );
   }
 
-  // The identity the launcher asserts. Only its *shape* is checkable here: smoke
+  // The identity the CLI asserts. Only its *shape* is checkable here: smoke
   // sees the sandbox, never the host that created it, so "matches the host" is
   // out of reach and "is not the auto-generated placeholder" is the real
   // regression this catches.
@@ -689,9 +688,9 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     yield* reporter.pass(`git identity name is '${identityName}'`);
   }
 
-  // The launcher's own fallback (agent@t3-code-kit) is a correct value here: it
+  // The CLI's own fallback (agent@t3-code-kit) is a correct value here: it
   // is what `up` writes when the host has no git config, so rejecting it would
-  // fail smoke on a sandbox the launcher configured exactly as designed.
+  // fail smoke on a sandbox the CLI configured exactly as designed.
   if (identityEmail.length === 0) {
     yield* reporter.fail("no git user.email in the sandbox - commits get an auto-generated author");
   } else if (identityEmail === "agent@t3.t3.docker.internal") {

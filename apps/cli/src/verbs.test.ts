@@ -321,7 +321,7 @@ describe("url", () => {
       expect(exit).toBe(1);
       const errors = yield* TestConsole.errorLines;
       expect(errors).toContain(
-        "t3-code-kit: no pairing URL: is the server up? try: t3-code-kit logs charprobe",
+        "t3-code-kit: no pairing URL: is the server up? try: npm run logs -- charprobe",
       );
     }).pipe(Effect.provide(TestConsole.layer));
   });
@@ -652,7 +652,7 @@ describe("nuke", () => {
       expect(yield* runCli(["nuke", "--yes"], fake)).toBe(1);
       expect(argsOf(fake)).toEqual([["ls"]]);
       expect(yield* TestConsole.errorLines).toContain(
-        "t3-code-kit: no sandbox named 'charprobe': its volume contents may still be on disk. run 't3-code-kit up charprobe', then 't3-code-kit nuke charprobe'",
+        "t3-code-kit: no sandbox named 'charprobe': its volume contents may still be on disk. run 'npm run up -- charprobe', then 'npm run nuke -- charprobe'",
       );
     }).pipe(Effect.provide(TestConsole.layer));
   });
@@ -702,7 +702,7 @@ describe("nuke", () => {
     return Effect.gen(function* () {
       expect(yield* runCli(["nuke", "--yes"], fake)).toBe(1);
       expect(yield* TestConsole.errorLines).toContain(
-        "t3-code-kit: no sandbox named 'charprobe': its volume contents may still be on disk. run 't3-code-kit up charprobe', then 't3-code-kit nuke charprobe'",
+        "t3-code-kit: no sandbox named 'charprobe': its volume contents may still be on disk. run 'npm run up -- charprobe', then 'npm run nuke -- charprobe'",
       );
     }).pipe(Effect.provide(TestConsole.layer));
   });
@@ -782,7 +782,7 @@ describe("policy and usage", () => {
     return Effect.gen(function* () {
       expect(yield* runCli(["bogus"], fake)).toBe(1);
       expect(yield* TestConsole.errorLines).toContain(
-        "t3-code-kit: unknown verb 'bogus' (try: t3-code-kit --help)",
+        "t3-code-kit: unknown verb 'bogus' (try: npm run help)",
       );
     }).pipe(Effect.provide(TestConsole.layer));
   });

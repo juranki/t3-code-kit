@@ -76,7 +76,7 @@ Reference: `repos/effect/ai-docs/src/09_testing/20_layer-tests.ts`.
 
 A verb test then replaces `Sbx` itself with a fake layer and asserts the calls:
 does `up` call `create` then `run` then `ports` then `pair`? does `nuke` wipe
-before `rm --force`? The old `bin/test` stub-`sbx`-on-`PATH` trick becomes a
+before `rm --force`? The old stub-`sbx`-on-`PATH` trick becomes a
 layer, and the assertion moves from stderr text to service calls.
 
 ## `NodeServices.layer`

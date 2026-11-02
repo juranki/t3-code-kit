@@ -2,7 +2,7 @@
 // A scripted `sbx` for the characterization suite. It records every argv it was
 // handed, then answers from a scenario file: the first rule whose `match` is a
 // prefix of the argv (and whose `contains` substrings all appear) wins, and `*`
-// matches any single word. The launchers are the thing under test, so this
+// matches any single word. The CLI is the thing under test, so this
 // never decides anything itself.
 import { appendFileSync, readFileSync } from "node:fs";
 

@@ -11,7 +11,7 @@ ARG BASE=dhi.io/sbx-templates:claude-code-docker
 FROM ${BASE}
 
 # Pinned on purpose: nothing self-updates inside the sandbox. Bumping is a
-# `t3-code-kit rebuild`.
+# `npm run rebuild`.
 ARG T3_VERSION=0.1.5
 ARG PI_VERSION=latest
 

@@ -1,20 +1,18 @@
-// The characterization harness: one case table, run against both launchers.
+// The characterization harness: one case table, run against the v2 CLI.
 //
-// The launchers shell out to `sbx`, so the fake is an executable on PATH, not a
+// The CLI shells out to `sbx`, so the fake is an executable on PATH, not a
 // module. Each case supplies a scenario (what `sbx` answers) and the suite
 // records the argv sequence, exit code, and warnings that came back. The
 // golden files are the contract; output wording may change, argv may not.
 //
-// ps1 is the launcher people actually use, so its run is the reference. A case
-// whose sh behaviour differs carries a `sh` reason, and the golden records the
-// two sequences separately rather than pretending they match.
-import { spawn, spawnSync } from "node:child_process";
+// This suite used to run the `sh` and PowerShell launchers as well. They were
+// retired in #42; the goldens are now regenerated from the v2 CLI alone, so
+// they pin the only implementation that ships.
+import { spawn } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-
-export type LauncherName = "sh" | "ps1" | "v2";
 
 export interface Rule {
   /** Argv prefix; `*` matches any single word. */
@@ -43,22 +41,14 @@ export interface Case {
   scenario: Scenario;
   /** Substrings that must appear in stdout, after normalization. */
   stdout?: string[];
-  /** Whether ps1's readiness probe needs a live server. */
+  /** Whether the readiness probe needs a live server. */
   server?: boolean;
-  /** Set when sh's argv legitimately differs from ps1's. */
-  sh?: { reason: string };
 }
 
 export interface Golden {
   exit: number;
   calls: string[][];
   warnings: string[];
-  sh?: {
-    exit: number;
-    calls: string[][];
-    warnings: string[];
-    reason: string;
-  };
 }
 
 export interface RunResult {
@@ -86,28 +76,7 @@ interface NormalizeContext {
 
 export const root = join(import.meta.dirname, "..", "..");
 
-const shLauncher = join(root, "bin", "t3-code-kit");
-const psLauncher = join(root, "bin", "t3-code-kit.ps1");
-const v2Launcher = join(root, "apps", "cli", "src", "bin.ts");
-
-let pwshAvailable: boolean | undefined;
-
-export function launcherAvailable(name: LauncherName): boolean {
-  if (name === "sh") return process.platform !== "win32";
-  // The v2 seam spawns `$SBX` directly, which is a real `sbx.exe` in
-  // production. The Windows fixture is a PowerShell shim because cmd.exe
-  // re-parses the identity call's `|`; a direct spawn cannot run it. The v2
-  // characterization therefore runs where the fixture is an executable script,
-  // and the Windows proof is the real smoke suite.
-  if (name === "v2") return process.platform !== "win32";
-  if (pwshAvailable === undefined) {
-    const probe = spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"], {
-      stdio: "ignore",
-    });
-    pwshAvailable = probe.status === 0;
-  }
-  return pwshAvailable;
-}
+const cliEntry = join(root, "apps", "cli", "src", "bin.ts");
 
 export function slug(name: string): string {
   return name
@@ -131,10 +100,9 @@ export function makeFixtures(): Fixtures {
   for (const [name, file] of fixtures) {
     const source = join(import.meta.dirname, file);
     if (process.platform === "win32") {
-      // sbx gets a PowerShell shim, not a .cmd: the identity call carries
-      // `$(printf %s '<b64>' | base64 -d)` as one argument, and cmd.exe
-      // re-parses the `|` and `$` before the fake ever sees them. git's
-      // arguments are plain words, so the cheaper .cmd shim is fine there.
+      // The suite is skipped on Windows: the CLI seam spawns `$SBX` directly,
+      // and the fake here is a PowerShell shim because cmd.exe re-parses the
+      // identity call's `|` and `$`. The Windows proof is the real smoke suite.
       if (name === "sbx") {
         writeFileSync(join(bin, "sbx.ps1"), `& node "${source}" @args\nexit $LASTEXITCODE\n`);
       } else {
@@ -177,12 +145,11 @@ export function withServer<T>(fn: (port: number) => Promise<T>): Promise<T> {
 
 export async function runCase(
   fixtures: Fixtures,
-  launcher: LauncherName,
   testCase: Case,
   port: number,
 ): Promise<RunResult> {
   const name = testCase.sandbox ?? "charprobe";
-  const id = `${launcher}-${slug(testCase.name)}`;
+  const id = slug(testCase.name);
   const scenarioPath = join(fixtures.dir, `scenario-${id}.json`);
   const logPath = join(fixtures.dir, `log-${id}.jsonl`);
 
@@ -207,14 +174,7 @@ export async function runCase(
     ...testCase.env,
   };
 
-  const [file, args] =
-    launcher === "sh"
-      ? ["sh", [shLauncher, ...testCase.args]]
-      : launcher === "ps1"
-        ? ["pwsh", ["-NoProfile", "-File", psLauncher, ...testCase.args]]
-        : [process.execPath, [v2Launcher, ...testCase.args]];
-
-  const raw = await spawnCapture(file, args, env);
+  const raw = await spawnCapture(process.execPath, [cliEntry, ...testCase.args], env);
   const context: NormalizeContext = {
     name,
     port,
@@ -282,9 +242,8 @@ function normalizeText(text: string, context: NormalizeContext): string {
   out = out.replaceAll(context.root, "<root>");
   out = out.replaceAll(context.name, "<name>");
   out = out.replaceAll(String(context.port), "<port>");
-  out = out.replaceAll("t3-code-kit.ps1", "t3-code-kit");
-  // The twins differ only in this dash in the serve.log warning; normalize it
-  // so a wording difference does not read as a behavioural one.
+  // The retired twins differed only in this dash in the serve.log warning;
+  // normalize it so a wording difference does not read as a behavioural one.
   out = out.replaceAll("—", "-");
   out = out.replace(/'([A-Za-z0-9+/=]{8,})' \| base64 -d/g, (_match, encoded: string) => {
     const decoded = Buffer.from(encoded, "base64").toString("utf8");
@@ -322,9 +281,9 @@ const secretNearMiss: Rule = {
 
 const secretUnknown: Rule = { match: ["secret", "ls"], exit: 1 };
 
-// `sbx ls` prints a fixed-width table, not one name per line. The old
-// launchers grep it; the v2 seam slices it by header offsets. A realistic table
-// is the only fixture both can read, and it is what a real `sbx` prints.
+// `sbx ls` prints a fixed-width table, not one name per line. The seam slices
+// it by header offsets, so the fixture must be a realistic table — the shape a
+// real `sbx` prints.
 export const sandboxTable = (name: string): string =>
   "  SANDBOX           AGENT             STATUS                 PORTS                                                                       WORKSPACE            CREATED\n" +
   `  ${name.padEnd(18)}kit               ● running (detached)   127.0.0.1:60006->3773/tcp, ::1:60006->3773/tcp                              D:\\src\\t3-code-kit   43s\n`;
@@ -361,10 +320,6 @@ export const CASES: Case[] = [
     name: "help flag",
     args: ["--help"],
     scenario: {},
-    sh: {
-      reason:
-        "ps1 binds `--help` as a PowerShell parameter and exits 1; sh prints usage and exits 0. The v2 CLI should follow sh.",
-    },
   },
   {
     name: "no args",
@@ -376,7 +331,6 @@ export const CASES: Case[] = [
     name: "unknown verb",
     args: ["bogus"],
     scenario: {},
-    sh: { reason: "ps1 points at `help`; sh points at `--help`." },
   },
   {
     name: "missing name",
@@ -549,7 +503,6 @@ export const CASES: Case[] = [
       ],
     },
     stdout: [url],
-    sh: { reason: "sh reads the pairing URL with `sh -c grep`; ps1 uses `tail -n 500`." },
   },
   {
     name: "url no pairing url",
@@ -564,7 +517,6 @@ export const CASES: Case[] = [
         },
       ],
     },
-    sh: { reason: "sh reads the pairing URL with `sh -c grep`; ps1 uses `tail -n 500`." },
   },
   {
     name: "logs",
@@ -665,9 +617,6 @@ export const CASES: Case[] = [
     name: "down stop fails",
     args: ["down"],
     scenario: { calls: [{ match: ["stop", "*"], exit: 1, stderr: "stop failed\n" }] },
-    sh: {
-      reason: "sh exits 1 on a failed stop without a message; ps1 prints `could not stop`.",
-    },
   },
   {
     name: "rebuild",
@@ -702,63 +651,5 @@ export const CASES: Case[] = [
     },
     stdout: [url],
     server: true,
-  },
-  {
-    name: "nuke",
-    args: ["nuke"],
-    scenario: {
-      calls: [
-        { match: ["rm", "--force", "*"], exit: 0 },
-        { match: ["volume", "ls"], stdout: "vol1 charprobe\nvol2 other\n" },
-        { match: ["volume", "rm", "vol1"], exit: 0 },
-      ],
-    },
-    stdout: ["removing volume vol1", "done."],
-  },
-  {
-    name: "nuke rm fails",
-    args: ["nuke"],
-    scenario: {
-      calls: [
-        { match: ["rm", "--force", "*"], exit: 1, stderr: "rm failed\n" },
-        { match: ["volume", "ls"], stdout: "vol1 charprobe\n" },
-        { match: ["volume", "rm", "vol1"], exit: 0 },
-      ],
-    },
-    stdout: ["removing volume vol1", "done."],
-  },
-  {
-    name: "nuke volume unsupported",
-    args: ["nuke"],
-    scenario: {
-      calls: [
-        { match: ["rm", "--force", "*"], exit: 0 },
-        { match: ["volume", "ls"], exit: 1 },
-      ],
-    },
-    stdout: ["done."],
-  },
-  {
-    name: "nuke volume rm fails",
-    args: ["nuke"],
-    scenario: {
-      calls: [
-        { match: ["rm", "--force", "*"], exit: 0 },
-        { match: ["volume", "ls"], stdout: "vol1 charprobe\n" },
-        { match: ["volume", "rm", "vol1"], exit: 1 },
-      ],
-    },
-    stdout: ["removing volume vol1", "done."],
-  },
-  {
-    name: "nuke no matching volume",
-    args: ["nuke"],
-    scenario: {
-      calls: [
-        { match: ["rm", "--force", "*"], exit: 0 },
-        { match: ["volume", "ls"], stdout: "vol2 other\n" },
-      ],
-    },
-    stdout: ["done."],
   },
 ];

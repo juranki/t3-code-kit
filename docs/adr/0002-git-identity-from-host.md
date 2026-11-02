@@ -72,4 +72,4 @@ takes effect on the next `up`.
 
 `npm run smoke` can only check the identity's _shape_ — it inspects a running
 sandbox and never sees the host that created it. The exact value is asserted in
-`bin/test`, against a stubbed `sbx` and `git`.
+`apps/cli/src/verbs.test.ts`, against a fake `Sbx` and `Git`.
