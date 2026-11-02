@@ -153,7 +153,7 @@ capabilities:
           - { domain: api.github.com, header: Authorization, format: "Bearer %s" }
 
   # pi's model provider. Optional so a sandbox still comes up without it; the
-  # agent round-trip in bin/smoke is what proves it actually works.
+  # agent round-trip in npm run smoke is what proves it actually works.
   #
   # `inject` is what makes the proxy swap the `proxy-managed` sentinel for the
   # real key. Without it the sandbox gets the sentinel, sends it as-is, and the
@@ -181,7 +181,7 @@ capabilities:
 
   # Mirrors policy/allow.txt (runtime) and policy/install.txt (install-time).
   # The descriptor is normative — it travels with the
-  # image, under one digest — and `bin/smoke` fails if the two disagree.
+  # image, under one digest — and `npm run smoke` fails if the two disagree.
   - type: com.docker.sandbox/network-policy@2
     config:
       # Install-time only. The skills install is pinned to a commit, so the

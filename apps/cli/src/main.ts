@@ -11,6 +11,7 @@ import type { ProcessRunner } from "@t3ck/host/ProcessRunner";
 import type { Sbx } from "@t3ck/sbx/Sbx";
 
 import { fail, type CliError } from "./cli.ts";
+import { doctor } from "./doctor.ts";
 import { usage } from "./usage.ts";
 import { down, logs, policy, refresh, shell, up, url } from "./verbs.ts";
 
@@ -44,6 +45,8 @@ export const run = (argv: ReadonlyArray<string>): Effect.Effect<number, never, C
         return yield* down(args);
       case "policy":
         return yield* policy();
+      case "doctor":
+        return yield* doctor();
       default:
         return yield* fail(`unknown verb '${verb}' (try: t3-code-kit --help)`, 1);
     }

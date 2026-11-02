@@ -160,8 +160,8 @@ It is a launcher, a Dockerfile, and a descriptor.
 
 ⚠️ The two launchers are deliberate duplicates — `bin/t3-code-kit` (POSIX sh)
 and `bin/t3-code-kit.ps1` (PowerShell) — because the alternative is telling a
-Windows user to install bash. They can drift; `bin/smoke` and `bin/smoke.ps1`
-cover the same ground, so run whichever matches your host.
+Windows user to install bash. They can drift; `npm run smoke` covers the same
+acceptance ground on either host.
 
 ## Use
 
@@ -221,23 +221,23 @@ See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-
 
 ## What ships
 
-| Path                                                        | What it is                                                                                                                   |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| [`kit/t3-code.yaml`](kit/t3-code.yaml)                      | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
-| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile)          | The content: t3, pi, the skills, Vite+, and fd (the pins are build args)                                                     |
-| [`kit/skills.txt`](kit/skills.txt)                          | The skills baked into the image, one per line                                                                                |
-| [`kit/skills.sh`](kit/skills.sh)                            | The one parser for `kit/skills.txt`: names for the build, count for the checks                                               |
-| [`kit/serve.sh`](kit/serve.sh)                              | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook                           |
-| [`policy/allow.txt`](policy/allow.txt)                      | Readable mirror of the runtime egress list                                                                                   |
-| [`policy/install.txt`](policy/install.txt)                  | Readable mirror of the build-time egress list                                                                                |
-| [`bin/t3-code-kit`](bin/t3-code-kit)                        | The launcher: eight verbs over `sbx` (POSIX sh)                                                                              |
-| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1)                | The same launcher for a Windows host (PowerShell 7+)                                                                         |
-| [`bin/smoke`](bin/smoke) · [`bin/smoke.ps1`](bin/smoke.ps1) | The acceptance test — this is what "it works" means                                                                          |
-| [`prototype/spike.md`](prototype/spike.md)                  | What was verified before any of this was written                                                                             |
+| Path                                               | What it is                                                                                                                   |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [`kit/t3-code.yaml`](kit/t3-code.yaml)             | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
+| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3, pi, the skills, Vite+, and fd (the pins are build args)                                                     |
+| [`kit/skills.txt`](kit/skills.txt)                 | The skills baked into the image, one per line                                                                                |
+| [`kit/skills.sh`](kit/skills.sh)                   | The shell parser for `kit/skills.txt`: names for the build, count for the checks (the smoke ports the rule to TypeScript)    |
+| [`kit/serve.sh`](kit/serve.sh)                     | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook                           |
+| [`policy/allow.txt`](policy/allow.txt)             | Readable mirror of the runtime egress list                                                                                   |
+| [`policy/install.txt`](policy/install.txt)         | Readable mirror of the build-time egress list                                                                                |
+| [`bin/t3-code-kit`](bin/t3-code-kit)               | The launcher: eight verbs over `sbx` (POSIX sh)                                                                              |
+| [`bin/t3-code-kit.ps1`](bin/t3-code-kit.ps1)       | The same launcher for a Windows host (PowerShell 7+)                                                                         |
+| [`scripts/smoke.ts`](scripts/smoke.ts)             | The acceptance test — this is what "it works" means                                                                          |
+| [`prototype/spike.md`](prototype/spike.md)         | What was verified before any of this was written                                                                             |
 
 The descriptor is normative. A Kit carries its authority in the image, under
 one digest, so the egress lists live there; `policy/allow.txt` (runtime) and
-`policy/install.txt` (build time) are the copies you read, and `bin/smoke`
+`policy/install.txt` (build time) are the copies you read, and `npm run smoke`
 fails if any of them disagrees with the descriptor. They are separate files on
 purpose: `t3-code-kit policy` prints only the runtime one, so a build-time host
 listed there would read as a runtime permission.
@@ -323,13 +323,13 @@ refused.
 ## Verify
 
 ```sh
-bin/smoke            # macOS / Linux
-.\bin\smoke.ps1      # Windows
+npm run smoke        # macOS, Linux, and Windows
+npm run doctor       # what this host's sbx reports: version and capabilities
 ```
 
-Checks the static files, brings a sandbox up, waits for the server, mints a
-pairing URL, and proves the toolchain, the volume, and GitHub egress. Set
-`SMOKE_DOWN=1` to stop the sandbox afterwards.
+Checks the static files, prints the `sbx` capabilities, brings a sandbox up,
+waits for the server, mints a pairing URL, and proves the toolchain, the
+volume, and GitHub egress. Set `SMOKE_DOWN=1` to stop the sandbox afterwards.
 
 The pi round-trip is **off by default** — it spends real model tokens, and it
 currently fails for a reason outside this repo: pi hangs under a non-TTY
@@ -385,7 +385,7 @@ spawns that terminal from the server's `$SHELL`, and the platform starts the
 workload with `SHELL=/bin/sh` — which is dash: no readline, so no history and
 no tab completion, and a prompt that never reads `~/.bashrc`. `kit/serve.sh`
 exports `/bin/bash` for exactly this reason, so a sandbox built before that
-line existed needs a `rebuild`; `bin/smoke` reads the running server's
+line existed needs a `rebuild`; `npm run smoke` reads the running server's
 environment and fails if it is not bash.
 
 **The provider answers `401 Invalid API Key` and the sandbox has
