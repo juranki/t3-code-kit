@@ -8,6 +8,7 @@ import {
   browserProbeScript,
   chromePlatformOf,
   chromeVersionOf,
+  glyphRatio,
   countSkills,
   dockerfileArg,
   markerCount,
@@ -81,6 +82,15 @@ describe("smoke helpers", () => {
     expect(chromeVersionOf("")).toBe("");
   });
 
+  it("measures whether glyphs are proportional or tofu boxes", () => {
+    // The real measurement from a sandbox: 8 x "I" and 8 x "W" at 40px.
+    expect(glyphRatio("88.90625,302.03125")).toBeCloseTo(3.4, 1);
+    // Tofu renders every character at the same advance width.
+    expect(glyphRatio("100,100")).toBe(1);
+    expect(glyphRatio("")).toBeUndefined();
+    expect(glyphRatio("nonsense")).toBeUndefined();
+  });
+
   it("names the chrome-for-testing platform directory t3 looks in", () => {
     expect(chromePlatformOf("x86_64")).toBe("linux64");
     expect(chromePlatformOf("aarch64")).toBe("linux-arm64");
@@ -94,6 +104,8 @@ describe("smoke helpers", () => {
       "missing=0",
       "version=Google Chrome for Testing 156.0.8078.70",
       "font=/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+      "glyphs=88.90625,302.03125",
+      "tls=ok",
     ].join("\n");
     expect(parseBrowserProbe(stdout)).toEqual({
       bin: "/home/agent/.t3/tools/chrome-headless-shell/linux64/156.0.8078.70/chrome-headless-shell",
@@ -101,6 +113,8 @@ describe("smoke helpers", () => {
       missing: 0,
       version: "Google Chrome for Testing 156.0.8078.70",
       font: "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+      glyphs: "88.90625,302.03125",
+      tls: "ok",
     });
 
     // No binary: the image did not pre-seed it, so there is nothing to measure.
@@ -110,6 +124,8 @@ describe("smoke helpers", () => {
       missing: undefined,
       version: undefined,
       font: undefined,
+      glyphs: undefined,
+      tls: undefined,
     });
 
     expect(parseBrowserProbe("bin=/x\nmissing=3\n").missing).toBe(3);
@@ -124,5 +140,7 @@ describe("smoke helpers", () => {
     expect(script).toContain('grep -c "not found"');
     expect(script).toContain("--version");
     expect(script).toContain("fc-match");
+    expect(script).toContain("WWWWWWWW");
+    expect(script).toContain("https://github.com");
   });
 });

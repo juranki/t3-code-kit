@@ -497,6 +497,16 @@ is a symlink into `$T3CODE_HOME/runtime/versions/<v>/t3`. If someone volumes all
 of `/home/agent/.t3`, the volume shadows that install and the symlink dangles.
 The kit volumes only `userdata`, `projects`, and `worktrees`.
 
+**Every `https://` page in the preview browser fails with
+`ERR_CERT_AUTHORITY_INVALID`.** Chromium does not read `SSL_CERT_FILE` or
+`NODE_EXTRA_CA_CERTS`; it verifies TLS against the NSS store at
+`$HOME/.pki/nssdb`, and the sandbox proxy re-signs every connection with a CA
+minted per sandbox. `kit/serve.sh` imports `$PROXY_CA_CERT_B64` there on every
+start, so a sandbox built before that line needs a `rebuild`; `npm run smoke`
+asserts that an HTTPS origin renders. Importing the CA into the browser
+_profile_ does not work — that is not the trust store — and
+`--ignore-certificate-errors` would stop verifying real certificates too.
+
 **`html_preview` fails with "This host is missing libraries T3's browser
 needs".** The image bakes those libraries and the browser binary, so a sandbox
 that reports them missing was built before that layer: `npm run rebuild --

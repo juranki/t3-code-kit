@@ -126,6 +126,17 @@ export const dockerfileArg = (text: string, key: string): string | undefined =>
 export const chromeVersionOf = (raw: string): string =>
   /Chrome for Testing (\d+(?:\.\d+)*)/u.exec(raw)?.[1] ?? "";
 
+/** How much wider 8 `W`s render than 8 `I`s. A proportional font gives ~3.4;
+ * tofu boxes give exactly 1, because every missing glyph advances by the same
+ * width. That is the difference between "the page has text" and "the page has
+ * boxes", which no font-file check can make. */
+export const glyphRatio = (glyphs: string): number | undefined => {
+  const [narrow, wide] = glyphs.split(",").map((value) => Number.parseFloat(value));
+  if (narrow === undefined || wide === undefined) return undefined;
+  if (!Number.isFinite(narrow) || !Number.isFinite(wide) || narrow <= 0) return undefined;
+  return wide / narrow;
+};
+
 /** The directory chrome-for-testing publishes for this machine, which is also
  * the one t3 installs under. Restated here rather than imported from the
  * Dockerfile: the point of the check is to compare the image against an
@@ -148,6 +159,14 @@ export const browserProbeScript = (): string =>
     'if [ -n "$bin" ]; then',
     '  echo "missing=$(ldd "$bin" 2>/dev/null | grep -c "not found")"',
     '  echo "version=$("$bin" --version 2>/dev/null)"',
+    // Same count of a narrow and a wide glyph, measured by the browser itself.
+    // Equal widths mean tofu; a proportional font means real outlines.
+    `  glyphs=$("$bin" --headless --virtual-time-budget=3000 --dump-dom "data:text/html,<body><span id=a style='font:40px sans-serif'>IIIIIIII</span><span id=b style='font:40px sans-serif'>WWWWWWWW</span><script>document.title=[a.getBoundingClientRect().width,b.getBoundingClientRect().width].join(',')</script>" 2>/dev/null | grep -o "<title>[0-9.,]*</title>" | tr -d "<title>/")`,
+    '  echo "glyphs=$glyphs"',
+    // The sandbox proxy re-signs TLS with a per-sandbox CA, which serve.sh
+    // imports into NSS. If that import did not happen, every https:// origin
+    // fails with ERR_CERT_AUTHORITY_INVALID and the DOM never arrives.
+    '  if "$bin" --headless --virtual-time-budget=5000 --dump-dom https://github.com 2>/dev/null | grep -q "<title>"; then echo "tls=ok"; else echo "tls="; fi',
     "fi",
     "font=$(fc-match --format=%{file} sans-serif 2>/dev/null)",
     // fc-match prints the pattern back when nothing matches, so "resolved" is
@@ -161,6 +180,8 @@ export interface BrowserProbe {
   readonly missing: number | undefined;
   readonly version: string | undefined;
   readonly font: string | undefined;
+  readonly glyphs: string | undefined;
+  readonly tls: string | undefined;
 }
 
 /** The probe's `key=value` lines. An empty value is absent, not empty string:
@@ -168,7 +189,7 @@ export interface BrowserProbe {
 export const parseBrowserProbe = (stdout: string): BrowserProbe => {
   const fields: Record<string, string> = {};
   for (const line of stdout.split(/\r?\n/u)) {
-    const match = /^(bin|machine|missing|version|font)=(.*)$/u.exec(line.trim());
+    const match = /^(bin|machine|missing|version|font|glyphs|tls)=(.*)$/u.exec(line.trim());
     if (match !== null && (match[2] ?? "").trim().length > 0)
       fields[match[1] ?? ""] = (match[2] ?? "").trim();
   }
@@ -179,6 +200,8 @@ export const parseBrowserProbe = (stdout: string): BrowserProbe => {
     missing: Number.isInteger(missing) ? missing : undefined,
     version: fields.version,
     font: fields.font,
+    glyphs: fields.glyphs,
+    tls: fields.tls,
   };
 };
 
@@ -712,6 +735,8 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
       "ldd reports no missing libraries",
       "chrome-headless-shell starts",
       "fc-match resolves sans-serif to a font file",
+      "the browser renders proportional glyphs",
+      "the browser renders an HTTPS origin",
     ]) {
       yield* reporter.skip(label);
     }
@@ -763,6 +788,34 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
       yield* reporter.pass(`fc-match resolves sans-serif to ${probe.font}`);
     } else {
       yield* reporter.fail("fc-match does not resolve sans-serif to a font file");
+    }
+
+    // A font file on disk is not the same as a glyph on screen: this is the
+    // browser's own text measurement, so a fontconfig cache problem that leaves
+    // the browser drawing boxes fails here and not in someone's screenshot.
+    const ratio = glyphRatio(probe.glyphs ?? "");
+    if (ratio === undefined) {
+      yield* reporter.fail("the browser did not report a text measurement");
+    } else if (ratio > 1.5) {
+      yield* reporter.pass(
+        `the browser renders proportional glyphs (W/I width ${ratio.toFixed(1)})`,
+      );
+    } else {
+      yield* reporter.fail(
+        `the browser renders every glyph at one width (W/I ${ratio.toFixed(1)}) - boxes, not text`,
+      );
+    }
+
+    // The sandbox proxy re-signs TLS with a CA minted per sandbox, and Chromium
+    // does not read SSL_CERT_FILE: serve.sh imports that CA into the NSS store
+    // the browser does read. Without it every https:// origin is a certificate
+    // error, which breaks any preview that pulls a CDN resource.
+    if (probe.tls === "ok") {
+      yield* reporter.pass("the browser renders an HTTPS origin (github.com)");
+    } else {
+      yield* reporter.fail(
+        "the browser cannot render an HTTPS origin - the proxy CA is not in its NSS store (see kit/serve.sh)",
+      );
     }
   }
 

@@ -216,3 +216,9 @@ vacuously. The path check and the `--version` comparison are what make it real.
 
 The one thing the suite cannot assert is the render itself — a PNG's size does
 not prove glyphs — so `html_preview` of a page with text stays a human check.
+
+Two lines were added to that section after this run — a proportional-glyph
+measurement (8 `I` against 8 `W`: ~3.4 for a real font, exactly 1 for tofu
+boxes) and an HTTPS origin — so the next host run covers six browser checks,
+not four. The glyph measurement was taken here, in a sandbox from the same
+image: `glyphs=88.90625,302.03125`.

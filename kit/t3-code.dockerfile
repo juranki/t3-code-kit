@@ -62,6 +62,11 @@ ARG SKILLS_REF=a496f5513d4a4cf889bc48e189e579f4b0bdf6aa
 # unresolved `ldd` set, and it drags in mesa-libgallium and libllvm19, which is
 # ~170 MB of the cost.
 #
+# libnss3-tools is not a browser library: it is `certutil`, which serve.sh uses
+# to write the sandbox proxy's CA into the NSS trust store the browser actually
+# reads (see the CA import there). Without it every https:// preview fails with
+# ERR_CERT_AUTHORITY_INVALID while curl and Node are fine.
+#
 # libicu is deliberately not installed: pwsh is not baked (it was ruled out of
 # scope).
 #
@@ -93,7 +98,8 @@ RUN set -eux; \
       libatomic1 mise \
       libglib2.0-0t64 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
       libdbus-1-3 libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
-      libxrandr2 libxkbcommon0 libgbm1 libasound2t64 fontconfig fonts-liberation; \
+      libxrandr2 libxkbcommon0 libgbm1 libasound2t64 fontconfig fonts-liberation \
+      libnss3-tools; \
     rm -rf /var/lib/apt/lists/*
 
 # fd — pinned, in /usr/local/bin so pi's commandExists("fd") finds it and
