@@ -390,7 +390,7 @@ rather than blocking the run.
   broken network.
 - ⚠️ **The real-`sbx` proof is host-only.** The Linux sandbox runs the fast
   gate; the Windows host runs the smoke suite against `sbx.exe`. The acceptance
-  run and its remaining human step are recorded in
+  run is recorded in
   [`docs/operations/v2-final-acceptance.md`](docs/operations/v2-final-acceptance.md).
 
 ## Troubleshooting
