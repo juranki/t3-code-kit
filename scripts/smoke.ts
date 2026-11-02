@@ -79,6 +79,10 @@ export const parseDevices = (stdout: string): Record<string, string> => {
 
 const MARKER = ".smoke-marker";
 const MARKER_TEXT = "smoke-durability-marker";
+/** Entries the runtime or ext4 owns, not durable state: `sbx` recreates its
+ * init stamp when a volume reattaches, and a reinitialized ext4 volume gets
+ * `lost+found` back. */
+const VOLUME_METADATA = [".sbx-volume-initialized", "lost+found"] as const;
 
 /** Write the durability marker into every path. `set -e` makes a failed write
  * fail the whole probe rather than leaving a volume unmarked. */
@@ -841,13 +845,15 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
         }
 
         // `.t3/userdata` is not asserted empty: t3 writes its own state there
-        // on startup. `workspace` is the volume nothing recreates, so it is
-        // the one that must have no entries at all.
+        // on startup. `workspace` is the volume nothing else recreates, so it
+        // is the one that must have no user entries. The runtime's init stamp
+        // and ext4's `lost+found` are metadata, not durable state.
         const workspace = VOLUME_PATHS[0];
+        const metadataFilter = VOLUME_METADATA.map((entry) => `! -name '${entry}'`).join(" ");
         const workspaceEntries = yield* exec([
           "sh",
           "-c",
-          `find ${workspace} -mindepth 1 -print`,
+          `find ${workspace} -mindepth 1 ${metadataFilter} -print`,
         ]).pipe(Effect.result);
         if (
           Result.isSuccess(workspaceEntries) &&
