@@ -136,13 +136,13 @@ The verb-by-verb parity table, the environment variables, the destructive
 confirmation, and the error paths are in
 [ADR 0004](../adr/0004-retire-the-launchers.md#parity). The short version:
 
-| Surface                                                                                                                    | Where it is pinned                                                                                    |
-| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| argv sequence, exit code, warnings for every verb                                                                          | `scripts/characterization.test.ts` + `scripts/characterization/golden/`                               |
-| destructive `nuke` confirmation and wipe/verify/abort sequence                                                             | `scripts/characterization.test.ts` destructive cases; `apps/cli/src/verbs.test.ts`                    |
-| environment variables (`T3CK_NAME`, `T3CK_PORT`, `T3CK_READY_TIMEOUT`, `T3CK_AGENT_NAME_PREFIX`, `SBX_KIT_BUILDER`, `SBX`) | `apps/cli/src/config.test.ts`; `packages/sbx/src/live.ts`                                             |
-| error paths (missing secret, failed create/run/stop/rm, missing sandbox, failed wipe)                                      | `apps/cli/src/verbs.test.ts`; characterization `up-*`, `down-*`, `rebuild-*`                          |
-| git identity: the host's name decorated exactly once, the email untouched                                                  | `apps/cli/src/identity.test.ts`; `apps/cli/src/verbs.test.ts`; smoke; `up-host-name-already-prefixed` |
+| Surface                                                                                                                    | Where it is pinned                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| argv sequence, exit code, warnings for every verb                                                                          | `scripts/characterization.test.ts` + `scripts/characterization/golden/`                                     |
+| destructive `nuke` confirmation and wipe/verify/abort sequence                                                             | `scripts/characterization.test.ts` destructive cases; `apps/cli/src/verbs.test.ts`                          |
+| environment variables (`T3CK_NAME`, `T3CK_PORT`, `T3CK_READY_TIMEOUT`, `T3CK_AGENT_NAME_PREFIX`, `SBX_KIT_BUILDER`, `SBX`) | `apps/cli/src/config.test.ts`; `packages/sbx/src/live.ts`                                                   |
+| error paths (missing secret, failed create/run/stop/rm, missing sandbox, failed wipe)                                      | `apps/cli/src/verbs.test.ts`; characterization `up-*`, `down-*`, `rebuild-*`                                |
+| git identity: the host's name decorated exactly once, the email untouched                                                  | `apps/cli/src/identity.test.ts`; `apps/cli/src/verbs.test.ts`; smoke; `up-host-name-already-prefixed-twice` |
 
 ## Remaining backlog
 
@@ -152,3 +152,31 @@ confirmation, and the error paths are in
   skips the agent round-trip by default and bounds it when enabled.
 - **#55** — the pre-publication checklist is unblocked by the launcher
   retirement; CI on GitHub Actions is a separate, later effort.
+
+## Addendum (#48): the identity, asserted exactly
+
+Run on 2026-11-02 on Windows 11 with `sbx` v0.50.1, in `~/src/t3-code-kit`,
+on branch `t3/implement-ticket-48`:
+
+```console
+$ npm run check
+Test Files  10 passed | 1 skipped (11)
+     Tests  121 passed | 41 skipped (162)
+
+$ npm run smoke
+...
+== egress and credentials
+  PASS  git ls-remote https://github.com/juranki/t3-code-kit (network + github credential)
+  PASS  git identity name is 'Agent for Juhani Ränkimies' - what 'up' applied
+  PASS  git identity email is 'juhani@example.com'
+...
+  42 passed, 0 failed, 1 skipped
+  sandbox was nuked by the durability checks
+```
+
+The two identity lines are the #48 assertion. The smoke reads the host's
+`git config --get user.name`/`user.email`, applies the CLI's own rule to them,
+and compares the sandbox's `git config --global` values to the result exactly.
+This host's config was already decorated — the bug's precondition — and the
+sandbox got one prefix, not two. A repeated prefix now fails the smoke instead
+of passing as "configured", which is what the shape check it replaced did.
