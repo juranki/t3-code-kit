@@ -179,7 +179,7 @@ RUN npm install -g "vite-plus@${VITE_PLUS_VERSION}" \
 # The count assertion is the point: `-s` silently ignores a name that no
 # longer exists upstream, so a SKILLS_REF bump that renames a skill would
 # otherwise bake in one fewer skill with a green build. skills.sh is the one
-# parser for the manifest, shared with bin/smoke.
+# parser for the manifest, shared with npm run smoke.
 COPY --chown=agent:agent skills.txt skills.sh /home/agent/
 RUN DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 \
       npx -y "skills@${SKILLS_VERSION}" add \

@@ -4,7 +4,7 @@
 # This file is the readable mirror of network-policy@2 runtime.allow. The
 # normative copy lives in kit/t3-code.yaml because a Kit carries its authority
 # in the image, under one digest — policy that lives outside the artifact can
-# drift from it. `bin/smoke` fails if the two disagree.
+# drift from it. `npm run smoke` fails if the two disagree.
 #
 # Install-time egress is a different list with a different meaning, and lives
 # in policy/install.txt. Do not merge the two: `t3-code-kit policy` prints

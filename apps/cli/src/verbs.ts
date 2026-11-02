@@ -18,10 +18,9 @@ import {
   type ExecResult,
   type SandboxSummary,
   type SecretRow,
-  type SbxError,
 } from "@t3ck/sbx/Sbx";
 
-import { fail, say, warn, type CliError } from "./cli.ts";
+import { fail, reportSbxError, say, warn, withContext, type CliError } from "./cli.ts";
 import {
   CONTAINER_PORT,
   agentNamePrefix,
@@ -36,27 +35,11 @@ import { parsePairingUrl, rewritePairingUrl } from "./pairing.ts";
 
 type UpEnvironment = Sbx | Git | ProcessRunner | FileSystem.FileSystem | Path.Path;
 
-const reportSbxError = (error: SbxError): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
-    if (error._tag === "SbxCommandError") {
-      if (error.stderr.length > 0) yield* Console.error(error.stderr.trimEnd());
-      return;
-    }
-    yield* Console.error(error.message);
-  });
-
 const printResult = (result: ExecResult): Effect.Effect<void> =>
   Effect.gen(function* () {
     if (result.stdout.length > 0) yield* say(result.stdout.trimEnd());
     if (result.stderr.length > 0) yield* Console.error(result.stderr.trimEnd());
   });
-
-const withContext = <A, E extends SbxError>(
-  effect: Effect.Effect<A, E>,
-  reason: string,
-): Effect.Effect<A, CliError> =>
-  effect.pipe(Effect.catch((error) => Effect.andThen(reportSbxError(error), fail(reason))));
 
 // --- up --------------------------------------------------------------------
 
