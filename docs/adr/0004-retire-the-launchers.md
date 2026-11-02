@@ -69,10 +69,11 @@ are recorded in the goldens.
 - **#24** (pi under a non-TTY `sbx exec`) is still open. The smoke suite skips
   the agent round-trip by default, bounds it with `SMOKE_AGENT_TIMEOUT`, and
   kills it inside the sandbox; the underlying pi behaviour is upstream.
-- **#48** (`Agent for ` prefix accumulation) is still open. The v2 identity
-  path is the same read-host-then-prefix rule, so the fix belongs in
-  `apps/cli/src/verbs.ts`; the issue's `bin/test`/launcher references are
-  updated to the v2 files.
+- **#48** (`Agent for ` prefix accumulation) is fixed in the v2 identity path:
+  the rule lives in `apps/cli/src/identity.ts` and strips every leading copy of
+  the prefix before adding one back, so it is idempotent. The issue's `bin/test`
+  and "both launchers" references are the retired twins; the v2 equivalents are
+  `apps/cli/src/identity.test.ts`, `apps/cli/src/verbs.test.ts`, and the smoke.
 
 ## Verification
 

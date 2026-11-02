@@ -230,6 +230,10 @@ the commit. The email is your real one, because that is what GitHub matches on.
   names no person and links to no account.
 - `T3CK_AGENT_NAME_PREFIX` overrides the prefix; set it empty for the bare
   host name.
+- The prefix is applied once, however many times `up` runs: every leading copy
+  of it already in your host's `user.name` is stripped before one is added
+  back, so a host that is itself decorated (or a sandbox used as a host) gets
+  one prefix, not two.
 - `up` re-asserts the identity every time, so a `git config` you set by hand
   inside the sandbox is reverted. It prints the identity it applied.
 
