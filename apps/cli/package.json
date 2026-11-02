@@ -2,6 +2,12 @@
   "name": "@t3ck/cli",
   "private": true,
   "type": "module",
+  "exports": {
+    "./capabilities": {
+      "types": "./src/capabilities.ts",
+      "import": "./src/capabilities.ts"
+    }
+  },
   "dependencies": {
     "@effect/platform-node": "4.0.5",
     "@t3ck/host": "*",
