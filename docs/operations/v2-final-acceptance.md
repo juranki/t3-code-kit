@@ -180,3 +180,72 @@ and compares the sandbox's `git config --global` values to the result exactly.
 This host's config was already decorated — the bug's precondition — and the
 sandbox got one prefix, not two. A repeated prefix now fails the smoke instead
 of passing as "configured", which is what the shape check it replaced did.
+
+## Addendum (#45): the preview browser
+
+Run on 2026-11-02 on Windows 11 with `sbx` v0.50.1, in `~/src/t3-code-kit`,
+on branch `t3/bake-browser-deps-45`:
+
+```console
+$ npm run check
+Test Files  10 passed | 1 skipped (11)
+     Tests  126 passed | 41 skipped (167)
+
+$ npm run smoke
+...
+== preview browser inside the sandbox
+  PASS  the preview browser is baked in at /home/agent/.t3/tools/chrome-headless-shell/linux64/156.0.8078.70/chrome-headless-shell
+  PASS  ldd reports no missing libraries
+  PASS  chrome-headless-shell 156.0.8078.70 starts
+  PASS  fc-match resolves sans-serif to /usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf
+...
+  46 passed, 0 failed, 1 skipped
+  sandbox was nuked by the durability checks
+```
+
+Those four lines are the #45 assertion, and they are what was missing before:
+the image builds the browser layer, the binary lands at the path t3 looks in
+(`$T3CODE_HOME/tools/chrome-headless-shell/linux64/<version>/`, with the
+version compared against the Dockerfile's `CHROME_VERSION` pin), the loader
+resolves every library, the binary starts, and `fc-match` resolves to a file
+rather than to the pattern it was given.
+
+`ldd` alone is not the proof it looks like: run against a missing file it also
+prints `0` "not found", which is why the ticket's original acceptance passed
+vacuously. The path check and the `--version` comparison are what make it real.
+
+The one thing the suite cannot assert is the render itself — a PNG's size does
+not prove glyphs — so `html_preview` of a page with text stays a human check.
+
+### Second run: text and HTTPS (#60)
+
+Two lines were added to that section after that run — a proportional-glyph
+measurement and an HTTPS origin — and the image gained the proxy-CA import in
+`kit/serve.sh`. Rebuilt and re-run on 2026-11-02:
+
+```console
+$ npm run smoke
+== preview browser inside the sandbox
+  PASS  the preview browser is baked in at /home/agent/.t3/tools/chrome-headless-shell/linux64/156.0.8078.70/chrome-headless-shell
+  PASS  ldd reports no missing libraries
+  PASS  chrome-headless-shell 156.0.8078.70 starts
+  PASS  fc-match resolves sans-serif to /usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf
+  PASS  the browser renders proportional glyphs (W/I width 3.4)
+  PASS  the browser renders an HTTPS origin (github.com)
+...
+  48 passed, 0 failed, 1 skipped
+  sandbox was nuked by the durability checks
+```
+
+The glyph line is the difference between "a font file exists" and "the browser
+draws text": eight `I` and eight `W` at 40px measure 88.9 px and 302.0 px, a
+ratio of 3.4. Tofu boxes advance every glyph by the same width and give exactly
+1, which is what the check fails on.
+
+The HTTPS line is #60. Chromium ignores `SSL_CERT_FILE`, so the sandbox proxy's
+per-sandbox CA has to be in the NSS store the browser actually reads,
+`$HOME/.pki/nssdb`; `kit/serve.sh` imports `$PROXY_CA_CERT_B64` there on every
+start. With the CA removed the same probe prints `tls=` and the check fails, so
+it is not a vacuous pass. Opening `https://www.docker.com` in the UI renders
+too — that host is not in `runtime.allow` (it came from the host's global
+policy), which is why the smoke uses `github.com`, which is in the descriptor.
