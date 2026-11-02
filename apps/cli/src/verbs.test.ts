@@ -534,18 +534,18 @@ const nukeRules = (lsName: string, survivors = "") => [
   {
     match: (command: { args: ReadonlyArray<string> }) =>
       command.args[0] === "exec" &&
-      (command.args[5] ?? "").includes(".t3ck-nuke-marker") &&
-      (command.args[5] ?? "").includes(">"),
+      (command.args.at(-1) ?? "").includes(".t3ck-nuke-marker") &&
+      (command.args.at(-1) ?? "").includes(">"),
     response: { stdout: "" },
   },
   {
     match: (command: { args: ReadonlyArray<string> }) =>
-      command.args[0] === "exec" && (command.args[5] ?? "").includes("-mindepth 1 -delete"),
+      command.args[0] === "exec" && (command.args.at(-1) ?? "").includes("-mindepth 1 -delete"),
     response: { stdout: "" },
   },
   {
     match: (command: { args: ReadonlyArray<string> }) =>
-      command.args[0] === "exec" && (command.args[5] ?? "").includes("[ ! -e"),
+      command.args[0] === "exec" && (command.args.at(-1) ?? "").includes("[ ! -e"),
     response: { stdout: survivors },
   },
   {
@@ -562,9 +562,9 @@ describe("nuke", () => {
       const calls = argsOf(fake);
       expect(calls[0]).toEqual(["ls"]);
       expect(calls[1]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      expect(calls[1]?.[5]).toContain(".t3ck-nuke-marker");
-      expect(calls[2]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      const wipe = calls[2]?.[5] ?? "";
+      expect(calls[1]?.at(-1)).toContain(".t3ck-nuke-marker");
+      expect(calls[2]?.slice(0, 7)).toEqual(["exec", "-u", "root", "charprobe", "--", "sh", "-c"]);
+      const wipe = calls[2]?.at(-1) ?? "";
       expect(wipe).toContain("pkill -f '^t3 serve'");
       expect(wipe).toContain("pkill -x pi");
       for (const path of [
@@ -576,7 +576,7 @@ describe("nuke", () => {
         expect(wipe).toContain(`find '${path}' -mindepth 1 -delete`);
       }
       expect(calls[3]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      expect(calls[3]?.[5]).toContain("[ ! -e");
+      expect(calls[3]?.at(-1)).toContain("[ ! -e");
       expect(calls[4]).toEqual(["rm", "--force", "charprobe"]);
       expect(yield* TestConsole.logLines).toContain(
         "done. 'charprobe' is gone; its volume storage stays allocated, empty — sbx has no per-sandbox purge.",
@@ -669,17 +669,17 @@ describe("nuke", () => {
         calls.filter(
           (call) =>
             call[0] === "exec" &&
-            (call[5] ?? "").includes(".t3ck-nuke-marker") &&
-            (call[5] ?? "").includes(">"),
+            (call.at(-1) ?? "").includes(".t3ck-nuke-marker") &&
+            (call.at(-1) ?? "").includes(">"),
         ),
       ).toHaveLength(2);
       expect(
         calls.filter(
-          (call) => call[0] === "exec" && (call[5] ?? "").includes("-mindepth 1 -delete"),
+          (call) => call[0] === "exec" && (call.at(-1) ?? "").includes("-mindepth 1 -delete"),
         ),
       ).toHaveLength(2);
       expect(
-        calls.filter((call) => call[0] === "exec" && (call[5] ?? "").includes("[ ! -e")),
+        calls.filter((call) => call[0] === "exec" && (call.at(-1) ?? "").includes("[ ! -e")),
       ).toHaveLength(2);
       const errors = yield* TestConsole.errorLines;
       expect(errors).toContain("⚠️  wipe of 'charprobe' left data behind; retrying once");

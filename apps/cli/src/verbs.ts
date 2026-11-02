@@ -473,11 +473,17 @@ const runWipeStep = (
   name: string,
   script: string,
   label: string,
+  user?: string,
 ): Effect.Effect<StepOutcome, never, Sbx> =>
   Effect.gen(function* () {
     const sbx = yield* Sbx;
     const result = yield* sbx
-      .exec({ name, argv: ["sh", "-c", script], timeoutMs: NUKE_TIMEOUT_MS })
+      .exec({
+        name,
+        argv: ["sh", "-c", script],
+        timeoutMs: NUKE_TIMEOUT_MS,
+        ...(user === undefined ? {} : { user }),
+      })
       .pipe(
         Effect.catchTags({
           SandboxMissingError: () => Effect.succeed({ kind: "missing" as const }),
@@ -500,7 +506,10 @@ const wipeOnce = (name: string): Effect.Effect<WipeOutcome, never, Sbx> =>
   Effect.gen(function* () {
     const marker = yield* runWipeStep(name, markerScript, "marker");
     if (marker.kind !== "ok") return marker;
-    const wipe = yield* runWipeStep(name, wipeScript, "wipe");
+    // Root, because the volume's `.sbx-volume-initialized` stamp and ext4's
+    // `lost+found` are root-owned; as the agent user `find -delete` aborts on
+    // them and the wipe can never verify.
+    const wipe = yield* runWipeStep(name, wipeScript, "wipe", "root");
     if (wipe.kind !== "ok") return wipe;
     const verify = yield* runWipeStep(name, verifyScript, "verify");
     if (verify.kind !== "ok") return verify;

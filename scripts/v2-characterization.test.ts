@@ -65,19 +65,19 @@ const nukeList = (name: string): Rule => ({ match: ["ls"], stdout: sandboxTable(
 // script tells them apart, so the rules match on a substring of the one script
 // argv.
 const nukeMarker: Rule = {
-  match: ["exec", "*", "--", "sh", "-c"],
+  match: ["exec"],
   contains: [".t3ck-nuke-marker", ">"],
   stdout: "",
 };
 
 const nukeWipe: Rule = {
-  match: ["exec", "*", "--", "sh", "-c"],
+  match: ["exec"],
   contains: ["-mindepth 1 -delete"],
   stdout: "",
 };
 
 const nukeVerify = (survivors = ""): Rule => ({
-  match: ["exec", "*", "--", "sh", "-c"],
+  match: ["exec"],
   contains: ["[ ! -e"],
   stdout: survivors,
 });
@@ -88,7 +88,7 @@ const nukeRm = (response: { readonly exit?: number; readonly stderr?: string } =
 });
 
 const markerCall = ["exec", "<name>", "--", "sh", "-c", "<marker>"];
-const wipeCall = ["exec", "<name>", "--", "sh", "-c", "<wipe>"];
+const wipeCall = ["exec", "-u", "root", "<name>", "--", "sh", "-c", "<wipe>"];
 const verifyCall = ["exec", "<name>", "--", "sh", "-c", "<verify>"];
 const missingRemedy =
   "no sandbox named '<name>': its volume contents may still be on disk. run 't3-code-kit up <name>', then 't3-code-kit nuke <name>'";
