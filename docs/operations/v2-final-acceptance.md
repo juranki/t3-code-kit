@@ -217,8 +217,35 @@ vacuously. The path check and the `--version` comparison are what make it real.
 The one thing the suite cannot assert is the render itself — a PNG's size does
 not prove glyphs — so `html_preview` of a page with text stays a human check.
 
-Two lines were added to that section after this run — a proportional-glyph
-measurement (8 `I` against 8 `W`: ~3.4 for a real font, exactly 1 for tofu
-boxes) and an HTTPS origin — so the next host run covers six browser checks,
-not four. The glyph measurement was taken here, in a sandbox from the same
-image: `glyphs=88.90625,302.03125`.
+### Second run: text and HTTPS (#60)
+
+Two lines were added to that section after that run — a proportional-glyph
+measurement and an HTTPS origin — and the image gained the proxy-CA import in
+`kit/serve.sh`. Rebuilt and re-run on 2026-11-02:
+
+```console
+$ npm run smoke
+== preview browser inside the sandbox
+  PASS  the preview browser is baked in at /home/agent/.t3/tools/chrome-headless-shell/linux64/156.0.8078.70/chrome-headless-shell
+  PASS  ldd reports no missing libraries
+  PASS  chrome-headless-shell 156.0.8078.70 starts
+  PASS  fc-match resolves sans-serif to /usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf
+  PASS  the browser renders proportional glyphs (W/I width 3.4)
+  PASS  the browser renders an HTTPS origin (github.com)
+...
+  48 passed, 0 failed, 1 skipped
+  sandbox was nuked by the durability checks
+```
+
+The glyph line is the difference between "a font file exists" and "the browser
+draws text": eight `I` and eight `W` at 40px measure 88.9 px and 302.0 px, a
+ratio of 3.4. Tofu boxes advance every glyph by the same width and give exactly
+1, which is what the check fails on.
+
+The HTTPS line is #60. Chromium ignores `SSL_CERT_FILE`, so the sandbox proxy's
+per-sandbox CA has to be in the NSS store the browser actually reads,
+`$HOME/.pki/nssdb`; `kit/serve.sh` imports `$PROXY_CA_CERT_B64` there on every
+start. With the CA removed the same probe prints `tls=` and the check fails, so
+it is not a vacuous pass. Opening `https://www.docker.com` in the UI renders
+too — that host is not in `runtime.allow` (it came from the host's global
+policy), which is why the smoke uses `github.com`, which is in the descriptor.
