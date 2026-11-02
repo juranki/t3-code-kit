@@ -136,12 +136,13 @@ The verb-by-verb parity table, the environment variables, the destructive
 confirmation, and the error paths are in
 [ADR 0004](../adr/0004-retire-the-launchers.md#parity). The short version:
 
-| Surface                                                                                                                    | Where it is pinned                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| argv sequence, exit code, warnings for every verb                                                                          | `scripts/characterization.test.ts` + `scripts/characterization/golden/`            |
-| destructive `nuke` confirmation and wipe/verify/abort sequence                                                             | `scripts/characterization.test.ts` destructive cases; `apps/cli/src/verbs.test.ts` |
-| environment variables (`T3CK_NAME`, `T3CK_PORT`, `T3CK_READY_TIMEOUT`, `T3CK_AGENT_NAME_PREFIX`, `SBX_KIT_BUILDER`, `SBX`) | `apps/cli/src/config.test.ts`; `packages/sbx/src/live.ts`                          |
-| error paths (missing secret, failed create/run/stop/rm, missing sandbox, failed wipe)                                      | `apps/cli/src/verbs.test.ts`; characterization `up-*`, `down-*`, `rebuild-*`       |
+| Surface                                                                                                                    | Where it is pinned                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| argv sequence, exit code, warnings for every verb                                                                          | `scripts/characterization.test.ts` + `scripts/characterization/golden/`                               |
+| destructive `nuke` confirmation and wipe/verify/abort sequence                                                             | `scripts/characterization.test.ts` destructive cases; `apps/cli/src/verbs.test.ts`                    |
+| environment variables (`T3CK_NAME`, `T3CK_PORT`, `T3CK_READY_TIMEOUT`, `T3CK_AGENT_NAME_PREFIX`, `SBX_KIT_BUILDER`, `SBX`) | `apps/cli/src/config.test.ts`; `packages/sbx/src/live.ts`                                             |
+| error paths (missing secret, failed create/run/stop/rm, missing sandbox, failed wipe)                                      | `apps/cli/src/verbs.test.ts`; characterization `up-*`, `down-*`, `rebuild-*`                          |
+| git identity: the host's name decorated exactly once, the email untouched                                                  | `apps/cli/src/identity.test.ts`; `apps/cli/src/verbs.test.ts`; smoke; `up-host-name-already-prefixed` |
 
 ## Remaining backlog
 
@@ -149,8 +150,5 @@ confirmation, and the error paths are in
   asserts the durability model.
 - **#24** — pi under a non-TTY `sbx exec` is still open upstream. The smoke
   skips the agent round-trip by default and bounds it when enabled.
-- **#48** — the `Agent for ` prefix accumulation is still open; the v2 identity
-  path is the same read-host-then-prefix rule. The issue's file references are
-  updated to `apps/cli/src/verbs.ts` and `apps/cli/src/verbs.test.ts`.
 - **#55** — the pre-publication checklist is unblocked by the launcher
   retirement; CI on GitHub Actions is a separate, later effort.

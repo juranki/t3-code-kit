@@ -24,6 +24,8 @@
 // assertions from ADR 0003 live here.
 import { NodeServices } from "@effect/platform-node";
 import { renderCapabilities } from "@t3ck/cli/capabilities";
+import { resolveAgentNamePrefix, sandboxIdentity } from "@t3ck/cli/identity";
+import { Git, layer as gitLayer } from "@t3ck/host/Git";
 import * as HostProcess from "@t3ck/host/HostProcess";
 import {
   ProcessRunner,
@@ -662,15 +664,24 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     );
   }
 
-  // The identity the CLI asserts. Only its *shape* is checkable here: smoke
-  // sees the sandbox, never the host that created it, so "matches the host" is
-  // out of reach and "is not the auto-generated placeholder" is the real
-  // regression this catches.
+  // The identity the CLI asserts, asserted back exactly.
   //
-  // "Configured at all" is the assertion, not "has the prefix". The prefix is
-  // user-overridable (T3CK_AGENT_NAME_PREFIX, empty for the bare host name), so
-  // a name without it is a valid configuration, not a failure. What must never
-  // appear is git's own invention from the username and hostname.
+  // smoke runs `up` on the sandbox it checks, and `up` re-asserts the identity
+  // on every run, so the host's config *now* is the one `up` just read - even
+  // for a sandbox that was created on another host. The expected value is
+  // computed with the CLI's own rule rather than a second copy of it, so this
+  // checks the plumbing (that `up` wrote what the rule says) and not the rule,
+  // which `apps/cli/src/identity.test.ts` pins.
+  //
+  // Exact equality is the point: a shape check ("not git's placeholder") would
+  // pass the accumulation bug from #48, where the sandbox's name was
+  // `Agent for Agent for ... Juhani` and still looked configured.
+  const git = yield* Git;
+  const expected = sandboxIdentity(
+    resolveAgentNamePrefix(env.T3CK_AGENT_NAME_PREFIX),
+    yield* git.identity(),
+  );
+
   const readIdentity = (key: string): Effect.Effect<string> =>
     exec(["git", "config", "--global", key]).pipe(
       Effect.map((result) => (result.exitCode === 0 ? result.stdout.trim() : "")),
@@ -682,19 +693,18 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
 
   if (identityName.length === 0) {
     yield* reporter.fail("no git user.name in the sandbox - commits get an auto-generated author");
-  } else if (identityName === "agent" || identityName.startsWith("agent@")) {
-    yield* reporter.fail(`git user.name is '${identityName}' - the auto-generated placeholder`);
+  } else if (identityName !== expected.name) {
+    yield* reporter.fail(
+      `git user.name is '${identityName}', expected '${expected.name}' - a repeated prefix is #48`,
+    );
   } else {
-    yield* reporter.pass(`git identity name is '${identityName}'`);
+    yield* reporter.pass(`git identity name is '${identityName}' - what 'up' applied`);
   }
 
-  // The CLI's own fallback (agent@t3-code-kit) is a correct value here: it
-  // is what `up` writes when the host has no git config, so rejecting it would
-  // fail smoke on a sandbox the CLI configured exactly as designed.
   if (identityEmail.length === 0) {
     yield* reporter.fail("no git user.email in the sandbox - commits get an auto-generated author");
-  } else if (identityEmail === "agent@t3.t3.docker.internal") {
-    yield* reporter.fail(`git user.email is '${identityEmail}' - the auto-generated placeholder`);
+  } else if (identityEmail !== expected.email) {
+    yield* reporter.fail(`git user.email is '${identityEmail}', expected '${expected.email}'`);
   } else {
     yield* reporter.pass(`git identity email is '${identityEmail}'`);
   }
@@ -917,7 +927,7 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
 // --- entry -----------------------------------------------------------------
 
 if (import.meta.main) {
-  const layer = sbxLayer.pipe(
+  const layer = Layer.merge(gitLayer, sbxLayer).pipe(
     Layer.provideMerge(processRunnerLayer),
     Layer.provideMerge(NodeServices.layer),
   );

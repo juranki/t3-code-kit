@@ -35,6 +35,7 @@ import {
   resolvePort,
   resolveReadyTimeout,
 } from "./config.ts";
+import { sandboxIdentity } from "./identity.ts";
 import { parsePairingUrl, rewritePairingUrl } from "./pairing.ts";
 
 type UpEnvironment = Sbx | Git | ProcessRunner | FileSystem.FileSystem | Path.Path;
@@ -148,27 +149,21 @@ const setSandboxGitConfig = (
 const ensureGitIdentity = (name: string, prefix: string): Effect.Effect<void, never, Sbx | Git> =>
   Effect.gen(function* () {
     const git = yield* Git;
-    const identity = yield* git.identity();
-    const hostConfigured = identity.name !== undefined && identity.email !== undefined;
-    const gitName =
-      identity.name !== undefined && identity.name.length > 0
-        ? `${prefix}${identity.name}`
-        : "Agent";
-    const gitEmail =
-      identity.email !== undefined && identity.email.length > 0
-        ? identity.email
-        : "agent@t3-code-kit";
+    const identity = sandboxIdentity(prefix, yield* git.identity());
 
-    yield* say(`git identity: ${gitName} <${gitEmail}>`);
-    if (!hostConfigured) {
-      yield* warn(`no user.name/user.email on this host; using ${gitName} <${gitEmail}>.`);
+    yield* say(`git identity: ${identity.name} <${identity.email}>`);
+    if (!identity.hostConfigured) {
+      yield* warn(
+        `no user.name/user.email on this host; using ${identity.name} <${identity.email}>.`,
+      );
       yield* warn("set them with:  git config --global user.name 'Your Name'");
     }
 
     // Overwritten on every `up`, not only when unset: a wrong identity left by
-    // a previous run is exactly the bug this fixes.
-    yield* setSandboxGitConfig(name, "user.name", gitName);
-    yield* setSandboxGitConfig(name, "user.email", gitEmail);
+    // a previous run is exactly the bug this fixes. The decoration is
+    // idempotent, so re-running never stacks another prefix (#48).
+    yield* setSandboxGitConfig(name, "user.name", identity.name);
+    yield* setSandboxGitConfig(name, "user.email", identity.email);
   });
 
 const printPolicy: Effect.Effect<void, CliError, FileSystem.FileSystem | Path.Path> = Effect.gen(

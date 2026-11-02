@@ -8,8 +8,8 @@ GitHub as a commit that links to no account.
 
 The launcher now reads the host's `git config --get user.name` and `user.email`
 and asserts them into the sandbox on every `up`, with `sbx exec <name> -- git
-config --global …`. The name is prefixed `Agent for `; the email passes through
-untouched.
+config --global …`. The name is decorated with `Agent for ` exactly once; the
+email passes through untouched.
 
 ## Naming: the name is honesty, the email is linkage
 
@@ -33,6 +33,31 @@ That fallback does **not** link commits to an account, so the issue's second
 harm is only closed on a host that has a git config. That is the honest trade:
 the alternative is inventing an email address to link with, which is the same
 class of mistake as inventing a name.
+
+## Applying the prefix once, not adding one per run (#48)
+
+The first version prepended the prefix to whatever `git config --get user.name`
+returned, which is not idempotent: the value it read was already decorated. The
+sandbox in the issue had 22 prefixes in `~/.gitconfig`, one per `up`, because a
+sandbox used as a host reads the config the previous run wrote. Reading the
+_effective_ value rather than `--global` widens the same hazard to a repo-local
+`user.name`.
+
+So the rule is not "add the prefix", it is "the sandbox's name is the host's
+bare name with exactly one prefix". Every leading copy of the prefix is
+stripped before one is added back, which makes the rule idempotent _and_
+self-correcting: a single `up` repairs a name that already accumulated. Only a
+leading copy is stripped, so a name that merely contains the text keeps it, and
+an empty `T3CK_AGENT_NAME_PREFIX` still yields the bare name.
+
+The stripping is relative to the prefix in force, so switching
+`T3CK_AGENT_NAME_PREFIX` on a host whose config already carries the old prefix
+leaves that old prefix in place (`Bot Agent for X`). That is the host's config
+being stale, not the sandbox accumulating, and guessing which leading text is
+someone's real name is worse than showing it.
+
+The rule lives in `apps/cli/src/identity.ts` (`decorateAgentName`,
+`sandboxIdentity`) so `up` and the smoke cannot drift apart on it.
 
 ## Why the launcher, and not a credential
 
@@ -70,6 +95,12 @@ deliberate and not to override it with `--author` or `-c user.name=…`. That
 line is baked into the image, so changing it is a `rebuild`; the launcher half
 takes effect on the next `up`.
 
-`npm run smoke` can only check the identity's _shape_ — it inspects a running
-sandbox and never sees the host that created it. The exact value is asserted in
-`apps/cli/src/verbs.test.ts`, against a fake `Sbx` and `Git`.
+The identity is asserted at three levels. `apps/cli/src/identity.test.ts` pins
+the rule itself, including the repeated-prefix case. `apps/cli/src/verbs.test.ts`
+pins what `up` writes, against a fake `Sbx` and `Git`. `npm run smoke` compares
+the sandbox's `git config --global user.name`/`user.email` to the host config it
+just read, using the CLI's own rule — smoke runs on the host that created the
+sandbox and `up` re-asserts the identity, so exact equality is reachable, and a
+repeated prefix fails rather than looking merely "configured". The
+characterization golden `up-host-name-already-prefixed` pins the argv for a host
+whose config is already decorated.
