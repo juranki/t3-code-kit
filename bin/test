@@ -1,7 +1,7 @@
 #!/bin/sh
 # t3-code-kit — tests for the launchers themselves.
 #
-# `bin/smoke` proves a running sandbox works. This proves the launchers decide
+# `npm run smoke` proves a running sandbox works. This proves the launchers decide
 # correctly, on a host that has no sandbox at all: every `sbx` call is answered
 # by a stub, so the cases are the ones a real host cannot be talked into.
 #

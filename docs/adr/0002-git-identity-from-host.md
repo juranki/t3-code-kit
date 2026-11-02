@@ -70,6 +70,6 @@ deliberate and not to override it with `--author` or `-c user.name=…`. That
 line is baked into the image, so changing it is a `rebuild`; the launcher half
 takes effect on the next `up`.
 
-`bin/smoke` can only check the identity's _shape_ — it inspects a running
+`npm run smoke` can only check the identity's _shape_ — it inspects a running
 sandbox and never sees the host that created it. The exact value is asserted in
 `bin/test`, against a stubbed `sbx` and `git`.

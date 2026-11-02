@@ -13,6 +13,7 @@ export const usage = (): Effect.Effect<void> =>
   refresh  restart, which also refreshes the model catalog
   down     stop the sandbox (volumes and repos survive)
   policy   print the runtime egress allowlist
+  doctor   print the sbx capabilities this host reports
 
 The sandbox name defaults to $T3CK_NAME. Host port defaults to $T3CK_PORT
 (3773). The sbx binary defaults to $SBX.`);

@@ -16,6 +16,7 @@
     "rebuild": "node apps/cli/src/bin.ts rebuild",
     "nuke": "node apps/cli/src/bin.ts nuke",
     "policy": "node apps/cli/src/bin.ts policy",
+    "doctor": "node apps/cli/src/bin.ts doctor",
     "smoke": "node scripts/smoke.ts",
     "test": "vp test run",
     "typecheck": "tsc --noEmit",

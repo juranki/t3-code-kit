@@ -4,6 +4,7 @@ import { Git, type GitIdentity } from "@t3ck/host/Git";
 import * as HostProcess from "@t3ck/host/HostProcess";
 import { ProcessRunner } from "@t3ck/host/ProcessRunner";
 import { make as makeFakeSbx, type FakeSbx } from "@t3ck/sbx/fake";
+import { SbxCommandError } from "@t3ck/sbx/errors";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { TestConsole } from "effect/testing";
@@ -454,6 +455,37 @@ describe("down and refresh", () => {
     return Effect.gen(function* () {
       expect(yield* runCli(["refresh"], fake)).toBe(0);
       expect(argsOf(fake).some((call) => call.includes("--publish"))).toBe(false);
+    }).pipe(Effect.provide(TestConsole.layer));
+  });
+});
+
+describe("doctor", () => {
+  it.effect("prints the capabilities the seam probed", () => {
+    const fake = makeFakeSbx();
+    return Effect.gen(function* () {
+      expect(yield* runCli(["doctor"], fake)).toBe(0);
+      const logs = yield* TestConsole.logLines;
+      expect(logs).toContain("sbx capabilities:");
+      expect(logs).toContain("  fake 0.0.0");
+      expect(logs).toContain("  volumes: unsupported");
+      expect(logs).toContain("  rm: force=true purge=false");
+      expect(logs).toContain("  egress: deny-by-default");
+    }).pipe(Effect.provide(TestConsole.layer));
+  });
+
+  it.effect("fails loudly when the probe cannot run", () => {
+    const fake = makeFakeSbx({
+      capabilitiesError: new SbxCommandError({
+        verb: "version",
+        exitCode: 1,
+        stderr: "sbx is broken\n",
+      }),
+    });
+    return Effect.gen(function* () {
+      expect(yield* runCli(["doctor"], fake)).toBe(1);
+      const errors = yield* TestConsole.errorLines;
+      expect(errors).toContain("sbx is broken");
+      expect(errors).toContain("t3-code-kit: could not probe sbx");
     }).pipe(Effect.provide(TestConsole.layer));
   });
 });

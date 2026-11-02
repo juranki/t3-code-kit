@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import type { Capabilities } from "./capabilities.ts";
 import type { Command } from "./command.ts";
 import { SbxNotFoundError, SbxTimeoutError } from "./errors.ts";
-import { Adapter, Sbx, layer as sbxLayer, type RawResult } from "./Sbx.ts";
+import { Adapter, Sbx, layer as sbxLayer, type RawResult, type SbxError } from "./Sbx.ts";
 import { verbOf } from "./support.ts";
 
 export interface FakeResponse {
@@ -24,6 +24,8 @@ export interface FakeRule {
 
 export interface FakeOptions {
   readonly capabilities?: Capabilities;
+  /** Make the probe itself fail, to exercise the "could not tell" path. */
+  readonly capabilitiesError?: SbxError;
   readonly rules?: ReadonlyArray<FakeRule>;
   readonly fallback?: FakeResponse;
 }
@@ -72,7 +74,10 @@ export const make = (options: FakeOptions = {}): FakeSbx => {
 
   const adapter = Adapter.of({
     run,
-    capabilities: Effect.succeed(options.capabilities ?? defaultCapabilities),
+    capabilities:
+      options.capabilitiesError === undefined
+        ? Effect.succeed(options.capabilities ?? defaultCapabilities)
+        : Effect.fail(options.capabilitiesError),
   });
 
   return {
