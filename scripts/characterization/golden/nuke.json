@@ -1,9 +1,0 @@
-{
-  "exit": 0,
-  "calls": [
-    ["rm", "--force", "<name>"],
-    ["volume", "ls"],
-    ["volume", "rm", "vol1"]
-  ],
-  "warnings": []
-}

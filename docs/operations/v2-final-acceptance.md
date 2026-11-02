@@ -1,0 +1,130 @@
+# v2 final acceptance
+
+The acceptance record for [Final v2 acceptance and remove
+PowerShell](https://github.com/juranki/t3-code-kit/issues/42). The v2 CLI is the
+only launcher; `bin/` is gone and there is no PowerShell port.
+
+## What the Linux sandbox proves
+
+Run on 2026-11-02 on branch `t3/implement-ticket-42-map-29`, Node 22.23.4 (the
+sandbox's Node; the workspace pins 26.13.0 for the host and image), no `sbx`:
+
+```console
+$ npm run check
+Test Files  10 passed (10)
+     Tests  143 passed (143)
+
+$ npm run -s help
+usage: npm run <verb> [-- sandbox-name]
+  up       create or start the sandbox, publish the port, print the pairing URL
+  ...
+  doctor   print the sbx capabilities this host reports
+
+$ npm run -s policy
+egress allowed at runtime (everything else denied):
+  api.anthropic.com
+  ...
+
+$ ls bin
+ls: cannot access 'bin': No such file or directory
+```
+
+`npm run check` covers the fast gate: `fmt:check`, `lint`, `tsc --noEmit`, and
+the unit/characterization suite. The suite includes the 35-case CLI
+characterization, the 5 destructive `nuke` cases, the seam and verb tests, and
+the layout invariants. The old `sh`/`ps1` characterization (80 tests) is gone
+with the launchers.
+
+The Linux sandbox cannot run the real-`sbx` smoke: there is no `sbx` binary and
+no sandbox runtime here. That is the one host-only step below.
+
+## What only the Windows host can prove
+
+Run this from a **fresh clone** of the branch, in a new directory, with no
+`bin/` from an older checkout. The point is to prove the v2 loop works without
+PowerShell as a launcher.
+
+1. **Install Vite+ (it provides Node 26.13.0).**
+
+   ```powershell
+   irm https://vite.plus/ps1 | iex
+   node --version   # v26.13.0
+   vp --version     # 1.4.0
+   ```
+
+2. **Clone and install.**
+
+   ```powershell
+   git clone https://github.com/juranki/t3-code-kit
+   cd t3-code-kit
+   git checkout t3/implement-ticket-42-map-29
+   npm ci
+   ```
+
+   Expect 100 packages and 0 vulnerabilities. The `@tsc-rs/typescript`
+   postinstall stays unapproved.
+
+3. **Run the fast gate.**
+
+   ```powershell
+   npm run check
+   ```
+
+   Expect 10 files and 103 passed, 40 skipped (the CLI characterization is
+   skipped on Windows because its fake `sbx` is a PowerShell shim and the seam
+   spawns `$SBX` directly).
+
+4. **Run the smoke against a scratch sandbox.**
+
+   ```powershell
+   $env:SMOKE_DOWN = 1
+   npm run smoke -- t3ck-smoke-42
+   ```
+
+   Expect the same shape as the #39/#40 runs: every check `PASS`, the pi
+   round-trip `SKIP` (it is off by default), and a non-zero exit only on a real
+   failure. The durability checks write a marker, `rebuild` and read it back,
+   then `nuke` and `up` the same name and assert the old contents are gone and
+   the same volume objects reattach.
+
+5. **Exercise the verbs by hand.**
+
+   ```powershell
+   npm run up -- t3ck-accept
+   npm run url -- t3ck-accept
+   npm run logs -- t3ck-accept
+   npm run doctor
+   npm run nuke -- t3ck-accept --yes
+   ```
+
+   `nuke` without `--yes` must prompt for the name on a TTY and refuse on a
+   non-TTY. `npm run help` must print the usage. There must be no `bin/`
+   directory and no `*.ps1` launcher in the tree.
+
+6. **Record the result** in a comment on #42 (and, if you want a durable log,
+   `docs/operations/v2-final-acceptance-<date>.log`).
+
+## Parity matrix
+
+The verb-by-verb parity table, the environment variables, the destructive
+confirmation, and the error paths are in
+[ADR 0004](../adr/0004-retire-the-launchers.md#parity). The short version:
+
+| Surface                                                                                                                    | Where it is pinned                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| argv sequence, exit code, warnings for every verb                                                                          | `scripts/characterization.test.ts` + `scripts/characterization/golden/`            |
+| destructive `nuke` confirmation and wipe/verify/abort sequence                                                             | `scripts/characterization.test.ts` destructive cases; `apps/cli/src/verbs.test.ts` |
+| environment variables (`T3CK_NAME`, `T3CK_PORT`, `T3CK_READY_TIMEOUT`, `T3CK_AGENT_NAME_PREFIX`, `SBX_KIT_BUILDER`, `SBX`) | `apps/cli/src/config.test.ts`; `packages/sbx/src/live.ts`                          |
+| error paths (missing secret, failed create/run/stop/rm, missing sandbox, failed wipe)                                      | `apps/cli/src/verbs.test.ts`; characterization `up-*`, `down-*`, `rebuild-*`       |
+
+## Remaining backlog
+
+- **#16 / #17** — answered by ADR 0003 and implemented by #39; the v2 smoke
+  asserts the durability model.
+- **#24** — pi under a non-TTY `sbx exec` is still open upstream. The smoke
+  skips the agent round-trip by default and bounds it when enabled.
+- **#48** — the `Agent for ` prefix accumulation is still open; the v2 identity
+  path is the same read-host-then-prefix rule. The issue's file references are
+  updated to `apps/cli/src/verbs.ts` and `apps/cli/src/verbs.test.ts`.
+- **#55** — the pre-publication checklist is unblocked by the launcher
+  retirement; CI on GitHub Actions is a separate, later effort.
