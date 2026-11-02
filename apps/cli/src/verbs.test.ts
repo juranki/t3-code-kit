@@ -240,6 +240,56 @@ describe("up", () => {
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
+  it.effect("prepends the prefix once to the host's bare name", () => {
+    const fake = makeFakeSbx({ rules: baseRules("other") });
+    return Effect.gen(function* () {
+      const exit = yield* runCli(["up"], fake, defaultEnv, {
+        name: "Juhani Ränkimies",
+        email: "juhani@example.com",
+      });
+      expect(exit).toBe(0);
+      const calls = argsOf(fake);
+      expect(decodeIdentity(calls[4]?.[5])).toBe("Agent for Juhani Ränkimies");
+      expect(decodeIdentity(calls[5]?.[5])).toBe("juhani@example.com");
+    }).pipe(Effect.provide(TestConsole.layer));
+  });
+
+  it.effect("does not accumulate the prefix when the host is already decorated", () => {
+    const fake = makeFakeSbx({ rules: baseRules("other") });
+    return Effect.gen(function* () {
+      const exit = yield* runCli(["up"], fake, defaultEnv, {
+        name: "Agent for Juhani Ränkimies",
+        email: "juhani@example.com",
+      });
+      expect(exit).toBe(0);
+      expect(decodeIdentity(argsOf(fake)[4]?.[5])).toBe("Agent for Juhani Ränkimies");
+    }).pipe(Effect.provide(TestConsole.layer));
+  });
+
+  it.effect("collapses a host name that carries the prefix many times", () => {
+    const fake = makeFakeSbx({ rules: baseRules("other") });
+    return Effect.gen(function* () {
+      const exit = yield* runCli(["up"], fake, defaultEnv, {
+        name: "Agent for Agent for Agent for Juhani Ränkimies",
+        email: "juhani@example.com",
+      });
+      expect(exit).toBe(0);
+      expect(decodeIdentity(argsOf(fake)[4]?.[5])).toBe("Agent for Juhani Ränkimies");
+    }).pipe(Effect.provide(TestConsole.layer));
+  });
+
+  it.effect("writes the bare host name when the prefix is empty", () => {
+    const fake = makeFakeSbx({ rules: baseRules("other") });
+    return Effect.gen(function* () {
+      const exit = yield* runCli(["up"], fake, {
+        ...defaultEnv,
+        T3CK_AGENT_NAME_PREFIX: "",
+      });
+      expect(exit).toBe(0);
+      expect(decodeIdentity(argsOf(fake)[4]?.[5])).toBe("Test User");
+    }).pipe(Effect.provide(TestConsole.layer));
+  });
+
   it.effect("uses the fallback identity when the host has none", () => {
     const fake = makeFakeSbx({ rules: baseRules("other") });
     return Effect.gen(function* () {

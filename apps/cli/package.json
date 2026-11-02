@@ -6,6 +6,10 @@
     "./capabilities": {
       "types": "./src/capabilities.ts",
       "import": "./src/capabilities.ts"
+    },
+    "./identity": {
+      "types": "./src/identity.ts",
+      "import": "./src/identity.ts"
     }
   },
   "dependencies": {

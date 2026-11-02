@@ -5,6 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 
 import { fail, type CliError } from "./cli.ts";
+import { resolveAgentNamePrefix } from "./identity.ts";
 
 export const CONTAINER_PORT = 3773;
 export const DEFAULT_HOST_PORT = 3773;
@@ -48,9 +49,8 @@ export const resolveReadyTimeout: Effect.Effect<number, CliError> = Effect.gen(f
 /** Prepended to the host's git user.name, because a sandbox commit is made by
  * an agent and should say so. An empty value is a deliberate opt-out, so only
  * an unset variable takes the default. */
-export const agentNamePrefix: Effect.Effect<string> = Effect.map(
-  HostProcess.Environment,
-  (env) => env.T3CK_AGENT_NAME_PREFIX ?? "Agent for ",
+export const agentNamePrefix: Effect.Effect<string> = Effect.map(HostProcess.Environment, (env) =>
+  resolveAgentNamePrefix(env.T3CK_AGENT_NAME_PREFIX),
 );
 
 /** The builder sandbox `sbx create` uses. A pre-set value wins, as it did in
