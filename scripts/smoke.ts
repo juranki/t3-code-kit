@@ -1,9 +1,11 @@
 // The acceptance test for t3-code-kit, in one Node 26 / Vite+ / Effect
 // orchestrator. This is what "it works" means.
 //
-//   npm run smoke [sandbox-name]
+//   npm run smoke [-- sandbox-name]
 //
-// It leaves the sandbox running unless SMOKE_DOWN=1.
+// The name defaults to $T3CK_NAME, then `t3ck-smoke`. A successful run ends
+// with the sandbox nuked by the durability checks; SMOKE_DOWN=1 stops it only
+// when a failure leaves it running.
 //
 // The agent round-trip is SKIPPED by default: set SMOKE_AGENT=1 to run it. It
 // spends real model tokens, and it currently fails for a reason outside this

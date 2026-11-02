@@ -326,9 +326,13 @@ refused.
 ## Verify
 
 ```sh
-npm run smoke        # macOS, Linux, and Windows
+npm run smoke        # macOS, Linux, and Windows; uses t3ck-smoke
 npm run doctor       # what this host's sbx reports: version and capabilities
 ```
+
+`npm run smoke` uses the sandbox name `t3ck-smoke` unless `T3CK_NAME` is set.
+Pass a different name with `npm run smoke -- <name>`. The durability checks nuke
+the sandbox, so use a dedicated name.
 
 Checks the static files, prints the `sbx` capabilities, brings a sandbox up,
 waits for the server, mints a pairing URL, and proves the toolchain, the
