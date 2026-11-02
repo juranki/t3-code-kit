@@ -60,6 +60,42 @@ else
   note "could not clear $manifest; t3 may reuse its cached model manifest"
 fi
 
+# Chromium does not read SSL_CERT_FILE or NODE_EXTRA_CA_CERTS: it verifies TLS
+# against the NSS platform store at $HOME/.pki/nssdb. The sandbox proxy
+# re-signs every connection with a CA minted per sandbox, so without this the
+# preview browser fails every https:// origin with
+# ERR_CERT_AUTHORITY_INVALID - while curl and Node in the same sandbox are fine,
+# because they do read the bundle. The CA cannot be baked into the image (it
+# differs per sandbox), and /home/agent/.pki is not a volume, so it is imported
+# on every start rather than trusted stale.
+#
+# Importing into the browser *profile* does not work - that is not the trust
+# store - and neither does --ignore-certificate-errors, which would stop
+# verifying real certificates too. This trusts exactly the CA that curl and
+# Node already trust, and nothing else.
+#
+# Best-effort: a browser that cannot reach HTTPS is a degraded preview, not a
+# reason to keep the server from starting.
+if [ -n "${PROXY_CA_CERT_B64:-}" ] && command -v certutil >/dev/null 2>&1; then
+  nssdb="$HOME/.pki/nssdb"
+  ca="$(mktemp)"
+  mkdir -p "$nssdb"
+  if printf '%s' "$PROXY_CA_CERT_B64" | base64 -d >"$ca" 2>/dev/null; then
+    [ -f "$nssdb/cert9.db" ] || certutil -d "sql:$nssdb" -N --empty-password >/dev/null 2>&1
+    # Delete first: a restart of the same sandbox carries the same CA, and
+    # `-A` refuses a nickname that is already there.
+    certutil -d "sql:$nssdb" -D -n "Docker Sandboxes Proxy CA" >/dev/null 2>&1
+    if certutil -d "sql:$nssdb" -A -t "C,," -n "Docker Sandboxes Proxy CA" -i "$ca" >/dev/null 2>&1; then
+      note "imported the sandbox proxy CA into NSS for the preview browser"
+    else
+      note "could not import the sandbox proxy CA; https previews will fail with ERR_CERT_AUTHORITY_INVALID"
+    fi
+  else
+    note "PROXY_CA_CERT_B64 is not valid base64; https previews will fail"
+  fi
+  rm -f "$ca"
+fi
+
 # Not `exec`: the pipe to tee must survive, and tee must keep the log
 # appendable across restarts. Signal handling is the sandbox's problem.
 t3 serve \
