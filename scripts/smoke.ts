@@ -114,6 +114,74 @@ export const versionOf = (tool: "node" | "go" | "python", raw: string): string =
   return /(\d+(?:\.\d+)*)/u.exec(raw)?.[1] ?? "";
 };
 
+/** The Dockerfile's build-arg pin, read the same way `scripts/layout.test.ts`
+ * reads it. `CHROME_VERSION` is deliberately not a kit arg (it has to track the
+ * t3 binary, not an independent choice), so the descriptor cannot carry it and
+ * the pin is read from the layer that uses it. */
+export const dockerfileArg = (text: string, key: string): string | undefined =>
+  new RegExp(`ARG ${key}=(\\S+)`, "u").exec(text)?.[1];
+
+/** `Google Chrome for Testing 156.0.8078.70` -> `156.0.8078.70`. Empty when the
+ * binary never printed a version, which is what a launch failure looks like. */
+export const chromeVersionOf = (raw: string): string =>
+  /Chrome for Testing (\d+(?:\.\d+)*)/u.exec(raw)?.[1] ?? "";
+
+/** The directory chrome-for-testing publishes for this machine, which is also
+ * the one t3 installs under. Restated here rather than imported from the
+ * Dockerfile: the point of the check is to compare the image against an
+ * independent statement of where t3 looks, and a shared constant would only
+ * compare the image with itself. `undefined` for a machine neither knows. */
+export const chromePlatformOf = (machine: string): string | undefined => {
+  if (machine === "x86_64" || machine === "amd64") return "linux64";
+  if (machine === "aarch64" || machine === "arm64") return "linux-arm64";
+  return undefined;
+};
+
+/** One `sbx exec` that answers everything the browser section asserts. The
+ * binary is found by glob rather than by a pinned path: the image pre-seeds it
+ * under the version t3 names, and the arch directory differs by host. */
+export const browserProbeScript = (): string =>
+  [
+    "bin=$(ls -d /home/agent/.t3/tools/chrome-headless-shell/*/*/chrome-headless-shell 2>/dev/null | head -1)",
+    'echo "bin=$bin"',
+    'echo "machine=$(uname -m)"',
+    'if [ -n "$bin" ]; then',
+    '  echo "missing=$(ldd "$bin" 2>/dev/null | grep -c "not found")"',
+    '  echo "version=$("$bin" --version 2>/dev/null)"',
+    "fi",
+    "font=$(fc-match --format=%{file} sans-serif 2>/dev/null)",
+    // fc-match prints the pattern back when nothing matches, so "resolved" is
+    // a path that is actually a file.
+    'if [ -f "$font" ]; then echo "font=$font"; else echo "font="; fi',
+  ].join("\n");
+
+export interface BrowserProbe {
+  readonly bin: string | undefined;
+  readonly machine: string | undefined;
+  readonly missing: number | undefined;
+  readonly version: string | undefined;
+  readonly font: string | undefined;
+}
+
+/** The probe's `key=value` lines. An empty value is absent, not empty string:
+ * `bin=` is what a sandbox without a pre-seeded browser reports. */
+export const parseBrowserProbe = (stdout: string): BrowserProbe => {
+  const fields: Record<string, string> = {};
+  for (const line of stdout.split(/\r?\n/u)) {
+    const match = /^(bin|machine|missing|version|font)=(.*)$/u.exec(line.trim());
+    if (match !== null && (match[2] ?? "").trim().length > 0)
+      fields[match[1] ?? ""] = (match[2] ?? "").trim();
+  }
+  const missing = Number.parseInt(fields.missing ?? "", 10);
+  return {
+    bin: fields.bin,
+    machine: fields.machine,
+    missing: Number.isInteger(missing) ? missing : undefined,
+    version: fields.version,
+    font: fields.font,
+  };
+};
+
 // --- report plumbing -------------------------------------------------------
 
 type Status = "pass" | "fail" | "skip";
@@ -255,6 +323,12 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
 
   const descriptor = yield* fs
     .readFileString(path.join(root, "kit/t3-code.yaml"))
+    .pipe(Effect.orElseSucceed(() => ""));
+
+  // The image's `CHROME_VERSION` pin, read from the Dockerfile rather than
+  // duplicated here: it is not a kit arg, so the descriptor does not carry it.
+  const dockerfile = yield* fs
+    .readFileString(path.join(root, "kit/t3-code.dockerfile"))
     .pipe(Effect.orElseSucceed(() => ""));
 
   if (descriptor.length === 0) {
@@ -617,6 +691,79 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     yield* reporter.fail(
       `skills: ${Number.isNaN(skillsHave) ? 0 : skillsHave} baked in, ${skillsWant} in kit/skills.txt`,
     );
+  }
+
+  // ---------------------------------------------------------------- browser
+  yield* head("preview browser inside the sandbox");
+
+  // t3 downloads chrome-headless-shell from storage.googleapis.com on first
+  // render, and this kit's runtime policy refuses that host - so the image
+  // pre-seeds the binary at the version the baked t3 names. These are the
+  // assertions that the layer landed, in the order a launch fails: no binary,
+  // then a loader that cannot find a library, then a binary that starts, then
+  // fonts (a browser with no font renders empty boxes, not text).
+  const browserProbe = yield* exec(["sh", "-c", browserProbeScript()]).pipe(Effect.result);
+  if (Result.isFailure(browserProbe) || browserProbe.success.exitCode !== 0) {
+    // The checks below cannot say anything, so they are skipped rather than
+    // dropped: a suite whose count silently shrinks hides the gap.
+    yield* reporter.fail(`the browser probe failed (${detailOf(browserProbe)})`);
+    for (const label of [
+      "the preview browser is baked in where t3 looks",
+      "ldd reports no missing libraries",
+      "chrome-headless-shell starts",
+      "fc-match resolves sans-serif to a font file",
+    ]) {
+      yield* reporter.skip(label);
+    }
+  } else {
+    const probe = parseBrowserProbe(browserProbe.success.stdout);
+    const wantChrome = dockerfileArg(dockerfile, "CHROME_VERSION");
+    const wantPlatform = chromePlatformOf(probe.machine ?? "");
+    const wantBin =
+      wantChrome === undefined || wantPlatform === undefined
+        ? undefined
+        : `/home/agent/.t3/tools/chrome-headless-shell/${wantPlatform}/${wantChrome}/chrome-headless-shell`;
+
+    if (wantChrome === undefined) {
+      yield* reporter.fail("no CHROME_VERSION pin in kit/t3-code.dockerfile");
+    } else if (probe.bin === undefined) {
+      yield* reporter.fail(
+        "no chrome-headless-shell under ~/.t3/tools - the image did not bake it in",
+      );
+    } else if (wantBin === undefined) {
+      yield* reporter.fail(`no chrome-for-testing platform for ${probe.machine ?? "unknown"}`);
+    } else if (probe.bin !== wantBin) {
+      // t3 looks in exactly this path; a binary anywhere else is one t3 ignores
+      // and re-downloads, which the runtime policy refuses.
+      yield* reporter.fail(`the preview browser is at ${probe.bin}, want ${wantBin}`);
+    } else {
+      yield* reporter.pass(`the preview browser is baked in at ${probe.bin}`);
+    }
+
+    if (probe.missing === undefined) {
+      yield* reporter.fail("ldd could not be run against the preview browser");
+    } else if (probe.missing === 0) {
+      yield* reporter.pass("ldd reports no missing libraries");
+    } else {
+      yield* reporter.fail(`ldd reports ${probe.missing} missing libraries`);
+    }
+
+    const gotChrome = chromeVersionOf(probe.version ?? "");
+    if (wantChrome === undefined) {
+      yield* reporter.fail("no CHROME_VERSION pin in kit/t3-code.dockerfile");
+    } else if (gotChrome === wantChrome) {
+      yield* reporter.pass(`chrome-headless-shell ${gotChrome} starts`);
+    } else {
+      yield* reporter.fail(
+        `chrome-headless-shell reports ${gotChrome || "nothing"}, want ${wantChrome} (the Dockerfile pin)`,
+      );
+    }
+
+    if (probe.font !== undefined) {
+      yield* reporter.pass(`fc-match resolves sans-serif to ${probe.font}`);
+    } else {
+      yield* reporter.fail("fc-match does not resolve sans-serif to a font file");
+    }
   }
 
   // ---------------------------------------------------------------- catalog

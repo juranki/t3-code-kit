@@ -244,7 +244,7 @@ See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-
 | Path                                               | What it is                                                                                                                   |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | [`kit/t3-code.yaml`](kit/t3-code.yaml)             | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
-| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3, pi, the skills, Vite+, and fd (the pins are build args)                                                     |
+| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3, pi, the skills, Vite+, fd, and T3's preview browser (the pins are build args)                               |
 | [`kit/skills.txt`](kit/skills.txt)                 | The skills baked into the image, one per line                                                                                |
 | [`kit/skills.sh`](kit/skills.sh)                   | The shell parser for `kit/skills.txt`: names for the build, count for the checks (the smoke ports the rule to TypeScript)    |
 | [`kit/serve.sh`](kit/serve.sh)                     | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook                           |
@@ -323,6 +323,19 @@ matching kit arg (and pin it in `.mise.toml`) and rebuild:
 npm run rebuild -- myproject
 ```
 
+**T3's preview browser is baked too.** `html_preview` and `html_render` drive a
+`chrome-headless-shell`, and t3 downloads it on first render from
+`storage.googleapis.com` — a host the runtime policy refuses, so a fresh
+sandbox would never render. The image pre-seeds the binary at the path t3 looks
+in (`$T3CODE_HOME/tools/chrome-headless-shell/<platform>/<version>/`) together
+with the 18 packages it needs: 16 libraries plus `fontconfig` and
+`fonts-liberation`. The pin is
+`CHROME_VERSION`, a plain `ARG` and deliberately not a kit arg: it has to track
+the t3 binary, so a `T3_VERSION` bump that moves the Chrome pin fails the build
+instead of leaving a binary t3 ignores. The build also asserts that `ldd`
+resolves every library and that the binary starts, so a wrong package name
+fails the layer rather than the smoke.
+
 ⚠️ **The baked node is the only node.** A repo whose `.mise.toml` asks for a
 different line gets a resolution mise cannot satisfy, because the build
 installs exactly one version. Change `nodeVersion` (and `NODE_VERSION`) and
@@ -358,9 +371,10 @@ the sandbox, so use a dedicated name.
 
 Checks the static files, prints the `sbx` capabilities, brings a sandbox up,
 waits for the server, mints a pairing URL, and proves the toolchain, the
-volume, GitHub egress, and the durability model. The durability checks write a
-marker, `rebuild` and read it back, then `nuke` and `up` the same name and
-assert the old contents are gone and the same volume objects reattach. **A
+preview browser, the volume, GitHub egress, and the durability model. The
+durability checks write a marker, `rebuild` and read it back, then `nuke` and
+`up` the same name and assert the old contents are gone and the same volume
+objects reattach. **A
 successful run ends with the sandbox nuked**; `SMOKE_DOWN=1` stops it only when
 a failure leaves it running. `SMOKE_NUKE_TIMEOUT` (2400 seconds) bounds each
 `nuke`.
@@ -381,9 +395,11 @@ rather than blocking the run.
 - ⚠️ **Kits v3 is Early Access and the spec is experimental** (a final version
   is targeted for Q4 2026). The kit descriptor, the base image reference, and
   the `sbx` verbs are the parts most likely to move under you.
-- ⚠️ **No self-update inside the sandbox.** t3, the skills, Vite+, and fd are
-  pinned as build args; pi defaults to `latest`. Bumping any of them is a
-  `rebuild`.
+- ⚠️ **No self-update inside the sandbox.** t3, the skills, Vite+, fd, and
+  T3's preview browser are pinned at build time; pi defaults to `latest`.
+  Bumping any of them is a `rebuild`. The browser's `CHROME_VERSION` is a plain
+  `ARG` rather than a kit arg, because it has to track the t3 binary instead of
+  being chosen.
 - ⚠️ **One provider ships in v1** (pi). Adding another is one Dockerfile block,
   one credential, and one egress entry.
 - ⚠️ **GitHub is the only git host wired in.** t3 itself supports Bitbucket,
@@ -480,6 +496,17 @@ and drop it; everything this kit uses otherwise dates from the initial release.
 is a symlink into `$T3CODE_HOME/runtime/versions/<v>/t3`. If someone volumes all
 of `/home/agent/.t3`, the volume shadows that install and the symlink dangles.
 The kit volumes only `userdata`, `projects`, and `worktrees`.
+
+**`html_preview` fails with "This host is missing libraries T3's browser
+needs".** The image bakes those libraries and the browser binary, so a sandbox
+that reports them missing was built before that layer: `npm run rebuild --
+<name>`. Do not run `sudo t3 browser setup` inside the sandbox — it reaches for
+`apt-get`, and `deb.debian.org` is not in `runtime.allow`, so it fails with a
+proxy `403` that reads like a network outage. `/etc` is not a volume, so a
+runtime repair would not survive a restart anyway; the image is the only
+durable place. A browser that is missing altogether (`no chrome-headless-shell
+under ~/.t3/tools`) is the same `rebuild`: t3 would otherwise download it from
+`storage.googleapis.com`, which the runtime policy refuses.
 
 **The sandbox will not start.** Check `sbx ls`, then `sbx diagnose`. A Kit that
 fails to build usually means the base image reference moved — it is the `BASE`
