@@ -474,6 +474,18 @@ export const CASES: Case[] = [
     server: true,
   },
   {
+    // #48: the host's effective config can already carry the prefix (a host
+    // whose global config was set to the sandbox identity, or `up` run from
+    // inside a sandbox). The golden pins that the value written is decorated
+    // once, not twice - and that a name which already accumulated is repaired.
+    name: "up host name already prefixed twice",
+    args: ["up"],
+    env: { FAKE_GIT_NAME: "Agent for Agent for Test User" },
+    scenario: { calls: upCreateCalls },
+    stdout: [url],
+    server: true,
+  },
+  {
     name: "up ready timeout",
     args: ["up"],
     env: { T3CK_READY_TIMEOUT: "0", FAKE_CURL_EXIT: "1" },
