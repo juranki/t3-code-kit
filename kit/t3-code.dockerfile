@@ -49,6 +49,19 @@ ARG SKILLS_REF=a496f5513d4a4cf889bc48e189e579f4b0bdf6aa
 # manager, and it comes from the base image's apt source — no installer script
 # and no new egress.
 #
+# The rest of the list is T3's preview browser: `html_preview` and `html_render`
+# drive a chrome-headless-shell that needs 20 shared libraries this hardened
+# base image does not carry (24 unresolved `ldd` entries; the 16 library
+# packages below ship more than one .so each). The list is T3's own
+# DEBIAN_PACKAGES minus libnss3 and libexpat1 (already here) plus libnspr4.
+# libnspr4 is named explicitly on purpose: T3 relies on libnss3 pulling it in,
+# and DHI ships libnss3 stripped of that dependency, so setup leaves
+# libnspr4.so, libplc4.so and libplds4.so missing. fontconfig and
+# fonts-liberation are what make text render at all — without them a preview is
+# blank boxes, not a page. libgbm1 is not optional either: it is in the
+# unresolved `ldd` set, and it drags in mesa-libgallium and libllvm19, which is
+# ~170 MB of the cost.
+#
 # libicu is deliberately not installed: pwsh is not baked (it was ruled out of
 # scope).
 #
@@ -59,12 +72,29 @@ ARG SKILLS_REF=a496f5513d4a4cf889bc48e189e579f4b0bdf6aa
 # packages in state iU and the next apt operation fails. Keeping the existing
 # file is the point: that bundle is where the proxy CA lives, so --force-confnew
 # (or deleting the file) breaks TLS for every curl in the sandbox.
+#
+# The sources are rewritten to https first. The image ships them as plain
+# http://, and the sandbox proxy refuses unencrypted HTTP with a 403 that reads
+# like a network outage — the build runs on the host and would never notice, a
+# sandboxed `t3 browser setup` does. The DHI source is already https and is left
+# alone. This does not make runtime apt work on its own: deb.debian.org is not
+# in runtime.allow, so a missing library inside a sandbox is a `rebuild`, not an
+# `apt-get` (see README Troubleshooting).
 USER root
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
+RUN set -eux; \
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources \
+             /etc/apt/sources.list.d/*.list; do \
+      [ -e "$f" ] || continue; \
+      sed -i -E '/^(URIs:|deb |deb-src )/ s|http://|https://|g' "$f"; \
+    done; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
       -o Dpkg::Options::=--force-confold \
       libatomic1 mise \
- && rm -rf /var/lib/apt/lists/*
+      libglib2.0-0t64 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
+      libdbus-1-3 libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
+      libxrandr2 libxkbcommon0 libgbm1 libasound2t64 fontconfig fonts-liberation; \
+    rm -rf /var/lib/apt/lists/*
 
 # fd — pinned, in /usr/local/bin so pi's commandExists("fd") finds it and
 # skips its own download. TARGETARCH (with a uname fallback) rather than a
@@ -152,6 +182,60 @@ RUN curl -fsSL -o /tmp/t3-install.sh https://t3.codes/install.sh \
  && T3CODE_VERSION="${T3_VERSION}" T3CODE_INSTALL_BIN_DIR=/home/agent/.local/bin sh /tmp/t3-install.sh \
  && rm -f /tmp/t3-install.sh \
  && test -x /home/agent/.local/bin/t3
+
+# T3's preview browser, baked. t3 downloads chrome-headless-shell on first
+# render from storage.googleapis.com, and this kit's runtime policy refuses that
+# host — so a fresh sandbox would never render, and the failure would arrive as
+# a 403 dressed up as a missing-library error. Pre-seed the binary at the exact
+# path t3 looks in, `$T3CODE_HOME/tools/chrome-headless-shell/<platform>/<version>/`.
+#
+# CHROME_VERSION is deliberately not a kit arg: it is not an independent choice,
+# it has to be the version the baked t3 binary names. The sha256 below is the
+# guard — it is t3's own value from the release table embedded in its binary, so
+# a T3_VERSION bump that moves the Chrome pin fails this layer instead of
+# leaving a binary t3 ignores and re-downloads (into a 403). If a future t3
+# stops embedding that table verbatim the guard fails loudly, which is the
+# intended failure mode: the pin has to be re-derived by hand. The sha differs
+# per architecture because chrome-for-testing publishes one archive per
+# platform.
+#
+# The assertions at the end are the point of the layer: the archive matches the
+# pinned checksum, the loader resolves every library, and the binary starts. A
+# wrong package name in the apt list above fails here, in minutes, instead of in
+# the smoke on the host. `unzip`, `curl` and `sha256sum` are the base image's,
+# the same way `tar` and `curl` are in the fd layer above.
+ARG CHROME_VERSION=156.0.8078.70
+RUN set -eux; \
+    arch="${TARGETARCH:-$(uname -m)}"; \
+    case "$arch" in \
+      amd64|x86_64) chrome_platform=linux64; \
+        chrome_sha256=a313da592261ff1e342c1e507d315f25b1809006c0508f77ce86151d464d4ccb ;; \
+      arm64|aarch64) chrome_platform=linux-arm64; \
+        chrome_sha256=dca11213d2e0b1db52141edd9f92ec423fd52ca25715846790d84fa1d5d16e8a ;; \
+      *) echo "unsupported architecture for chrome-headless-shell: $arch" >&2; exit 1 ;; \
+    esac; \
+    t3_bin="$(readlink -f /home/agent/.local/bin/t3)"; \
+    if ! grep -a -q "$chrome_sha256" "$t3_bin"; then \
+      echo "t3 ${T3_VERSION} does not pin chrome-headless-shell ${CHROME_VERSION} for ${chrome_platform}" >&2; \
+      echo "bump CHROME_VERSION and its sha256 to the release t3 names" >&2; \
+      exit 1; \
+    fi; \
+    install_root="${T3CODE_HOME}/tools/chrome-headless-shell/${chrome_platform}"; \
+    curl -fsSL -o /tmp/chrome-headless-shell.zip \
+      "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/${chrome_platform}/chrome-headless-shell-${chrome_platform}.zip"; \
+    echo "${chrome_sha256}  /tmp/chrome-headless-shell.zip" | sha256sum -c -; \
+    unzip -q /tmp/chrome-headless-shell.zip -d /tmp/chrome-unpack; \
+    mkdir -p "$install_root"; \
+    mv "/tmp/chrome-unpack/chrome-headless-shell-${chrome_platform}" "${install_root}/${CHROME_VERSION}"; \
+    rm -rf /tmp/chrome-headless-shell.zip /tmp/chrome-unpack; \
+    browser="${install_root}/${CHROME_VERSION}/chrome-headless-shell"; \
+    chmod 0755 "$browser"; \
+    if ldd "$browser" | grep -q "not found"; then \
+      echo "chrome-headless-shell has unresolved libraries:" >&2; \
+      ldd "$browser" | grep "not found" >&2; \
+      exit 1; \
+    fi; \
+    test "$("$browser" --version)" = "Google Chrome for Testing ${CHROME_VERSION}"
 
 # pi — the agent harness t3 drives. Adding another provider is one more block
 # like this one, plus its credential and its egress entry.

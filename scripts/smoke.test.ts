@@ -5,9 +5,14 @@ import { describe, expect, it } from "@effect/vitest";
 
 import {
   argDefault,
+  browserProbeScript,
+  chromePlatformOf,
+  chromeVersionOf,
   countSkills,
+  dockerfileArg,
   markerCount,
   nonEmpty,
+  parseBrowserProbe,
   parseDevices,
   positiveInt,
   readMarkerScript,
@@ -63,5 +68,61 @@ describe("smoke helpers", () => {
     expect(read).toContain("cat /home/agent/.t3/userdata/.smoke-marker");
     expect(markerCount("smoke-durability-marker\nsmoke-durability-marker\n")).toBe(2);
     expect(markerCount("")).toBe(0);
+  });
+
+  it("reads a pinned build arg out of the Dockerfile", () => {
+    const text = "ARG CHROME_VERSION=156.0.8078.70\nARG TARGETARCH\n";
+    expect(dockerfileArg(text, "CHROME_VERSION")).toBe("156.0.8078.70");
+    expect(dockerfileArg(text, "TARGETARCH")).toBeUndefined();
+  });
+
+  it("normalizes the preview browser's version line", () => {
+    expect(chromeVersionOf("Google Chrome for Testing 156.0.8078.70\n")).toBe("156.0.8078.70");
+    expect(chromeVersionOf("")).toBe("");
+  });
+
+  it("names the chrome-for-testing platform directory t3 looks in", () => {
+    expect(chromePlatformOf("x86_64")).toBe("linux64");
+    expect(chromePlatformOf("aarch64")).toBe("linux-arm64");
+    expect(chromePlatformOf("riscv64")).toBeUndefined();
+  });
+
+  it("parses the browser probe", () => {
+    const stdout = [
+      "bin=/home/agent/.t3/tools/chrome-headless-shell/linux64/156.0.8078.70/chrome-headless-shell",
+      "machine=x86_64",
+      "missing=0",
+      "version=Google Chrome for Testing 156.0.8078.70",
+      "font=/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ].join("\n");
+    expect(parseBrowserProbe(stdout)).toEqual({
+      bin: "/home/agent/.t3/tools/chrome-headless-shell/linux64/156.0.8078.70/chrome-headless-shell",
+      machine: "x86_64",
+      missing: 0,
+      version: "Google Chrome for Testing 156.0.8078.70",
+      font: "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    });
+
+    // No binary: the image did not pre-seed it, so there is nothing to measure.
+    expect(parseBrowserProbe("bin=\nfont=")).toEqual({
+      bin: undefined,
+      machine: undefined,
+      missing: undefined,
+      version: undefined,
+      font: undefined,
+    });
+
+    expect(parseBrowserProbe("bin=/x\nmissing=3\n").missing).toBe(3);
+  });
+
+  it("probes the browser the way t3 launches it", () => {
+    const script = browserProbeScript();
+    expect(script).toContain(
+      "/home/agent/.t3/tools/chrome-headless-shell/*/*/chrome-headless-shell",
+    );
+    expect(script).toContain("uname -m");
+    expect(script).toContain('grep -c "not found"');
+    expect(script).toContain("--version");
+    expect(script).toContain("fc-match");
   });
 });
