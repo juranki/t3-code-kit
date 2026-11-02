@@ -138,6 +138,27 @@ describe("Sbx over a fake process runner", () => {
     );
   });
 
+  it.effect("adds -u when the command must run as another user", () => {
+    const runner = makeRunner(() => ok());
+    return withSbx(
+      (sbx) =>
+        Effect.gen(function* () {
+          yield* sbx.exec({ name: "demo", argv: ["sh", "-c", "true"], user: "root" });
+          expect(runner.commands[0]?.args).toEqual([
+            "exec",
+            "-u",
+            "root",
+            "demo",
+            "--",
+            "sh",
+            "-c",
+            "true",
+          ]);
+        }),
+      runner,
+    );
+  });
+
   it.effect("maps a missing binary to SbxNotFoundError", () => {
     const runner = makeRunner(() => Effect.fail(new CommandNotFoundError({ bin: "sbx" })));
     return withSbx(

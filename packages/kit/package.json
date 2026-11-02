@@ -6,6 +6,10 @@
     "./Policy": {
       "types": "./src/Policy.ts",
       "import": "./src/Policy.ts"
+    },
+    "./Volumes": {
+      "types": "./src/Volumes.ts",
+      "import": "./src/Volumes.ts"
     }
   },
   "dependencies": {

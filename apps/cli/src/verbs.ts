@@ -8,15 +8,19 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import * as Terminal from "effect/Terminal";
 
 import { Git } from "@t3ck/host/Git";
+import * as HostProcess from "@t3ck/host/HostProcess";
 import { ProcessRunner } from "@t3ck/host/ProcessRunner";
 import { parsePolicy } from "@t3ck/kit/Policy";
+import { VOLUME_PATHS } from "@t3ck/kit/Volumes";
 import {
   publishedHostPorts,
   Sbx,
   type ExecResult,
   type SandboxSummary,
+  type SbxError,
   type SecretRow,
 } from "@t3ck/sbx/Sbx";
 
@@ -362,6 +366,244 @@ export const down = (args: ReadonlyArray<string>): Effect.Effect<number, CliErro
     const result = yield* withContext(sbx.stop({ name }), `could not stop '${name}'`);
     yield* printResult(result);
     if (result.exitCode !== 0) return yield* fail(`could not stop '${name}'`);
+    return 0;
+  });
+
+// --- rebuild ---------------------------------------------------------------
+
+const removeFailure =
+  (name: string) =>
+  (error: SbxError): Effect.Effect<never, CliError> =>
+    Effect.andThen(reportSbxError(error), fail(`could not remove sandbox '${name}'`));
+
+export const rebuild = (
+  args: ReadonlyArray<string>,
+): Effect.Effect<number, CliError, UpEnvironment> =>
+  Effect.gen(function* () {
+    const unknown = args.find((arg) => arg.startsWith("-"));
+    if (unknown !== undefined) {
+      return yield* fail(`unknown option '${unknown}' (rebuild takes only a sandbox name)`, 2);
+    }
+    const name = yield* resolveName(args[0]);
+    const sbx = yield* Sbx;
+
+    yield* say(
+      `recreating '${name}' from a freshly built image; repos and t3 state survive on their volumes.`,
+    );
+
+    // A missing instance is a successful rebuild: `rm --force` says "not
+    // found", and the `up` below creates it. The old launchers ignored this
+    // failure (`|| true`), and the characterization suite pins that. Every
+    // other seam failure is real: proceeding could reuse the instance the user
+    // asked to recreate.
+    const removed = yield* sbx.rm({ name, force: true }).pipe(
+      Effect.catchTag("SandboxMissingError", () =>
+        Effect.succeed(undefined as ExecResult | undefined),
+      ),
+      Effect.catchTags({
+        SbxCommandError: removeFailure(name),
+        SbxTimeoutError: removeFailure(name),
+        SbxNotFoundError: removeFailure(name),
+      }),
+    );
+    if (removed !== undefined) yield* printResult(removed);
+
+    return yield* up([name]);
+  });
+
+// --- nuke ------------------------------------------------------------------
+
+/** A wipe is bounded: `sbx exec` may start a stopped sandbox first, and a
+ * large workspace can take a while to delete. Five minutes is long enough for
+ * both and short enough that a wedged exec fails instead of hanging. */
+const NUKE_TIMEOUT_MS = 5 * 60_000;
+
+/** Quote one word for the in-sandbox shell. This is not `command.render`,
+ * which is for logs and tests and must never be passed to a shell. */
+const shellQuote = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`;
+
+/** The marker the wipe writes before deleting and checks afterwards. It is
+ * deliberately not a volume path: `serve.sh` can start `t3 serve` after the
+ * wipe and write fresh state into `.t3/userdata`, so "the directory is empty"
+ * is the wrong question. "The marker is gone" is the right one: the wipe's
+ * `find -delete` exits 0 only after deleting every entry, including this one. */
+const NUKE_MARKER = ".t3ck-nuke-marker";
+
+const markerScript = [
+  "set -e",
+  ...VOLUME_PATHS.map((path) => `printf '%s\\n' 'nuke' > ${shellQuote(path)}/${NUKE_MARKER}`),
+].join("\n");
+
+// One `sh -c` script, passed as one argv element through the exec seam. `sbx
+// exec` starts a stopped sandbox, which runs the lifecycle hook and starts
+// `t3 serve`, so the kill is not optional: without it the wipe races a live
+// SQLite writer. `find -delete` rather than `rm -rf dir/*`, which misses
+// dotfiles. The `[b]in/pi` bracket keeps the pattern from matching this
+// script's own command line.
+const wipeScript = [
+  "set -e",
+  "pkill -f '^t3 serve' 2>/dev/null || true",
+  "pkill -x pi 2>/dev/null || true",
+  "pkill -f '[b]in/pi( |$)' 2>/dev/null || true",
+  ...VOLUME_PATHS.map((path) => `find ${shellQuote(path)} -mindepth 1 -delete`),
+].join("\n");
+
+const verifyScript = [
+  "set -e",
+  ...VOLUME_PATHS.map(
+    (path) =>
+      `[ ! -e ${shellQuote(path)}/${NUKE_MARKER} ] || printf '%s\\n' ${shellQuote(path)}/${NUKE_MARKER}`,
+  ),
+].join("\n");
+
+type WipeOutcome =
+  | { readonly kind: "clean" }
+  | { readonly kind: "missing" }
+  | { readonly kind: "dirty"; readonly detail: string };
+
+type StepOutcome =
+  | { readonly kind: "missing" }
+  | { readonly kind: "dirty"; readonly detail: string }
+  | { readonly kind: "ok"; readonly result: ExecResult };
+
+const dirtyFromError = (error: SbxError): Effect.Effect<StepOutcome> =>
+  Effect.succeed({ kind: "dirty" as const, detail: error.message });
+
+const runWipeStep = (
+  name: string,
+  script: string,
+  label: string,
+  user?: string,
+): Effect.Effect<StepOutcome, never, Sbx> =>
+  Effect.gen(function* () {
+    const sbx = yield* Sbx;
+    const result = yield* sbx
+      .exec({
+        name,
+        argv: ["sh", "-c", script],
+        timeoutMs: NUKE_TIMEOUT_MS,
+        ...(user === undefined ? {} : { user }),
+      })
+      .pipe(
+        Effect.catchTags({
+          SandboxMissingError: () => Effect.succeed({ kind: "missing" as const }),
+          SbxCommandError: dirtyFromError,
+          SbxTimeoutError: dirtyFromError,
+          SbxNotFoundError: dirtyFromError,
+        }),
+      );
+    if ("kind" in result) return result;
+    if (result.exitCode !== 0) {
+      return {
+        kind: "dirty" as const,
+        detail: result.stderr.trim() || `${label} exited ${result.exitCode}`,
+      };
+    }
+    return { kind: "ok" as const, result };
+  });
+
+const wipeOnce = (name: string): Effect.Effect<WipeOutcome, never, Sbx> =>
+  Effect.gen(function* () {
+    const marker = yield* runWipeStep(name, markerScript, "marker");
+    if (marker.kind !== "ok") return marker;
+    // Root, because the volume's `.sbx-volume-initialized` stamp and ext4's
+    // `lost+found` are root-owned; as the agent user `find -delete` aborts on
+    // them and the wipe can never verify.
+    const wipe = yield* runWipeStep(name, wipeScript, "wipe", "root");
+    if (wipe.kind !== "ok") return wipe;
+    const verify = yield* runWipeStep(name, verifyScript, "verify");
+    if (verify.kind !== "ok") return verify;
+    const survivors = verify.result.stdout.trim();
+    return survivors.length === 0
+      ? { kind: "clean" as const }
+      : { kind: "dirty" as const, detail: `surviving markers: ${survivors}` };
+  });
+
+const wipeVolumes = (name: string): Effect.Effect<WipeOutcome, never, Sbx> =>
+  Effect.gen(function* () {
+    const first = yield* wipeOnce(name);
+    if (first.kind !== "dirty") return first;
+    yield* warn(`wipe of '${name}' left data behind; retrying once`);
+    const second = yield* wipeOnce(name);
+    if (second.kind !== "dirty") return second;
+    yield* Console.error(second.detail);
+    return second;
+  });
+
+const missingSandbox = (name: string): Effect.Effect<never, CliError> =>
+  fail(
+    `no sandbox named '${name}': its volume contents may still be on disk. ` +
+      `run 't3-code-kit up ${name}', then 't3-code-kit nuke ${name}'`,
+    1,
+  );
+
+export const nuke = (
+  args: ReadonlyArray<string>,
+): Effect.Effect<number, CliError, Sbx | Terminal.Terminal> =>
+  Effect.gen(function* () {
+    const unknown = args.find((arg) => arg.startsWith("-") && arg !== "--yes");
+    if (unknown !== undefined) {
+      return yield* fail(
+        `unknown option '${unknown}' (nuke takes only a sandbox name and --yes)`,
+        2,
+      );
+    }
+    const name = yield* resolveName(args.find((arg) => arg !== "--yes"));
+    const sbx = yield* Sbx;
+
+    // A failed listing is "could not tell", not "absent": the wipe's `exec`
+    // then reports the truth. A trustworthy listing that lacks the name is the
+    // one case where `nuke` can fail before starting a sandbox, and it must
+    // fail: there is no local way to see whether its volumes still hold data.
+    const sandboxes = yield* sbx
+      .list()
+      .pipe(Effect.orElseSucceed(() => undefined as ReadonlyArray<SandboxSummary> | undefined));
+    if (sandboxes !== undefined && !sandboxes.some((sandbox) => sandbox.name === name)) {
+      return yield* missingSandbox(name);
+    }
+
+    if (!args.includes("--yes")) {
+      const stdinIsTTY = yield* HostProcess.StdinIsTTY;
+      if (!stdinIsTTY) {
+        return yield* fail(`refusing to nuke '${name}' without --yes on a non-TTY`, 2);
+      }
+      const terminal = yield* Terminal.Terminal;
+      yield* terminal
+        .display(`Type "${name}" to destroy it: `)
+        .pipe(Effect.orElseSucceed(() => undefined));
+      const answer = yield* terminal.readLine.pipe(Effect.orElseSucceed(() => ""));
+      if (answer.trim() !== name) {
+        return yield* fail("not confirmed; nothing was removed.", 2);
+      }
+    }
+
+    yield* say(
+      `destroying '${name}': wiping its volume contents, then removing it. This loses every repo and all t3 state.`,
+    );
+
+    const wiped = yield* wipeVolumes(name);
+    if (wiped.kind === "missing") return yield* missingSandbox(name);
+    if (wiped.kind === "dirty") {
+      return yield* fail(
+        `could not wipe '${name}'; the sandbox was not removed (its data is still there)`,
+        1,
+      );
+    }
+
+    const removed = yield* sbx.rm({ name, force: true }).pipe(
+      Effect.catchTag("SandboxMissingError", () => missingSandbox(name)),
+      Effect.catchTags({
+        SbxCommandError: removeFailure(name),
+        SbxTimeoutError: removeFailure(name),
+        SbxNotFoundError: removeFailure(name),
+      }),
+    );
+    yield* printResult(removed);
+    if (removed.exitCode !== 0) return yield* fail(`could not remove sandbox '${name}'`);
+
+    yield* say(
+      `done. '${name}' is gone; its volume storage stays allocated, empty — sbx has no per-sandbox purge.`,
+    );
     return 0;
   });
 

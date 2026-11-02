@@ -239,7 +239,7 @@ cmd_down() {
 
 cmd_rebuild() {
   n=$(sandbox_name "${1:-}")
-  say "removing '$n' to force a Kit rebuild; volumes survive."
+  say "recreating '$n' from a freshly built image; repos and t3 state survive on their volumes."
   $SBX rm --force "$n" || true
   cmd_up "$n"
 }
@@ -272,8 +272,8 @@ usage: t3-code-kit <verb> [sandbox-name]
   shell    open a bash shell inside the sandbox
   refresh  restart, which also refreshes the model catalog
   down     stop the sandbox (volumes and repos survive)
-  rebuild  destroy and recreate, forcing a Kit image rebuild (volumes survive)
-  nuke     destroy the sandbox and its volumes (loses all repos and t3 state)
+  rebuild  recreate from a freshly built image; repos and t3 state survive
+  nuke     destroy the sandbox's data and remove it (volumes stay allocated, empty)
   policy   print the runtime egress allowlist
 
 The sandbox name defaults to $T3CK_NAME. Host port defaults to $T3CK_PORT
