@@ -1,9 +1,11 @@
 // The acceptance test for t3-code-kit, in one Node 26 / Vite+ / Effect
 // orchestrator. This is what "it works" means.
 //
-//   npm run smoke [sandbox-name]
+//   npm run smoke [-- sandbox-name]
 //
-// It leaves the sandbox running unless SMOKE_DOWN=1.
+// The name defaults to $T3CK_NAME, then `t3ck-smoke`. A successful run ends
+// with the sandbox nuked by the durability checks; SMOKE_DOWN=1 stops it only
+// when a failure leaves it running.
 //
 // The agent round-trip is SKIPPED by default: set SMOKE_AGENT=1 to run it. It
 // spends real model tokens, and it currently fails for a reason outside this
@@ -31,6 +33,7 @@ import {
   type Result as ProcessResult,
 } from "@t3ck/host/ProcessRunner";
 import { parsePolicy } from "@t3ck/kit/Policy";
+import { VOLUME_PATHS } from "@t3ck/kit/Volumes";
 import { Sbx, type ExecResult } from "@t3ck/sbx/Sbx";
 import { layer as sbxLayer } from "@t3ck/sbx/live";
 import * as Console from "effect/Console";
@@ -63,6 +66,44 @@ export const countSkills = (manifest: string): number =>
   manifest
     .split(/\r?\n/u)
     .filter((line) => line.trim().length > 0 && !line.trimStart().startsWith("#")).length;
+
+/** Parse `printf '%s ' <path>; stat -c '%d' <path>` lines into path -> device. */
+export const parseDevices = (stdout: string): Record<string, string> => {
+  const devices: Record<string, string> = {};
+  for (const line of stdout.split(/\r?\n/u)) {
+    const [volumePath, device] = line.trim().split(/\s+/u);
+    if (volumePath !== undefined && device !== undefined) devices[volumePath] = device;
+  }
+  return devices;
+};
+
+const MARKER = ".smoke-marker";
+const MARKER_TEXT = "smoke-durability-marker";
+/** Entries the runtime or ext4 owns, not durable state: `sbx` recreates its
+ * init stamp when a volume reattaches, and a reinitialized ext4 volume gets
+ * `lost+found` back. */
+const VOLUME_METADATA = [".sbx-volume-initialized", "lost+found"] as const;
+
+/** Write the durability marker into every path. `set -e` makes a failed write
+ * fail the whole probe rather than leaving a volume unmarked. */
+export const writeMarkerScript = (paths: ReadonlyArray<string>): string =>
+  [
+    "set -e",
+    ...paths.map((volumePath) => `printf '%s\\n' '${MARKER_TEXT}' > ${volumePath}/${MARKER}`),
+  ].join("\n");
+
+/** Read the markers back. A missing marker is not an error: its absence is
+ * exactly what the nuke check is looking for. */
+export const readMarkerScript = (paths: ReadonlyArray<string>): string =>
+  ["set -e", ...paths.map((volumePath) => `cat ${volumePath}/${MARKER} 2>/dev/null || true`)].join(
+    "\n",
+  );
+
+export const markerCount = (stdout: string): number =>
+  stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line === MARKER_TEXT).length;
 
 /** Normalize the three mise tools' version output. The descriptor pins exact
  * versions, so the comparison is a string equality after this. */
@@ -145,9 +186,11 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
   const agentTimeout = positiveInt(env.SMOKE_AGENT_TIMEOUT, 120);
   const downAfter = env.SMOKE_DOWN === "1";
   const upTimeoutMs = positiveInt(env.SMOKE_UP_TIMEOUT, 3600) * 1000;
+  const nukeTimeoutMs = positiveInt(env.SMOKE_NUKE_TIMEOUT, 2400) * 1000;
   const execTimeoutMs = positiveInt(env.SMOKE_EXEC_TIMEOUT, 60) * 1000;
   const reporter = yield* makeReporter;
-  const started = yield* Ref.make(false);
+  type SandboxState = "not-started" | "running" | "nuked" | "gone";
+  const state = yield* Ref.make<SandboxState>("not-started");
 
   const cli = (
     args: ReadonlyArray<string>,
@@ -168,7 +211,12 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     const skipped = all.filter((result) => result.status === "skip").length;
     yield* Console.log(`  ${passed} passed, ${failed} failed, ${skipped} skipped`);
 
-    if (!(yield* Ref.get(started))) {
+    const current = yield* Ref.get(state);
+    if (current === "nuked") {
+      yield* Console.log("  sandbox was nuked by the durability checks");
+    } else if (current === "gone") {
+      yield* Console.log("  sandbox is gone");
+    } else if (current === "not-started") {
       yield* Console.log("  sandbox was not started");
     } else if (downAfter) {
       const down = yield* cli(["down", name], 60_000).pipe(Effect.result);
@@ -272,13 +320,13 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
   yield* head("sandbox lifecycle");
 
   // A sandbox that was already there is still ours to stop if `up` fails.
-  if (yield* sandboxExists()) yield* Ref.set(started, true);
+  if (yield* sandboxExists()) yield* Ref.set(state, "running");
 
   const up = yield* cli(["up", name], upTimeoutMs).pipe(Effect.result);
   if (Result.isFailure(up)) {
     yield* reporter.fail(`up could not run: ${up.failure.message}`);
     if (yield* sandboxExists()) {
-      yield* Ref.set(started, true);
+      yield* Ref.set(state, "running");
       yield* Console.log(`  sandbox '${name}' exists from the failed up`);
     }
     return yield* finish;
@@ -287,13 +335,13 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     yield* reporter.fail(`up failed (exit ${up.success.exitCode})`);
     yield* printOutput(up.success);
     if (yield* sandboxExists()) {
-      yield* Ref.set(started, true);
+      yield* Ref.set(state, "running");
       yield* Console.log(`  sandbox '${name}' exists from the failed up`);
     }
     return yield* finish;
   }
   yield* reporter.pass("up succeeded");
-  yield* Ref.set(started, true);
+  yield* Ref.set(state, "running");
 
   // ---------------------------------------------------------------- reachability
   yield* head("reachability");
@@ -691,12 +739,178 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     }
   }
 
-  // Durability (#39) lands here, from ADR 0003: the `rebuild` marker
-  // round-trip; `nuke` then `up` the same name leaves all four volumes empty
-  // and `workspace` with no entries; `nuke` on a missing instance exits
-  // non-zero; and `nuke` without `--yes` on a non-TTY exits non-zero and
-  // removes nothing. They are deliberately absent until the destructive verbs
-  // exist; #39 adds them to this file, not to the deleted sh/ps1 smoke.
+  // ---------------------------------------------------------------- durability
+  yield* head("durability");
+
+  const readDevices = (
+    paths: ReadonlyArray<string>,
+  ): Effect.Effect<Record<string, string> | undefined> =>
+    exec([
+      "sh",
+      "-c",
+      paths
+        .map((volumePath) => `printf '%s ' '${volumePath}'; stat -c '%d' '${volumePath}'`)
+        .join("\n"),
+    ]).pipe(
+      Effect.map((result) => (result.exitCode === 0 ? parseDevices(result.stdout) : undefined)),
+      Effect.orElseSucceed(() => undefined),
+    );
+
+  // 1. `rebuild` keeps durable state: a marker in .t3/userdata and workspace
+  //    survives `rm --force` + `create`.
+  const rebuildPaths = ["/home/agent/.t3/userdata", "/home/agent/workspace"];
+  const wroteRebuild = yield* exec(["sh", "-c", writeMarkerScript(rebuildPaths)]).pipe(
+    Effect.result,
+  );
+  if (Result.isFailure(wroteRebuild) || wroteRebuild.success.exitCode !== 0) {
+    yield* reporter.fail(`could not write the rebuild marker: ${detailOf(wroteRebuild)}`);
+  } else {
+    const rebuilt = yield* cli(["rebuild", name], upTimeoutMs).pipe(Effect.result);
+    if (Result.isFailure(rebuilt)) {
+      yield* reporter.fail(`rebuild could not run: ${rebuilt.failure.message}`);
+    } else if (rebuilt.success.exitCode !== 0) {
+      yield* reporter.fail(`rebuild failed (exit ${rebuilt.success.exitCode})`);
+      yield* printOutput(rebuilt.success);
+    } else {
+      const read = yield* exec(["sh", "-c", readMarkerScript(rebuildPaths)]).pipe(Effect.result);
+      if (Result.isFailure(read) || read.success.exitCode !== 0) {
+        yield* reporter.fail(`could not read the rebuild marker: ${detailOf(read)}`);
+      } else if (markerCount(read.success.stdout) === rebuildPaths.length) {
+        yield* reporter.pass("rebuild kept the marker in .t3/userdata and workspace");
+      } else {
+        yield* reporter.fail("rebuild lost the marker: durable state did not survive");
+      }
+    }
+  }
+
+  if (!(yield* sandboxExists())) {
+    yield* Ref.set(state, "gone");
+    yield* reporter.fail("sandbox is gone after rebuild; skipping the nuke checks");
+    return yield* finish;
+  }
+
+  // 2. `nuke` without `--yes` on a non-TTY refuses and removes nothing.
+  const refused = yield* cli(["nuke", name], nukeTimeoutMs).pipe(Effect.result);
+  if (Result.isSuccess(refused) && refused.success.exitCode !== 0) {
+    if (yield* sandboxExists()) {
+      yield* reporter.pass("nuke without --yes on a non-TTY refused and removed nothing");
+    } else {
+      yield* reporter.fail("nuke without --yes removed the sandbox");
+    }
+  } else {
+    yield* reporter.fail(
+      `nuke without --yes did not refuse (exit ${
+        Result.isSuccess(refused) ? refused.success.exitCode : "unknown"
+      })`,
+    );
+  }
+
+  // 3. `nuke` wipes the four volumes' contents; `up` the same name reattaches
+  //    the same volume objects, empty. The marker is the proof the old data is
+  //    gone; the device number is the proof the volume object was retained
+  //    rather than freshly allocated.
+  const devicesBefore = yield* readDevices(VOLUME_PATHS);
+  const wroteAll = yield* exec(["sh", "-c", writeMarkerScript(VOLUME_PATHS)]).pipe(Effect.result);
+  if (Result.isFailure(wroteAll) || wroteAll.success.exitCode !== 0) {
+    yield* reporter.fail(`could not write the nuke marker: ${detailOf(wroteAll)}`);
+  } else if (devicesBefore === undefined) {
+    yield* reporter.fail("could not read the volume devices before nuke");
+  } else {
+    const nukedResult = yield* cli(["nuke", name, "--yes"], nukeTimeoutMs).pipe(Effect.result);
+    if (Result.isFailure(nukedResult)) {
+      yield* reporter.fail(`nuke could not run: ${nukedResult.failure.message}`);
+    } else if (nukedResult.success.exitCode !== 0) {
+      yield* reporter.fail(`nuke failed (exit ${nukedResult.success.exitCode})`);
+      yield* printOutput(nukedResult.success);
+    } else {
+      yield* Ref.set(state, "nuked");
+      yield* reporter.pass("nuke wiped the volumes and removed the instance");
+
+      const upAgain = yield* cli(["up", name], upTimeoutMs).pipe(Effect.result);
+      if (Result.isFailure(upAgain)) {
+        yield* reporter.fail(`up after nuke could not run: ${upAgain.failure.message}`);
+      } else if (upAgain.success.exitCode !== 0) {
+        yield* reporter.fail(`up after nuke failed (exit ${upAgain.success.exitCode})`);
+        yield* printOutput(upAgain.success);
+      } else {
+        yield* Ref.set(state, "running");
+
+        const read = yield* exec(["sh", "-c", readMarkerScript(VOLUME_PATHS)]).pipe(Effect.result);
+        if (Result.isFailure(read) || read.success.exitCode !== 0) {
+          yield* reporter.fail(`could not read the nuke marker: ${detailOf(read)}`);
+        } else if (markerCount(read.success.stdout) === 0) {
+          yield* reporter.pass("nuke left no marker in any of the four volumes");
+        } else {
+          yield* reporter.fail("a marker survived nuke: the wipe did not destroy the data");
+        }
+
+        // `.t3/userdata` is not asserted empty: t3 writes its own state there
+        // on startup. `workspace` is the volume nothing else recreates, so it
+        // is the one that must have no user entries. The runtime's init stamp
+        // and ext4's `lost+found` are metadata, not durable state.
+        const workspace = VOLUME_PATHS[0];
+        const metadataFilter = VOLUME_METADATA.map((entry) => `! -name '${entry}'`).join(" ");
+        // `-maxdepth 1` is load-bearing: `lost+found` is root-owned and mode
+        // 700, so descending into it makes `find` exit non-zero with EACCES
+        // even though the only entry is metadata.
+        const workspaceEntries = yield* exec([
+          "sh",
+          "-c",
+          `find ${workspace} -mindepth 1 -maxdepth 1 ${metadataFilter} -print`,
+        ]).pipe(Effect.result);
+        if (
+          Result.isSuccess(workspaceEntries) &&
+          workspaceEntries.success.exitCode === 0 &&
+          workspaceEntries.success.stdout.trim().length === 0
+        ) {
+          yield* reporter.pass("workspace has no entries after nuke + up");
+        } else {
+          const detail = Result.isFailure(workspaceEntries)
+            ? workspaceEntries.failure.message
+            : workspaceEntries.success.exitCode !== 0
+              ? workspaceEntries.success.stderr.trim() ||
+                `exit ${workspaceEntries.success.exitCode}`
+              : workspaceEntries.success.stdout.trim();
+          yield* reporter.fail(`workspace is not empty after nuke + up: ${detail}`);
+        }
+
+        const devicesAfter = yield* readDevices(VOLUME_PATHS);
+        if (devicesAfter === undefined) {
+          yield* reporter.fail("could not read the volume devices after nuke");
+        } else if (
+          VOLUME_PATHS.every((volumePath) => devicesBefore[volumePath] === devicesAfter[volumePath])
+        ) {
+          yield* reporter.pass("the four volume objects are the same (still allocated)");
+        } else {
+          yield* reporter.fail("the volumes changed after nuke: retention did not hold");
+        }
+      }
+    }
+  }
+
+  // 4. `nuke` on a missing instance fails, and a second nuke removes the
+  //    recreated instance.
+  if (yield* sandboxExists()) {
+    const finalNuke = yield* cli(["nuke", name, "--yes"], nukeTimeoutMs).pipe(Effect.result);
+    if (Result.isSuccess(finalNuke) && finalNuke.success.exitCode === 0) {
+      yield* Ref.set(state, "nuked");
+      yield* reporter.pass("nuke removed the recreated instance");
+    } else {
+      yield* reporter.fail(
+        `nuke could not remove the recreated instance (exit ${
+          Result.isSuccess(finalNuke) ? finalNuke.success.exitCode : "unknown"
+        })`,
+      );
+    }
+  }
+
+  const missing = yield* cli(["nuke", name, "--yes"], nukeTimeoutMs).pipe(Effect.result);
+  if (Result.isSuccess(missing) && missing.success.exitCode !== 0) {
+    yield* reporter.pass("nuke on a missing instance exits non-zero");
+  } else {
+    yield* reporter.fail("nuke on a missing instance succeeded");
+    yield* Ref.set(state, "nuked");
+  }
 
   return yield* finish;
 });

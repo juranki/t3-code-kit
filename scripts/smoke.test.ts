@@ -3,7 +3,17 @@
 // descriptor default is right, so they must not drift from the shell copies.
 import { describe, expect, it } from "@effect/vitest";
 
-import { argDefault, countSkills, nonEmpty, positiveInt, versionOf } from "./smoke.ts";
+import {
+  argDefault,
+  countSkills,
+  markerCount,
+  nonEmpty,
+  parseDevices,
+  positiveInt,
+  readMarkerScript,
+  versionOf,
+  writeMarkerScript,
+} from "./smoke.ts";
 
 describe("smoke helpers", () => {
   it("reads a descriptor build-arg default", () => {
@@ -33,5 +43,25 @@ describe("smoke helpers", () => {
     expect(positiveInt("0", 3773)).toBe(3773);
     expect(positiveInt("nope", 3773)).toBe(3773);
     expect(positiveInt("40773", 3773)).toBe(40_773);
+  });
+
+  it("parses the volume device table", () => {
+    expect(parseDevices("/home/agent/workspace 64769\n/home/agent/.t3/userdata 64770\n")).toEqual({
+      "/home/agent/workspace": "64769",
+      "/home/agent/.t3/userdata": "64770",
+    });
+  });
+
+  it("writes and reads the durability marker in every volume", () => {
+    const paths = ["/home/agent/workspace", "/home/agent/.t3/userdata"];
+    const write = writeMarkerScript(paths);
+    expect(write).toContain("set -e");
+    expect(write).toContain("> /home/agent/workspace/.smoke-marker");
+    expect(write).toContain("> /home/agent/.t3/userdata/.smoke-marker");
+    const read = readMarkerScript(paths);
+    expect(read).toContain("cat /home/agent/workspace/.smoke-marker");
+    expect(read).toContain("cat /home/agent/.t3/userdata/.smoke-marker");
+    expect(markerCount("smoke-durability-marker\nsmoke-durability-marker\n")).toBe(2);
+    expect(markerCount("")).toBe(0);
   });
 });

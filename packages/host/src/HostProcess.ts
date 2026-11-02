@@ -45,6 +45,12 @@ export const Arguments = Context.Reference<ReadonlyArray<string>>(
   { defaultValue: () => process.argv },
 );
 
+/** Whether stdin is a terminal. `nuke` prompts only when it is; a non-TTY must
+ * pass `--yes`, so a script cannot wipe a sandbox by accident. */
+export const StdinIsTTY = Context.Reference<boolean>("@t3ck/host/HostProcess/StdinIsTTY", {
+  defaultValue: () => process.stdin.isTTY === true,
+});
+
 export const isWindows = Effect.map(Platform, (platform) => platform === "win32");
 
 /** The code the shell sees when the CLI exits. */

@@ -12,6 +12,13 @@ The five canonical triage roles use their default label strings (`needs-triage`,
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Durability
+
+`rebuild` recreates a sandbox from a freshly built image and keeps its durable
+state. `nuke` wipes the four volumes' contents from inside the sandbox, then
+removes the instance; the volume objects stay allocated and empty. See
+`docs/adr/0003-durability-model.md`.
+
 ### Vendored Repositories
 
 This project vendors external repositories under `repos/`.

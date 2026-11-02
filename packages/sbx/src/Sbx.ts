@@ -77,6 +77,10 @@ export interface ExecInput {
    * `["sh", "-c", script]`, never a joined string. */
   readonly argv: ReadonlyArray<string>;
   readonly tty?: boolean;
+  /** Run as this user inside the sandbox (`sbx exec -u`). `nuke` needs root
+   * to delete the root-owned `.sbx-volume-initialized` and `lost+found`
+   * entries on a volume. */
+  readonly user?: string;
   readonly timeoutMs?: number;
 }
 
@@ -246,7 +250,14 @@ const make = Effect.gen(function* () {
   const exec = Effect.fn("Sbx.exec")(function* (input: ExecInput) {
     const result = yield* adapter.run(
       sbxCommand(
-        ["exec", ...(input.tty === true ? ["-it"] : []), input.name, "--", ...input.argv],
+        [
+          "exec",
+          ...(input.tty === true ? ["-it"] : []),
+          ...(input.user === undefined ? [] : ["-u", input.user]),
+          input.name,
+          "--",
+          ...input.argv,
+        ],
         {
           ...(input.tty === undefined ? {} : { tty: input.tty }),
           ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
