@@ -40,8 +40,8 @@ no sandbox runtime here. That is the one host-only step below.
 
 ## What the Windows host proves
 
-Run on 2026-11-02 from a fresh clone of `t3/implement-ticket-42-map-29` on
-Windows 11 with `sbx` v0.50.1:
+Run on 2026-11-02 on Windows 11 with `sbx` v0.50.1, in `D:\src\t3-code-kit`
+on branch `t3/implement-ticket-42-map-29`:
 
 ```console
 $ npm run check
@@ -54,7 +54,9 @@ $ npm run smoke -- t3ck-smoke-42
   sandbox was nuked by the durability checks
 ```
 
-The only skip is the pi round-trip (`SMOKE_AGENT=1` to run it). The durability
+The `npm ci` install on this host was already proven in #32/#50; this run
+repeats the fast gate and the smoke on the branch. The only skip is the pi
+round-trip (`SMOKE_AGENT=1` to run it). The durability
 checks passed: `rebuild` kept the marker in `.t3/userdata` and `workspace`;
 `nuke` refused without `--yes` on a non-TTY and removed nothing; it then wiped
 the volumes, left no marker in any of the four, and left `workspace` empty
