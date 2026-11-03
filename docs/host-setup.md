@@ -79,12 +79,3 @@ in [Troubleshooting](troubleshooting.md).
 - Refresh its model list from provider settings (`server.refreshProviders`).
   This is t3's own state in `statev2.sqlite` and the one cache a shell cannot
   reach — `npm run refresh -- <name>` covers the other two.
-
-## Nothing else is required
-
-No Docker Desktop, no Docker Engine, no bash on Windows, and no PowerShell
-launcher. The host needs Node 26.13.0 and Vite+ 1.4.0 (the Vite+ installer
-provides both); PowerShell is only the Windows shell you happen to type in. If
-you exported `SBX_KIT_BUILDER` yourself at some point, unset it: the CLI
-defaults to the builder sandbox, and `host` fails on a machine without a
-running Buildx.

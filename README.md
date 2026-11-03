@@ -172,42 +172,19 @@ See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-
 The agent workflow these docs describe — `/triage`, `/code-review`,
 `/grill-with-docs`, `/wayfinder` — is **baked into the image**, at
 `/home/agent/.agents/skills`. The build adds it from
-[`mattpocock/skills`](https://github.com/mattpocock/skills), pinned twice:
-`SKILLS_REF` to a commit, `SKILLS_VERSION` to a CLI version. The selection lives
-in [`kit/skills.txt`](kit/skills.txt): 27 of the repo's 38. The rest are
-in-progress writing experiments and Claude-specific one-offs.
-
-Changing them is a `rebuild`, not an in-sandbox change. Bump `SKILLS_REF` (and
-`SKILLS_VERSION` if the CLI moved) in
-[`kit/t3-code.dockerfile`](kit/t3-code.dockerfile), then run `npm run rebuild --
-myproject`.
-
-- A `skills add` you run by hand inside a sandbox is wiped by the next rebuild.
-- A name in `kit/skills.txt` that no longer exists upstream fails the build,
-  rather than silently shrinking the set.
-
-Why baked in and not a volume:
+[`mattpocock/skills`](https://github.com/mattpocock/skills), pinned to a commit
+and a CLI version, and bakes the names listed in
+[`kit/skills.txt`](kit/skills.txt). Changing them is a `rebuild`, not an
+in-sandbox change; why they are baked in and not a volume is
 [ADR 0001](docs/adr/0001-skills-baked-into-image.md).
 
 ## Toolchains
 
 The image bakes node, go, and python through [`mise`](https://mise.jdx.dev) at
-the `nodeVersion` / `goVersion` / `pythonVersion` kit args. It also bakes Vite+
-and `fd` at their own pins. Java is the base image's OpenJDK 21.
-
-mise's shims are first on `PATH`, so a non-interactive shell resolves `node`,
-`go`, and `python` through mise. That is what the agent's bash tool runs: no rc
-file, and no `mise activate`.
-
-A repo's `.mise.toml` selects a version but cannot install one. The build
-installs exactly one line per tool, so a different version is a kit-arg change
-and a `rebuild`.
-
-T3's preview browser is baked too: `chrome-headless-shell` and its 18 packages,
-pre-seeded at the path t3 looks in. t3 would otherwise download it from
-`storage.googleapis.com`, a host the runtime policy refuses.
-
-Pins, `.mise.toml` resolution, the `CHROME_VERSION` rule, and the
+the `nodeVersion` / `goVersion` / `pythonVersion` kit args, plus Vite+, `fd`,
+and T3's preview browser. A repo's `.mise.toml` selects a version but cannot
+install one: the build installs exactly one line per tool, so a different
+version is a kit-arg change and a `rebuild`. Pins, Java, and the
 `403`-means-allowlist failure are in [`docs/toolchains.md`](docs/toolchains.md).
 
 ## Verify
@@ -217,27 +194,15 @@ npm ci               # the workspace, from the committed lockfile
 npm run check        # fmt, lint, typecheck, and the unit/characterization suite
 npm run smoke        # macOS, Linux, and Windows; uses t3ck-smoke
 npm run doctor       # what this host's sbx reports: version and capabilities
-npm run help         # the verbs, if `npm run` is not enough
 ```
 
-`npm run smoke` uses the sandbox name `t3ck-smoke` unless `T3CK_NAME` is set.
-Pass a different name with `npm run smoke -- <name>`. The durability checks nuke
-the sandbox, so use a dedicated name.
-
-`npm run smoke` checks the static files, prints the `sbx` capabilities, and
-brings a sandbox up. It waits for the server, mints a pairing URL, and proves
-the toolchain, the preview browser, the volume, GitHub egress, and the
-durability model.
-
-The durability checks write a marker, `rebuild` and read it back, then `nuke`
-and `up` the same name. They assert the old contents are gone and the same
-volume objects reattach. **A successful run ends with the sandbox nuked.**
-`SMOKE_DOWN=1` stops it only when a failure leaves it running.
-`SMOKE_NUKE_TIMEOUT` (2400 seconds) bounds each `nuke`.
-
-The pi round-trip is **off by default** because it spends real model tokens.
-Run it with `SMOKE_AGENT=1`; it is killed after `SMOKE_AGENT_TIMEOUT` seconds
-(120) so a wedged pi fails the check rather than blocking the run.
+`npm run smoke` brings a sandbox up, waits for the server, mints a pairing URL,
+and proves the toolchain, the preview browser, the volume, GitHub egress, and
+the durability model. It ends with the sandbox nuked, so give it a dedicated
+name: `npm run smoke -- <name>`, or `T3CK_NAME`. The pi round-trip is off by
+default because it spends real model tokens; `SMOKE_AGENT=1` turns it on. The
+`SMOKE_*` reference is in
+[`docs/operations/v2-dev-loop.md`](docs/operations/v2-dev-loop.md).
 
 ## Limits
 

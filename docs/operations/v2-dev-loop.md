@@ -107,18 +107,26 @@ mean the seam had to quote the whole command line itself.
 ## Smoke
 
 ```powershell
-$env:SMOKE_DOWN = 1     # stop the sandbox afterwards; otherwise it is left running
+$env:SMOKE_DOWN = 1     # on failure, stop the sandbox instead of leaving it running
 npm run smoke -- t3ck-smoke-32
 ```
 
 The suite prints `PASS` / `FAIL` / `SKIP` per check and exits non-zero on any
 failure. It prints the `sbx` capabilities first, so a failure is attributable to
-the runtime it ran against. The skip is the pi round-trip (`SMOKE_AGENT=1` to
-run it): it spends real tokens. The first run after a `kit/` change rebuilds the
+the runtime it ran against. The first run after a `kit/` change rebuilds the
 image and takes 10–25 minutes; later runs are 3–6.
 
-`SMOKE_DOWN=1` stops the sandbox but does not remove it — the volume objects
-stay allocated (ADR 0003). `sbx rm <name>` when you are done with it.
+A successful run ends with the sandbox nuked by the durability checks. A failed
+one leaves it running so you can look at it, unless `SMOKE_DOWN=1`, which stops
+it — and stopping does not remove it, so the volume objects stay allocated
+(ADR 0003). `sbx rm <name>` when you are done.
+
+| Variable              | Default | What it does                                       |
+| --------------------- | ------- | -------------------------------------------------- |
+| `SMOKE_AGENT`         | off     | run the pi round-trip; it spends real model tokens |
+| `SMOKE_AGENT_TIMEOUT` | 120     | seconds before a wedged pi fails the check         |
+| `SMOKE_DOWN`          | off     | stop the sandbox when a check fails                |
+| `SMOKE_NUKE_TIMEOUT`  | 2400    | seconds bounding each `nuke`                       |
 
 ## The CLI
 
