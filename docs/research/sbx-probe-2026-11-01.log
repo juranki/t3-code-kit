@@ -3,6 +3,11 @@
 run id: <volume-id>
 started: 2026-11-01T12:08:43.686Z
 
+REDACTION: the Windows user profile path is replaced with `%USERPROFILE%`, the
+           repo path with `~/src/t3-code-kit`, and the run's volume id with
+           `<volume-id>`, so the log names no person and no machine. Nothing
+           else is edited.
+
 SAFETY: this probe creates and destroys exactly one sandbox, 't3ck-probe'.
         It never removes any other sandbox or volume, and never reads
         %APPDATA%\sbx\credentials.yaml. It does not run 'sbx secret ls'.

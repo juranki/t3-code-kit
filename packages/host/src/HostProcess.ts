@@ -9,6 +9,10 @@
 // Transcribed from t3code's packages/shared/src/HostProcess.ts, trimmed to what
 // a `sbx` launcher reads. Keep the reference names identical to upstream so the
 // `nodeBuiltinImport` exemption in tsconfig.json reads the same as theirs.
+//
+// t3code is MIT-licensed, Copyright (c) 2026 T3 Tools Inc. The notice for this
+// transcription is reproduced in THIRD-PARTY-NOTICES.md at the repo root, which
+// is what the licence asks be carried with a substantial portion of the work.
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as NodeOS from "node:os";

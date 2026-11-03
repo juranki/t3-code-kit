@@ -1,6 +1,7 @@
 {
   "name": "t3-code-kit",
   "private": true,
+  "license": "MIT",
   "workspaces": [
     "packages/*",
     "apps/*"

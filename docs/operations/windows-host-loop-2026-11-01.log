@@ -5,8 +5,10 @@ run:    2026-11-01T19:56Z
 
 Collected by evidence-32b.ps1. Every command is piped through Tee-Object,
 because Start-Transcript on Windows does not record a native process's stdout.
-ANSI colour and the console-mangled vitest check marks are stripped; nothing
-else is edited.
+ANSI colour and the console-mangled vitest check marks are stripped. The only
+other edit is redaction: the Windows user profile path is replaced with
+`%USERPROFILE%` and the repo path with `~/src/t3-code-kit`, so the log names no
+person and no machine. Nothing else is edited.
 
 ===== host
 pwsh : 7.6.9

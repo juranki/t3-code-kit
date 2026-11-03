@@ -522,4 +522,9 @@ arg at the top of `kit/t3-code.dockerfile`.
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE).
+
+Parts of this repo derive from other MIT-licensed projects: `HostProcess.ts` is
+transcribed from [t3code](https://github.com/pingdotgg/t3code), and
+`repos/effect` vendors [Effect](https://github.com/Effect-TS/effect). Their
+notices are reproduced in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
