@@ -379,11 +379,9 @@ successful run ends with the sandbox nuked**; `SMOKE_DOWN=1` stops it only when
 a failure leaves it running. `SMOKE_NUKE_TIMEOUT` (2400 seconds) bounds each
 `nuke`.
 
-The pi round-trip is **off by default** — it spends real model tokens, and it
-currently fails for a reason outside this repo: pi hangs under a non-TTY
-`sbx exec` and only answers interactively. Run it with `SMOKE_AGENT=1`; it is
-killed after `SMOKE_AGENT_TIMEOUT` seconds (120) so a wedged pi fails the check
-rather than blocking the run.
+The pi round-trip is **off by default** because it spends real model tokens.
+Run it with `SMOKE_AGENT=1`; it is killed after `SMOKE_AGENT_TIMEOUT` seconds
+(120) so a wedged pi fails the check rather than blocking the run.
 
 ## Limits
 
