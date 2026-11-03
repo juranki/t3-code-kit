@@ -66,14 +66,19 @@ are recorded in the goldens.
 - **#16 and #17** are answered by ADR 0003 and implemented by #39: `rebuild`
   keeps durable state, and `nuke` wipes volume contents before removing the
   instance. The old wording and the missing smoke assertion are gone.
-- **#24** (pi under a non-TTY `sbx exec`) is still open. The smoke suite skips
-  the agent round-trip by default, bounds it with `SMOKE_AGENT_TIMEOUT`, and
-  kills it inside the sandbox; the underlying pi behaviour is upstream.
 - **#48** (`Agent for ` prefix accumulation) is fixed in the v2 identity path:
   the rule lives in `apps/cli/src/identity.ts` and strips every leading copy of
   the prefix before adding one back, so it is idempotent. The issue's `bin/test`
   and "both launchers" references are the retired twins; the v2 equivalents are
   `apps/cli/src/identity.test.ts`, `apps/cli/src/verbs.test.ts`, and the smoke.
+
+**#24** (pi under a non-TTY `sbx exec`) is closed as not reproducible: `pi`
+answered `OK` in 6.7s with exit 0 through a non-TTY `sbx exec` on `sbx`
+v0.50.1, on a sandbox the probe created itself. The host-side drain that could
+have blocked was PowerShell's `ForEach-Object` over `sbx exec`, and it went
+with the launchers in #42. The smoke suite still skips the agent round-trip by
+default because it spends real model tokens; it bounds the round-trip with
+`SMOKE_AGENT_TIMEOUT` and kills it inside the sandbox.
 
 ## Verification
 

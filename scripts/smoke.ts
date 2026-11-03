@@ -8,10 +8,7 @@
 // when a failure leaves it running.
 //
 // The agent round-trip is SKIPPED by default: set SMOKE_AGENT=1 to run it. It
-// spends real model tokens, and it currently fails for a reason outside this
-// repo's control - pi hangs under a non-TTY `sbx exec` and answers only
-// interactively. A suite that fails by default on a known upstream bug just
-// teaches people to ignore failures.
+// spends real model tokens, so a default run does not.
 //
 // Every in-sandbox probe goes through one seam (`Sbx.exec`) with an explicit
 // `timeoutMs` and no TTY. That is the bounded hang path from #24: a probe that

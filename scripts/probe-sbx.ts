@@ -445,7 +445,7 @@ const probeIdentity = (): SbxIdentity => {
   emit(`kit dir passed to create: ${KIT}`);
   emit(`scratch sandbox: ${SCRATCH}   host port: ${PORT}`);
 
-  const version = sbx(["--version"], 60_000);
+  const version = sbx(["version"], 60_000);
   const firstLine = (version.stdout || version.stderr).trim().split(/\r?\n/)[0] ?? "";
   const versionText = firstLine === "" ? "could not determine" : firstLine;
 
@@ -679,7 +679,7 @@ const main = async (): Promise<void> => {
   );
   execInSandbox("echo plain-exec-works");
   if (PROBE_PI) {
-    note("pi round-trip, bounded at 90s: a hang here is the #24 symptom, not a probe bug");
+    note("pi round-trip, bounded at 90s: a hang here is a finding, not a probe bug");
     note("spends real model tokens; PROBE_PI=0 skips it");
     const pi = sbx(
       ["exec", SCRATCH, "--", "pi", "-p", "Reply with exactly: OK", "--no-tools", "--no-session"],
@@ -758,7 +758,7 @@ const printMatrix = (snapshots: ReadonlyArray<Snapshot>, help: HelpFacts): void 
 
 const printSummary = (identity: SbxIdentity, help: HelpFacts): void => {
   banner("SUMMARY (the three facts the ticket asks for first)");
-  emit(`sbx --version: ${identity.version}`);
+  emit(`sbx version:  ${identity.version}`);
   emit(`host os:       ${os.version()} (${process.platform}/${os.arch()})`);
   emit(
     `sbx resolves:  ${identity.kind} — ${identity.source === "" ? "source unknown" : identity.source}`,
