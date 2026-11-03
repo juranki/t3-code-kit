@@ -1,3 +1,4 @@
+import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -7,11 +8,17 @@ import * as PlatformError from "effect/PlatformError";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
-import { ChildProcessSpawner } from "effect/process";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { layer, ProcessRunner } from "./ProcessRunner.ts";
 
 const encoder = new TextEncoder();
+
+/** The stdin a spawner was asked for, narrowed past the piped-command variant. */
+const stdinOf = (command: ChildProcess.Command | undefined) =>
+  command !== undefined && ChildProcess.isStandardCommand(command)
+    ? command.options.stdin
+    : undefined;
 
 const handle = (exitCode: Effect.Effect<ChildProcessSpawner.ExitCode>) =>
   ChildProcessSpawner.makeHandle({
@@ -122,5 +129,55 @@ describe("ProcessRunner", () => {
       // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
       expect(error._tag).toBe("CommandNotFoundError");
     }),
+  );
+
+  it.effect("gives a captured command no stdin", () =>
+    Effect.gen(function* () {
+      let spawned: ChildProcess.Command | undefined;
+      const spawner = ChildProcessSpawner.make((command) => {
+        spawned = command;
+        return Effect.succeed(handle(Effect.succeed(ChildProcessSpawner.ExitCode(0))));
+      });
+      yield* runWith(spawner, (runner) => runner.run({ bin: "x", args: [] }));
+      // The spawner's default is a pipe that this runner never writes to or
+      // ends, so the child would see a stdin that never reaches EOF.
+      expect(stdinOf(spawned)).toBe("ignore");
+    }),
+  );
+
+  it.effect("leaves an interactive command's stdin attached", () =>
+    Effect.gen(function* () {
+      let spawned: ChildProcess.Command | undefined;
+      const spawner = ChildProcessSpawner.make((command) => {
+        spawned = command;
+        return Effect.succeed(handle(Effect.succeed(ChildProcessSpawner.ExitCode(0))));
+      });
+      yield* runWith(spawner, (runner) => runner.run({ bin: "x", args: [], tty: true }));
+      expect(stdinOf(spawned)).toBe("inherit");
+    }),
+  );
+
+  // A real child, because the bug this pins was invisible to a fake: the
+  // spawner's default stdin is a pipe, so a child that reads stdin to EOF (pi
+  // in print mode does) waited forever. `sbx exec` forwards that pipe into the
+  // sandbox, which is why the smoke's agent round-trip hung at its 120 s bound
+  // while the same call from a shell answered in 2 s.
+  it.effect("lets a child that reads stdin to EOF finish", () =>
+    Effect.gen(function* () {
+      const runner = yield* ProcessRunner;
+      // The child gives itself a deadline so a regression fails in two seconds
+      // instead of waiting on the runner's bound: a runner timeout cannot
+      // rescue this, because closing the scope waits on the stdin pipe too.
+      const result = yield* runner.run({
+        bin: process.execPath,
+        args: [
+          "-e",
+          "const t = setTimeout(() => process.exit(3), 2000);" +
+            "process.stdin.resume();" +
+            "process.stdin.on('end', () => { clearTimeout(t); process.exit(0); });",
+        ],
+      });
+      expect(result.exitCode).toBe(0);
+    }).pipe(Effect.provide(layer.pipe(Layer.provide(NodeServices.layer)))),
   );
 });

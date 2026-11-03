@@ -72,13 +72,17 @@ are recorded in the goldens.
   and "both launchers" references are the retired twins; the v2 equivalents are
   `apps/cli/src/identity.test.ts`, `apps/cli/src/verbs.test.ts`, and the smoke.
 
-**#24** (pi under a non-TTY `sbx exec`) is closed as not reproducible: `pi`
-answered `OK` in 6.7s with exit 0 through a non-TTY `sbx exec` on `sbx`
-v0.50.1, on a sandbox the probe created itself. The host-side drain that could
-have blocked was PowerShell's `ForEach-Object` over `sbx exec`, and it went
-with the launchers in #42. The smoke suite still skips the agent round-trip by
-default because it spends real model tokens; it bounds the round-trip with
-`SMOKE_AGENT_TIMEOUT` and kills it inside the sandbox.
+**#24** (pi under a non-TTY `sbx exec`) is closed: the hang was real, and it was
+ours, not pi's. `ProcessRunner` gave every captured command the spawner's
+default stdin pipe and never wrote to it or ended it, so the child saw a stdin
+that never reached EOF; `sbx exec` forwards that pipe into the sandbox, and pi's
+print mode reads stdin to EOF before it starts. The probe did not reproduce it
+because `spawnSync` closes the pipe, which is why #24 looked irreproducible.
+`ProcessRunner` now passes `stdin: "ignore"` for a captured command, and
+`ProcessRunner.test.ts` pins both that option and a real child that reads to
+EOF. The smoke suite still skips the agent round-trip by default because it
+spends real model tokens; it bounds the round-trip with `SMOKE_AGENT_TIMEOUT`
+and kills it inside the sandbox.
 
 ## Verification
 

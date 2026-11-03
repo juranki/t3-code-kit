@@ -98,7 +98,13 @@ const options = (input: Command): ChildProcess.CommandOptions => ({
   ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
   ...(input.tty === true
     ? { stdin: "inherit" as const, stdout: "inherit" as const, stderr: "inherit" as const }
-    : {}),
+    : // A captured command gets no stdin. The spawner's default is a pipe, and
+      // nothing here ever writes to it or ends it, so the child sees a stdin
+      // that never reaches EOF. A child that reads stdin to EOF - pi in print
+      // mode does - then waits forever, and `sbx exec` forwards that pipe into
+      // the sandbox, so the wait looks like a hang inside the sandbox. `ignore`
+      // is /dev/null: EOF immediately, which is what "no input" means.
+      { stdin: "ignore" as const }),
 });
 
 const isNotFound = (cause: unknown): boolean =>
