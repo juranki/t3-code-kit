@@ -22,6 +22,14 @@ policy, and no mount of your filesystem.
 | Survives `stop` / `rebuild` / restart | repos, t3 threads, worktrees — they live on volumes (`workspace`, `.t3/userdata`, `.t3/projects`, `.t3/worktrees`); `sbx` reattaches them when the same name and kit are used (v0.50.1) |
 | Survives `nuke`                       | nothing — `nuke` wipes those four volumes' contents, then removes the instance; the volume objects stay allocated, empty ([ADR 0003](docs/adr/0003-durability-model.md))                |
 
+The descriptor, [`kit/t3-code.yaml`](kit/t3-code.yaml), is normative. A Kit
+carries its authority in the image, under one digest, so the egress lists live
+there. [`policy/allow.txt`](policy/allow.txt) (runtime) and
+[`policy/install.txt`](policy/install.txt) (build time) are the copies you
+read, and `npm run smoke` fails if either disagrees with the descriptor. The
+two files are separate on purpose: `npm run policy` prints only the runtime
+one, so a build-time host listed there would read as a runtime permission.
+
 ⚠️ This is a _containment_ boundary, not a convenience wrapper. If you want to
 edit the same files in your editor and in the agent's sandbox, this kit is the
 wrong tool. It deliberately gives you no host mount.
@@ -159,32 +167,6 @@ commit. The email is your real one, because that is what GitHub matches on.
 
 See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-host.md).
 
-## What ships
-
-| Path                                               | What it is                                                                                                                   |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| [`kit/t3-code.yaml`](kit/t3-code.yaml)             | The [Kit v3](https://github.com/docker/sandbox-kit-spec) descriptor: port, volumes, credential, egress policy, agent context |
-| [`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) | The content: t3, pi, the skills, Vite+, fd, and T3's preview browser (the pins are build args)                               |
-| [`kit/skills.txt`](kit/skills.txt)                 | The skills baked into the image, one per line                                                                                |
-| [`kit/skills.sh`](kit/skills.sh)                   | The shell parser for `kit/skills.txt`: names for the build, count for the checks (the smoke ports the rule to TypeScript)    |
-| [`kit/serve.sh`](kit/serve.sh)                     | `t3 serve` with its output mirrored to a log file; started by the Kit's `lifecycle@1` startup hook                           |
-| [`policy/allow.txt`](policy/allow.txt)             | Readable mirror of the runtime egress list                                                                                   |
-| [`policy/install.txt`](policy/install.txt)         | Readable mirror of the build-time egress list                                                                                |
-| [`apps/cli/src/`](apps/cli/src/)                   | The CLI: ten verbs plus `help`, run with `npm run <verb>` (Node 26 + Effect 4)                                               |
-| [`packages/sbx/`](packages/sbx/)                   | The typed `sbx` seam: argv construction, output parsing, the error taxonomy                                                  |
-| [`packages/host/`](packages/host/)                 | The process and git services the CLI runs on                                                                                 |
-| [`packages/kit/`](packages/kit/)                   | Pure data shared by the CLI and the smoke suite: the policy and volume paths                                                 |
-| [`scripts/smoke.ts`](scripts/smoke.ts)             | The acceptance test — this is what "it works" means                                                                          |
-| [`prototype/spike.md`](prototype/spike.md)         | What was verified before any of this was written                                                                             |
-
-The descriptor is normative. A Kit carries its authority in the image, under
-one digest, so the egress lists live there. `policy/allow.txt` (runtime) and
-`policy/install.txt` (build time) are the copies you read, and `npm run smoke`
-fails if either disagrees with the descriptor.
-
-The two files are separate on purpose. `npm run policy` prints only the runtime
-one, so a build-time host listed there would read as a runtime permission.
-
 ## Skills
 
 The agent workflow these docs describe — `/triage`, `/code-review`,
@@ -263,9 +245,10 @@ Run it with `SMOKE_AGENT=1`; it is killed after `SMOKE_AGENT_TIMEOUT` seconds
   it wipes the four volumes' contents from inside the sandbox, then removes the
   instance. `sbx` has no per-sandbox purge, so the volume objects stay
   allocated, empty. See [ADR 0003](docs/adr/0003-durability-model.md).
-- ⚠️ **Kits v3 is Early Access and the spec is experimental** (a final version
-  is targeted for Q4 2026). The kit descriptor, the base image reference, and
-  the `sbx` verbs are the parts most likely to move under you.
+- ⚠️ **[Kits v3](https://github.com/docker/sandbox-kit-spec) is Early Access and
+  the spec is experimental** (a final version is targeted for Q4 2026). The kit
+  descriptor, the base image reference, and the `sbx` verbs are the parts most
+  likely to move under you.
 - ⚠️ **No self-update inside the sandbox.** t3, the skills, Vite+, fd, and
   T3's preview browser are pinned at build time; pi defaults to `latest`.
   Bumping any of them is a `rebuild`. The browser's `CHROME_VERSION` is a plain
@@ -320,6 +303,7 @@ arg at the top of `kit/t3-code.dockerfile`.
 - [`docs/design/sbx-seam.md`](docs/design/sbx-seam.md) — how the CLI talks to `sbx`
 - [`docs/adr/`](docs/adr/) — the decisions behind the above
 - [`GLOSSARY.md`](GLOSSARY.md) — the words these docs use
+- [`prototype/spike.md`](prototype/spike.md) — what was verified before any of this was written
 
 ## License
 
