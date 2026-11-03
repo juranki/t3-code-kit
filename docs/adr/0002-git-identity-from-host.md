@@ -6,6 +6,12 @@ configured `user.name`/`user.email`. The commit succeeds and pushes fine, so
 the mistake is silent: it shows up only as a wrong author in the log, and on
 GitHub as a commit that links to no account.
 
+> History note: `git log` no longer shows that address. Before the repo went
+> public (#55) the history was rewritten, and those commits now carry the
+> fallback identity this ADR documents below, `Agent <agent@t3-code-kit>`. The
+> hostname was rewritten out because it named a machine, not a person. The
+> paragraph above records what actually happened; the log records the scrub.
+
 The launcher now reads the host's `git config --get user.name` and `user.email`
 and asserts them into the sandbox on every `up`, with `sbx exec <name> -- git
 config --global …`. The name is decorated with `Agent for ` exactly once; the
