@@ -234,30 +234,16 @@ default because it spends real model tokens; `SMOKE_AGENT=1` turns it on. The
 
 ## Troubleshooting
 
-Four failures a first run is most likely to hit. Every other one, including
-`ERR_CERT_AUTHORITY_INVALID` in the preview browser, `401 Invalid API Key`, a
-missing `serve.log`, and a `json: unknown field` descriptor error, is in
-[`docs/troubleshooting.md`](docs/troubleshooting.md).
+Every failure, by symptom, is in
+[`docs/troubleshooting.md`](docs/troubleshooting.md):
 
-**The model list is stale, or missing models that exist.** Every start attempts
-to refresh the catalog: `kit/serve.sh` runs `pi update --models` best-effort and
-clears t3's cached `model-manifest.json` before `t3 serve`. Restart to force it:
-`npm run refresh -- <name>`. If the provider record in the UI still shows the
-old list, refresh it there. t3 exposes that as `server.refreshProviders` in
-provider settings.
-
-**The pairing URL does not open.** `t3 serve` prints the sandbox's outbound
-interface address, which the host cannot reach; the CLI rewrites it to
-`http://localhost:<port>`. If `up` printed nothing, run `npm run logs -- <name>`.
-
-**An agent says it cannot reach an API.** Egress is deny-by-default, and the
-proxy does not fail like a network. It answers `403 Approval required for
-<host>:443`. Add the host to `kit/t3-code.yaml` (`network-policy@2`,
-`runtime.allow`) and to `policy/allow.txt`, then `npm run rebuild -- <name>`.
-
-**The sandbox will not start.** Check `sbx ls`, then `sbx diagnose`. A Kit that
-fails to build usually means the base image reference moved. It is the `BASE`
-arg at the top of `kit/t3-code.dockerfile`.
+- **Nothing renders or connects:** a stale model list, a pairing URL that does
+  not open, `ERR_CERT_AUTHORITY_INVALID` in the preview browser.
+- **Credentials and egress:** `401 Invalid API Key`, and a `403` where an agent
+  expected an API.
+- **The sandbox itself:** a missing `serve.log`, a `json: unknown field`
+  descriptor error, a missing `t3` binary, a Kit or sandbox that will not
+  start.
 
 ## Further reading
 
