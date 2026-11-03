@@ -114,9 +114,8 @@ npm run smoke -- t3ck-smoke-32
 The suite prints `PASS` / `FAIL` / `SKIP` per check and exits non-zero on any
 failure. It prints the `sbx` capabilities first, so a failure is attributable to
 the runtime it ran against. The skip is the pi round-trip (`SMOKE_AGENT=1` to
-run it): it spends real tokens, and pi hangs under a non-TTY `sbx exec` (#24).
-The first run after a `kit/` change rebuilds the image and takes 10–25 minutes;
-later runs are 3–6.
+run it): it spends real tokens. The first run after a `kit/` change rebuilds the
+image and takes 10–25 minutes; later runs are 3–6.
 
 `SMOKE_DOWN=1` stops the sandbox but does not remove it — the volume objects
 stay allocated (ADR 0003). `sbx rm <name>` when you are done with it.

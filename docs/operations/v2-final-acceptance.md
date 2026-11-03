@@ -148,10 +148,16 @@ confirmation, and the error paths are in
 
 - **#16 / #17** — answered by ADR 0003 and implemented by #39; the v2 smoke
   asserts the durability model.
-- **#24** — pi under a non-TTY `sbx exec` is still open upstream. The smoke
-  skips the agent round-trip by default and bounds it when enabled.
 - **#55** — the pre-publication checklist is unblocked by the launcher
   retirement; CI on GitHub Actions is a separate, later effort.
+
+**#24** (pi under a non-TTY `sbx exec`) is closed: the hang was real and it was
+in `ProcessRunner`, which handed every captured command an open stdin pipe that
+never reached EOF. `sbx exec` forwarded it into the sandbox, and pi's print mode
+reads stdin to EOF before it starts. The probe missed it because `spawnSync`
+closes the pipe. The runner now passes `stdin: "ignore"`, and
+`ProcessRunner.test.ts` pins it. The smoke still skips the agent round-trip by
+default because it spends real model tokens, and bounds it when enabled.
 
 ## Addendum (#48): the identity, asserted exactly
 

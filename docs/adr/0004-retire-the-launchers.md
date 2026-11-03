@@ -66,14 +66,23 @@ are recorded in the goldens.
 - **#16 and #17** are answered by ADR 0003 and implemented by #39: `rebuild`
   keeps durable state, and `nuke` wipes volume contents before removing the
   instance. The old wording and the missing smoke assertion are gone.
-- **#24** (pi under a non-TTY `sbx exec`) is still open. The smoke suite skips
-  the agent round-trip by default, bounds it with `SMOKE_AGENT_TIMEOUT`, and
-  kills it inside the sandbox; the underlying pi behaviour is upstream.
 - **#48** (`Agent for ` prefix accumulation) is fixed in the v2 identity path:
   the rule lives in `apps/cli/src/identity.ts` and strips every leading copy of
   the prefix before adding one back, so it is idempotent. The issue's `bin/test`
   and "both launchers" references are the retired twins; the v2 equivalents are
   `apps/cli/src/identity.test.ts`, `apps/cli/src/verbs.test.ts`, and the smoke.
+
+**#24** (pi under a non-TTY `sbx exec`) is closed: the hang was real, and it was
+ours, not pi's. `ProcessRunner` gave every captured command the spawner's
+default stdin pipe and never wrote to it or ended it, so the child saw a stdin
+that never reached EOF; `sbx exec` forwards that pipe into the sandbox, and pi's
+print mode reads stdin to EOF before it starts. The probe did not reproduce it
+because `spawnSync` closes the pipe, which is why #24 looked irreproducible.
+`ProcessRunner` now passes `stdin: "ignore"` for a captured command, and
+`ProcessRunner.test.ts` pins both that option and a real child that reads to
+EOF. The smoke suite still skips the agent round-trip by default because it
+spends real model tokens; it bounds the round-trip with `SMOKE_AGENT_TIMEOUT`
+and kills it inside the sandbox.
 
 ## Verification
 

@@ -8,16 +8,15 @@
 // when a failure leaves it running.
 //
 // The agent round-trip is SKIPPED by default: set SMOKE_AGENT=1 to run it. It
-// spends real model tokens, and it currently fails for a reason outside this
-// repo's control - pi hangs under a non-TTY `sbx exec` and answers only
-// interactively. A suite that fails by default on a known upstream bug just
-// teaches people to ignore failures.
+// spends real model tokens, so a default run does not.
 //
 // Every in-sandbox probe goes through one seam (`Sbx.exec`) with an explicit
-// `timeoutMs` and no TTY. That is the bounded hang path from #24: a probe that
-// never answers fails as a timeout instead of draining a host-side stream
-// forever. The agent round-trip adds the in-sandbox `timeout` backstop, so a
-// wedged pi is killed where it runs rather than left reparented to PID 1.
+// `timeoutMs` and no TTY, so a probe that never answers fails as a timeout
+// instead of draining a host-side stream forever. The agent round-trip adds the
+// in-sandbox `timeout` backstop, so a wedged pi is killed where it runs rather
+// than left reparented to PID 1. The seam also gives a captured command no
+// stdin (`ProcessRunner` passes `ignore`), which is what stopped pi's print
+// mode waiting for an EOF that never came.
 //
 // The old `bin/smoke` and `bin/smoke.ps1` are gone; this is the only smoke
 // suite. `rebuild` and `nuke` are the v2 CLI's verbs, and the durability
