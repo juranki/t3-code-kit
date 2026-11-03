@@ -605,28 +605,17 @@ const nukeRules = (lsName: string, survivors = "") => [
 ];
 
 describe("nuke", () => {
-  it.effect("wipes the four volumes, verifies, then removes the instance", () => {
+  it.effect("wipes, then removes the instance", () => {
     const fake = makeFakeSbx({ rules: nukeRules("charprobe") });
     return Effect.gen(function* () {
       expect(yield* runCli(["nuke", "--yes"], fake)).toBe(0);
       const calls = argsOf(fake);
       expect(calls[0]).toEqual(["ls"]);
+      // The scripts are the wipe module's contract; this test pins the order
+      // the verb drives: marker, wipe as root, verify, then rm.
       expect(calls[1]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      expect(calls[1]?.at(-1)).toContain(".t3ck-nuke-marker");
       expect(calls[2]?.slice(0, 7)).toEqual(["exec", "-u", "root", "charprobe", "--", "sh", "-c"]);
-      const wipe = calls[2]?.at(-1) ?? "";
-      expect(wipe).toContain("pkill -f '^t3 serve'");
-      expect(wipe).toContain("pkill -x pi");
-      for (const path of [
-        "/home/agent/workspace",
-        "/home/agent/.t3/userdata",
-        "/home/agent/.t3/projects",
-        "/home/agent/.t3/worktrees",
-      ]) {
-        expect(wipe).toContain(`find '${path}' -mindepth 1 -delete`);
-      }
       expect(calls[3]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      expect(calls[3]?.at(-1)).toContain("[ ! -e");
       expect(calls[4]).toEqual(["rm", "--force", "charprobe"]);
       expect(yield* TestConsole.logLines).toContain(
         "done. 'charprobe' is gone; its volume storage stays allocated, empty — sbx has no per-sandbox purge.",
@@ -715,24 +704,10 @@ describe("nuke", () => {
       expect(yield* runCli(["nuke", "--yes"], fake)).toBe(1);
       const calls = argsOf(fake);
       expect(calls.some((call) => call[0] === "rm")).toBe(false);
-      expect(
-        calls.filter(
-          (call) =>
-            call[0] === "exec" &&
-            (call.at(-1) ?? "").includes(".t3ck-nuke-marker") &&
-            (call.at(-1) ?? "").includes(">"),
-        ),
-      ).toHaveLength(2);
-      expect(
-        calls.filter(
-          (call) => call[0] === "exec" && (call.at(-1) ?? "").includes("-mindepth 1 -delete"),
-        ),
-      ).toHaveLength(2);
-      expect(
-        calls.filter((call) => call[0] === "exec" && (call.at(-1) ?? "").includes("[ ! -e")),
-      ).toHaveLength(2);
       const errors = yield* TestConsole.errorLines;
-      expect(errors).toContain("⚠️  wipe of 'charprobe' left data behind; retrying once");
+      // The retry warning is the wipe module's; the detail and the failure
+      // sentence are the verb's.
+      expect(errors).toContain("surviving markers: /home/agent/workspace/leftover");
       expect(errors).toContain(
         "t3-code-kit: could not wipe 'charprobe'; the sandbox was not removed (its data is still there)",
       );
