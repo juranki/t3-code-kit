@@ -20,137 +20,26 @@ policy, and no mount of your filesystem.
 | Code goes in                          | `git clone`, inside the sandbox                                                                                                                                                         |
 | Code comes out                        | `git push` a branch; you review and merge on the host                                                                                                                                   |
 | Survives `stop` / `rebuild` / restart | repos, t3 threads, worktrees — they live on volumes (`workspace`, `.t3/userdata`, `.t3/projects`, `.t3/worktrees`); `sbx` reattaches them when the same name and kit are used (v0.50.1) |
-| Survives `nuke`                       | nothing — `nuke` wipes those four volumes' contents, then removes the instance; the volume objects stay allocated, empty                                                                |
+| Survives `nuke`                       | nothing — `nuke` wipes those four volumes' contents, then removes the instance; the volume objects stay allocated, empty ([ADR 0003](docs/adr/0003-durability-model.md))                |
 
 ⚠️ This is a _containment_ boundary, not a convenience wrapper. If you want to
 edit the same files in your editor and in the agent's sandbox, this kit is the
-wrong tool — it deliberately gives you no host mount.
-
-## Requirements
-
-- **Node 26.13.0 and Vite+ 1.4.0 (`vp`)** on the host. The Vite+ installer
-  provides both on macOS, Linux, and Windows; there is no separate Node install
-  to keep in step. See [Install](#install).
-- [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/install/) (`sbx`) on
-  the host: macOS 14+ on Apple silicon, Windows 11 x64, or Ubuntu 24.04+ with
-  KVM. `sbx login` once.
-- **No Docker Engine, and no Docker Desktop.** The Kit is built in a builder
-  sandbox (`SBX_KIT_BUILDER=sandbox`, the default here) rather than with the
-  host's Buildx. The first `up` therefore builds slowly — it pulls a base
-  image, then t3 and pi.
-- A GitHub credential in the sandbox credential store:
-  `sbx secret set github`
-- A model provider key for pi, likewise: `sbx secret set <provider>`
-
-⚠️ **A stored secret is not an approval.** `sbx` keeps a binding in
-`~/.config/sbx/credentials.yaml` recording which kit may use which service, and
-it only asks for that approval **interactively**. The CLI creates sandboxes
-detached, so the first run starts with the credential withheld and warns. Do the
-first run by hand, once:
-
-```sh
-sbx secret set github                 # the value, first
-sbx secret set mistral                # ...and your provider's
-sbx create --name myproject ./kit     # approve the credential prompts
-sbx run --name myproject              # start it; Ctrl-\ detaches
-```
-
-⚠️ `sbx create` does **not** start the workload — it prints `try: sbx run --name
-<name>` and stops there. The sandbox shows as running, the published port
-accepts connections and immediately resets, and nothing serves. Approving a
-credential with no stored secret binds nothing, which is why the approval
-prompt can be followed by `no binding authorizes this service`.
-
-After that `npm run up -- myproject` reuses the binding.
-
-## Manual setup on the host
-
-The kit automates the sandbox. Everything below is the host's, and cannot be
-scripted: each step is a secret or an approval, and `sbx` deliberately refuses
-to make those non-interactively. Skipping one does not fail loudly — it fails
-as a withheld credential or a stale model list.
-
-### Once per host
-
-| Step                                            | Why                                                              | Verify          |
-| ----------------------------------------------- | ---------------------------------------------------------------- | --------------- |
-| `sbx login`                                     | Docker OAuth; no sandbox runs without it                         | `sbx ls`        |
-| `sbx secret set github`                         | the value git pushes with; the sandbox only ever sees a sentinel | `sbx secret ls` |
-| `sbx secret set <provider>` (default `mistral`) | pi's model key                                                   | `sbx secret ls` |
-| Approve the credential binding                  | a stored secret is **not** an approval                           | see below       |
-
-**The binding is the step that bites.** `sbx` records which kit may use which
-service and domain in `%APPDATA%\sbx\credentials.yaml`, and only asks
-interactively. The CLI creates sandboxes detached, so the first one starts with
-the credential withheld. Either create the first sandbox by hand and answer the
-prompt:
-
-```powershell
-sbx create --name myproject -p 127.0.0.1:3773:3773 .\kit   # approve when asked
-sbx run -d --name myproject
-```
-
-or write the binding yourself — this is the whole file, and the domains must
-match the kit's `inject` rules and its egress allowlist:
-
-```yaml
-bindings:
-  github:
-    apiKey:
-      domains: [api.github.com, github.com]
-  mistral:
-    apiKey:
-      domains: [api.mistral.ai]
-```
-
-A malformed file breaks every `sbx` command, so delete it and re-approve rather
-than hand-fixing it.
-
-### Once per host, if port 3773 is taken
-
-Another sandbox on 3773 (including one running a T3 Code session) wins. Pick a
-host port for the kit:
-
-```powershell
-$env:T3CK_PORT = 3774
-```
-
-```sh
-export T3CK_PORT=3774
-```
-
-### Once, if you cloned before `.gitattributes` existed
-
-```powershell
-git rm --cached -r . | Out-Null; git reset --hard
-```
-
-```sh
-git rm --cached -r . && git reset --hard
-```
-
-Otherwise `kit/serve.sh` stays CRLF and the server never starts.
-
-### In the t3 UI, once per provider
-
-- Add or enable a **pi provider instance**. The kit installs pi and starts t3;
-  it does not create t3's provider records.
-- Refresh its model list from provider settings (`server.refreshProviders`).
-  This is t3's own state in `statev2.sqlite` and the one cache a shell cannot
-  reach — `npm run refresh -- <name>` covers the other two.
-
-### Nothing else is required
-
-No Docker Desktop, no Docker Engine, no bash on Windows, and no PowerShell
-launcher. The host needs Node 26.13.0 and Vite+ 1.4.0 (the Vite+ installer
-provides both); PowerShell is only the Windows shell you happen to type in. If
-you exported `SBX_KIT_BUILDER` yourself at some point, unset it: the CLI
-defaults to the builder sandbox, and `host` fails on a machine without a
-running Buildx.
+wrong tool. It deliberately gives you no host mount.
 
 ## Install
 
-The host needs Node 26.13.0 and Vite+ 1.4.0. The Vite+ installer provides both:
+On the host:
+
+- **Node 26.13.0 and Vite+ 1.4.0 (`vp`)**. The Vite+ installer provides both;
+  there is no separate Node install to keep in step.
+- [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/install/) (`sbx`):
+  macOS 14+ on Apple silicon, Windows 11 x64, or Ubuntu 24.04+ with KVM.
+- **No Docker Engine or Docker Desktop.** You need neither: the Kit is built
+  in a builder sandbox (`SBX_KIT_BUILDER=sandbox`, the default here) rather
+  than with the host's Buildx. The first `up` therefore builds slowly. It pulls
+  a base image, then t3 and pi.
+
+Install Vite+, clone, and install the workspace:
 
 ```sh
 # macOS / Linux
@@ -162,18 +51,47 @@ curl -fsSL https://vite.plus | bash
 irm https://vite.plus/ps1 | iex
 ```
 
-Then clone and install the workspace:
-
 ```sh
 git clone https://github.com/juranki/t3-code-kit
 cd t3-code-kit
 npm ci
-npm run up -- myproject
 ```
 
 `npm run` lists the verbs; `npm run help` prints the usage. There is no
 installer, no npm package, and no `bin/` shim: it is an npm workspace, a
 Dockerfile, and a descriptor.
+
+### The first run, by hand
+
+Do the first run by hand. `sbx` needs a GitHub credential and a model provider
+key, and it only asks interactively for the **binding**: the record of which kit
+may use which service. A stored secret is not an approval, and the CLI creates
+sandboxes detached. A first run through `npm run up` therefore starts with the
+credential withheld and warns.
+
+```sh
+sbx login                             # Docker OAuth; no sandbox runs without it
+sbx secret set github                 # the value, first
+sbx secret set mistral                # ...and your provider's
+sbx create --name myproject ./kit     # approve the credential prompts
+sbx run --name myproject              # start it; Ctrl-\ detaches
+```
+
+On Windows the same commands run in PowerShell, with `.\kit` in place of
+`./kit`.
+
+⚠️ `sbx create` does **not** start the workload. It prints `try: sbx run --name
+<name>` and stops there. The sandbox shows as running, the published port
+accepts connections and immediately resets, and nothing serves. Approving a
+credential with no stored secret binds nothing, which is why the approval
+prompt can be followed by `no binding authorizes this service`.
+
+After that, `npm run up -- myproject` reuses the binding.
+
+Four things are left, and all four are in
+[`docs/host-setup.md`](docs/host-setup.md): writing the binding file yourself, a
+host port other than 3773, a clone from before `.gitattributes`, and the one
+step in the t3 UI.
 
 ## Use
 
@@ -188,11 +106,6 @@ the mountless form, which is what keeps the host filesystem out of reach.
 Open the printed `http://localhost:3773/pair#token=…` in your browser. That is
 the whole workflow: the t3 web UI runs in the sandbox, and pi is one of the
 agents it can drive.
-
-⚠️ `up` on an existing sandbox **reuses the image it was created from**. After
-changing anything under `kit/`, use `rebuild` — otherwise you are restarting a
-sandbox that still contains the old image, and the fix you just pulled is not in
-it.
 
 ```sh
 npm run url -- myproject      # mint a fresh pairing URL
@@ -212,28 +125,35 @@ non-interactive shell, pass `--yes`.
 One sandbox per project. `T3CK_NAME` sets the default name, `T3CK_PORT` the
 host port (3773).
 
+Two things bite on repeat runs:
+
+- `up` on an existing sandbox **reuses the image it was created from**. After
+  changing anything under `kit/`, use `rebuild`. Otherwise you are restarting a
+  sandbox that still contains the old image, and the fix you just pulled is not
+  in it.
+- The published port is **host-local**: `sbx` binds `127.0.0.1` by design, so
+  the browser must be on the same machine. Remote access needs an SSH tunnel.
+  `--tailscale-serve` will not work inside a sandbox, because `sbx` blocks UDP
+  and proxies TCP.
+
 ### Commits made in the sandbox
 
 `up` sets the sandbox's git identity from your host's own config, so a commit
-made by the agent is authored by you — and, because the email is yours, links
+made by the agent is authored by you. Because the email is yours, it also links
 to your GitHub account:
 
 ```
 Agent for Juhani Ränkimies <juhani@example.com>
 ```
 
-The `Agent for ` prefix is deliberate — it says an agent, not the human, made
-the commit. The email is your real one, because that is what GitHub matches on.
+The `Agent for ` prefix is deliberate. It says an agent, not the human, made the
+commit. The email is your real one, because that is what GitHub matches on.
 
 - Set `git config --global user.name` / `user.email` on the host first. With
   neither set, `up` warns and falls back to `Agent <agent@t3-code-kit>`, which
   names no person and links to no account.
-- `T3CK_AGENT_NAME_PREFIX` overrides the prefix; set it empty for the bare
-  host name.
-- The prefix is applied once, however many times `up` runs: every leading copy
-  of it already in your host's `user.name` is stripped before one is added
-  back, so a host that is itself decorated (or a sandbox used as a host) gets
-  one prefix, not two.
+- `T3CK_AGENT_NAME_PREFIX` overrides the prefix. Set it empty for the bare host
+  name.
 - `up` re-asserts the identity every time, so a `git config` you set by hand
   inside the sandbox is reverted. It prints the identity it applied.
 
@@ -258,11 +178,12 @@ See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-
 | [`prototype/spike.md`](prototype/spike.md)         | What was verified before any of this was written                                                                             |
 
 The descriptor is normative. A Kit carries its authority in the image, under
-one digest, so the egress lists live there; `policy/allow.txt` (runtime) and
+one digest, so the egress lists live there. `policy/allow.txt` (runtime) and
 `policy/install.txt` (build time) are the copies you read, and `npm run smoke`
-fails if any of them disagrees with the descriptor. They are separate files on
-purpose: `npm run policy` prints only the runtime one, so a build-time host
-listed there would read as a runtime permission.
+fails if either disagrees with the descriptor.
+
+The two files are separate on purpose. `npm run policy` prints only the runtime
+one, so a build-time host listed there would read as a runtime permission.
 
 ## Skills
 
@@ -270,90 +191,42 @@ The agent workflow these docs describe — `/triage`, `/code-review`,
 `/grill-with-docs`, `/wayfinder` — is **baked into the image**, at
 `/home/agent/.agents/skills`. The build adds it from
 [`mattpocock/skills`](https://github.com/mattpocock/skills), pinned twice:
-`SKILLS_REF` to a commit, `SKILLS_VERSION` to a CLI version. The selection
-lives in [`kit/skills.txt`](kit/skills.txt) — 27 of the repo's 38; the rest are
+`SKILLS_REF` to a commit, `SKILLS_VERSION` to a CLI version. The selection lives
+in [`kit/skills.txt`](kit/skills.txt): 27 of the repo's 38. The rest are
 in-progress writing experiments and Claude-specific one-offs.
 
-Changing them is a `rebuild`, not an in-sandbox change:
+Changing them is a `rebuild`, not an in-sandbox change. Bump `SKILLS_REF` (and
+`SKILLS_VERSION` if the CLI moved) in
+[`kit/t3-code.dockerfile`](kit/t3-code.dockerfile), then run `npm run rebuild --
+myproject`.
 
-```sh
-npm run rebuild -- myproject
-```
+- A `skills add` you run by hand inside a sandbox is wiped by the next rebuild.
+- A name in `kit/skills.txt` that no longer exists upstream fails the build,
+  rather than silently shrinking the set.
 
-Bump `SKILLS_REF` (and `SKILLS_VERSION` if the CLI moved) in
-[`kit/t3-code.dockerfile`](kit/t3-code.dockerfile) first. A `skills add` you run
-by hand inside a sandbox is wiped by the next rebuild, and a name in
-`kit/skills.txt` that no longer exists upstream fails the build rather than
-silently shrinking the set. Why baked in and not a volume: [ADR
-0001](docs/adr/0001-skills-baked-into-image.md).
+Why baked in and not a volume:
+[ADR 0001](docs/adr/0001-skills-baked-into-image.md).
 
 ## Toolchains
 
-The image bakes a default dev toolchain with [`mise`](https://mise.jdx.dev):
-node, go, and python, at the versions in the `nodeVersion`, `goVersion`, and
-`pythonVersion` kit args. mise comes from the base image's apt source, not a
-`curl | sh` installer. Its shims are first on the image's `PATH`, so a
-non-interactive shell — which is what the agent's bash tool runs — resolves
-`node`, `go`, and `python` through mise, with no shell rc file and no
-`mise activate`.
+The image bakes node, go, and python through [`mise`](https://mise.jdx.dev) at
+the `nodeVersion` / `goVersion` / `pythonVersion` kit args. It also bakes Vite+
+and `fd` at their own pins. Java is the base image's OpenJDK 21.
 
-Two more tools are baked without mise: **Vite+** (`vp`) is a global npm
-install at the `vitePlusVersion` pin, and **fd** is a pinned release binary in
-`/usr/local/bin` at the `fdVersion` pin. fd is there so pi finds it on `PATH`
-and skips its own first-run download; Vite+ is there because the v2 workspace
-runs its tests, lint, and format through `vp`. Bumping either is a `rebuild`,
-the same as the mise toolchain. `rg` is the base image's, not the kit's: the
-kit does not pin it.
+mise's shims are first on `PATH`, so a non-interactive shell resolves `node`,
+`go`, and `python` through mise. That is what the agent's bash tool runs: no rc
+file, and no `mise activate`.
 
-A repo records what it needs in `.mise.toml` at its root:
+A repo's `.mise.toml` selects a version but cannot install one. The build
+installs exactly one line per tool, so a different version is a kit-arg change
+and a `rebuild`.
 
-```toml
-[tools]
-node = "26.13.0"
-python = "3.13.18"
-```
+T3's preview browser is baked too: `chrome-headless-shell` and its 18 packages,
+pre-seeded at the path t3 looks in. t3 would otherwise download it from
+`storage.googleapis.com`, a host the runtime policy refuses.
 
-mise reads that from the repo under `/home/agent/workspace`, and the project
-config wins over the image's global default. What is _installed_ is still the
-baked set: the build cannot see the repo, so a `.mise.toml` alone changes which
-version mise selects, not which versions exist. To get a different one, set the
-matching kit arg (and pin it in `.mise.toml`) and rebuild:
-
-```sh
-npm run rebuild -- myproject
-```
-
-**T3's preview browser is baked too.** `html_preview` and `html_render` drive a
-`chrome-headless-shell`, and t3 downloads it on first render from
-`storage.googleapis.com` — a host the runtime policy refuses, so a fresh
-sandbox would never render. The image pre-seeds the binary at the path t3 looks
-in (`$T3CODE_HOME/tools/chrome-headless-shell/<platform>/<version>/`) together
-with the 18 packages it needs: 16 libraries plus `fontconfig` and
-`fonts-liberation`. The pin is
-`CHROME_VERSION`, a plain `ARG` and deliberately not a kit arg: it has to track
-the t3 binary, so a `T3_VERSION` bump that moves the Chrome pin fails the build
-instead of leaving a binary t3 ignores. The build also asserts that `ldd`
-resolves every library and that the binary starts, so a wrong package name
-fails the layer rather than the smoke.
-
-⚠️ **The baked node is the only node.** A repo whose `.mise.toml` asks for a
-different line gets a resolution mise cannot satisfy, because the build
-installs exactly one version. Change `nodeVersion` (and `NODE_VERSION`) and
-rebuild; the kit does not bake a second line.
-
-To bump the baked default, change the `nodeVersion` / `goVersion` /
-`pythonVersion` / `vitePlusVersion` / `fdVersion` defaults in
-[`kit/t3-code.yaml`](kit/t3-code.yaml) (and the matching `ARG` in the
-Dockerfile) the same way `t3Version` and `piVersion` are bumped, then rebuild.
-
-Java is not mise's: the image appends the base image's OpenJDK 21 to `PATH`,
-and `mise-java` is deliberately not allowed.
-
-⚠️ **A 403 during a toolchain install is an allowlist line, not a broken
-network.** The build-time hosts are in the descriptor's `install.allow` (and
-[`policy/install.txt`](policy/install.txt)); `runtime.allow` deliberately does
-not carry them, so an on-demand `mise install` inside a running sandbox is
-refused.
+Pins, `.mise.toml` resolution, the `CHROME_VERSION` rule, and the
+`403`-means-allowlist failure are in [`docs/toolchains.md`](docs/toolchains.md).
 
 ## Verify
 
@@ -369,15 +242,16 @@ npm run help         # the verbs, if `npm run` is not enough
 Pass a different name with `npm run smoke -- <name>`. The durability checks nuke
 the sandbox, so use a dedicated name.
 
-Checks the static files, prints the `sbx` capabilities, brings a sandbox up,
-waits for the server, mints a pairing URL, and proves the toolchain, the
-preview browser, the volume, GitHub egress, and the durability model. The
-durability checks write a marker, `rebuild` and read it back, then `nuke` and
-`up` the same name and assert the old contents are gone and the same volume
-objects reattach. **A
-successful run ends with the sandbox nuked**; `SMOKE_DOWN=1` stops it only when
-a failure leaves it running. `SMOKE_NUKE_TIMEOUT` (2400 seconds) bounds each
-`nuke`.
+`npm run smoke` checks the static files, prints the `sbx` capabilities, and
+brings a sandbox up. It waits for the server, mints a pairing URL, and proves
+the toolchain, the preview browser, the volume, GitHub egress, and the
+durability model.
+
+The durability checks write a marker, `rebuild` and read it back, then `nuke`
+and `up` the same name. They assert the old contents are gone and the same
+volume objects reattach. **A successful run ends with the sandbox nuked.**
+`SMOKE_DOWN=1` stops it only when a failure leaves it running.
+`SMOKE_NUKE_TIMEOUT` (2400 seconds) bounds each `nuke`.
 
 The pi round-trip is **off by default** because it spends real model tokens.
 Run it with `SMOKE_AGENT=1`; it is killed after `SMOKE_AGENT_TIMEOUT` seconds
@@ -385,11 +259,10 @@ Run it with `SMOKE_AGENT=1`; it is killed after `SMOKE_AGENT_TIMEOUT` seconds
 
 ## Limits
 
-- ⚠️ **The published port is host-local.** `sbx` binds `127.0.0.1` on the host
-  by design, so the browser must be on the same machine. Remote access needs an
-  SSH tunnel; `--tailscale-serve` will not work inside a sandbox (sbx blocks
-  UDP and proxies TCP).
-- ⚠️ **`nuke` is the only verb that destroys data**, and it destroys all of it: it wipes the four volumes' contents from inside the sandbox, then removes the instance. `sbx` has no per-sandbox purge, so the volume objects stay allocated, empty.
+- ⚠️ **`nuke` is the only verb that destroys data**, and it destroys all of it:
+  it wipes the four volumes' contents from inside the sandbox, then removes the
+  instance. `sbx` has no per-sandbox purge, so the volume objects stay
+  allocated, empty. See [ADR 0003](docs/adr/0003-durability-model.md).
 - ⚠️ **Kits v3 is Early Access and the spec is experimental** (a final version
   is targeted for Q4 2026). The kit descriptor, the base image reference, and
   the `sbx` verbs are the parts most likely to move under you.
@@ -398,127 +271,55 @@ Run it with `SMOKE_AGENT=1`; it is killed after `SMOKE_AGENT_TIMEOUT` seconds
   Bumping any of them is a `rebuild`. The browser's `CHROME_VERSION` is a plain
   `ARG` rather than a kit arg, because it has to track the t3 binary instead of
   being chosen.
-- ⚠️ **One provider ships in v1** (pi). Adding another is one Dockerfile block,
+- **One provider ships in v1** (pi). Adding another is one Dockerfile block,
   one credential, and one egress entry.
-- ⚠️ **GitHub is the only git host wired in.** t3 itself supports Bitbucket,
+- **GitHub is the only git host wired in.** t3 itself supports Bitbucket,
   GitLab, and Gitea/Codeberg too, but the Kit ships one credential and one
-  host's allowlist entries; adding another is the same kind of three-part change
-  as adding a provider — a credential, its `inject` rule, and its runtime
+  host's allowlist entries. Adding another is the same kind of three-part change
+  as adding a provider: a credential, its `inject` rule, and its runtime
   allowlist entry. Until then a `403` on that host is a policy decision, not a
   broken network.
-- ⚠️ **The real-`sbx` proof is host-only.** The Linux sandbox runs the fast
-  gate; the Windows host runs the smoke suite against `sbx.exe`. The acceptance
-  run is recorded in
+- **The real-`sbx` proof is host-only.** The Linux sandbox runs the fast gate;
+  the Windows host runs the smoke suite against `sbx.exe`. The acceptance run is
+  recorded in
   [`docs/operations/v2-final-acceptance.md`](docs/operations/v2-final-acceptance.md).
 
 ## Troubleshooting
 
-**The model list is stale, or missing models that exist.** Every start of the
-sandbox attempts to refresh the catalog: `kit/serve.sh` runs
-`pi update --models` best-effort and clears t3's cached `model-manifest.json`
-before `t3 serve`.
-Restart to force it: `npm run refresh -- <name>` (or `down` then `up`). The
-refresh is best-effort — a blocked or slow `pi.dev` is logged in
-`/home/agent/.t3/serve.log` and the sandbox falls back to the catalog baked
-into the image, which ages. If the provider record in the UI still shows the
-old list, refresh it there — t3 exposes that as `server.refreshProviders` in
-provider settings. A model list that is stale _after_ a restart is a t3
-caching issue, not the sandbox.
+Four failures a first run is most likely to hit. Every other one, including
+`ERR_CERT_AUTHORITY_INVALID` in the preview browser, `401 Invalid API Key`, a
+missing `serve.log`, and a `json: unknown field` descriptor error, is in
+[`docs/troubleshooting.md`](docs/troubleshooting.md).
 
-t3 fetches its model manifest from `raw.githubusercontent.com` and pi checks
-its catalog on `pi.dev`; both are in the allowlist for that reason. Check with
-`sbx exec <name> -- curl -sI https://raw.githubusercontent.com/ | head -1`.
-
-**The terminal in the UI has no history, no completion, and no colors.** t3
-spawns that terminal from the server's `$SHELL`, and the platform starts the
-workload with `SHELL=/bin/sh` — which is dash: no readline, so no history and
-no tab completion, and a prompt that never reads `~/.bashrc`. `kit/serve.sh`
-exports `/bin/bash` for exactly this reason, so a sandbox built before that
-line existed needs a `rebuild`; `npm run smoke` reads the running server's
-environment and fails if it is not bash.
-
-**The provider answers `401 Invalid API Key` and the sandbox has
-`MISTRAL_API_KEY=proxy-managed`.** The credential has no `inject` rule, so the
-proxy has nothing to swap the sentinel _for_. `inject` names the domain and
-header the key belongs in; its `domain` cannot be a kit arg, so switching
-provider means editing `provider`, `providerApiKeyEnv`, and the `inject` block
-in `kit/t3-code.yaml` together — and approving the new domain's binding.
-
-**An agent says it cannot reach an API.** Egress is deny-by-default and the
-proxy does not fail like a network. It answers:
-
-```
-Approval required for api.example.com:443.
-Review and respond with: sbx policy approval ls
-```
-
-Add the host to `kit/t3-code.yaml` (`network-policy@2`, `runtime.allow`) and to
-`policy/allow.txt`, then `npm run rebuild -- <name>`.
+**The model list is stale, or missing models that exist.** Every start attempts
+to refresh the catalog: `kit/serve.sh` runs `pi update --models` best-effort and
+clears t3's cached `model-manifest.json` before `t3 serve`. Restart to force it:
+`npm run refresh -- <name>`. If the provider record in the UI still shows the
+old list, refresh it there. t3 exposes that as `server.refreshProviders` in
+provider settings.
 
 **The pairing URL does not open.** `t3 serve` prints the sandbox's outbound
 interface address, which the host cannot reach; the CLI rewrites it to
 `http://localhost:<port>`. If `up` printed nothing, run `npm run logs -- <name>`.
 
-**The Kit build fails with `dockerDesktopLinuxEngine: The system cannot find the
-file`.** `sbx` tried the host's Docker Buildx. The CLI defaults to
-`SBX_KIT_BUILDER=sandbox`; if you exported `SBX_KIT_BUILDER` yourself, unset it.
-
-**The Kit build fails with `OCI exporter is not supported for the docker
-driver`.** Same cause — the host Buildx driver cannot emit the OCI layout a Kit
-needs. Use the builder sandbox: `$env:SBX_KIT_BUILDER = 'sandbox'`.
-
-**The sandbox starts but the server never answers, and there is no
-`/home/agent/.t3/serve.log`.** Nothing started the server. The kit declares
-`sbx@1` and starts `serve.sh` from a `lifecycle@1` startup hook, because the
-image entrypoint is not what runs a workload on the agent platform. If you are
-editing the kit, keep the hook's `env` list complete: a hook sees only the
-variables it declares, and a missing `HTTPS_PROXY` silently breaks all egress. The usual cause on
-Windows is CRLF: a clone with `core.autocrlf=true` rewrites `kit/serve.sh`, so
-the shebang becomes `#!/usr/bin/env bash\r` and it fails to exec silently.
-`.gitattributes` forces LF and the Dockerfile strips CR, but an existing clone
-needs re-checking out:
-
-```powershell
-git pull
-git rm --cached -r . | Out-Null; git reset --hard
-```
-
-**`capability com.docker.sandbox/<type>: json: unknown field "<field>"`.** The
-descriptor used a field newer than your `sbx` build. The spec is experimental
-and fields land between releases — `port@1`'s `family` arrived 2026-10-26, for
-instance. Check the field's date in the
-[spec repo history](https://github.com/docker/sandbox-kit-spec/commits/main/schema)
-and drop it; everything this kit uses otherwise dates from the initial release.
-
-**`t3: No such file or directory` inside the sandbox.** `/home/agent/.local/bin/t3`
-is a symlink into `$T3CODE_HOME/runtime/versions/<v>/t3`. If someone volumes all
-of `/home/agent/.t3`, the volume shadows that install and the symlink dangles.
-The kit volumes only `userdata`, `projects`, and `worktrees`.
-
-**Every `https://` page in the preview browser fails with
-`ERR_CERT_AUTHORITY_INVALID`.** Chromium does not read `SSL_CERT_FILE` or
-`NODE_EXTRA_CA_CERTS`; it verifies TLS against the NSS store at
-`$HOME/.pki/nssdb`, and the sandbox proxy re-signs every connection with a CA
-minted per sandbox. `kit/serve.sh` imports `$PROXY_CA_CERT_B64` there on every
-start, so a sandbox built before that line needs a `rebuild`; `npm run smoke`
-asserts that an HTTPS origin renders. Importing the CA into the browser
-_profile_ does not work — that is not the trust store — and
-`--ignore-certificate-errors` would stop verifying real certificates too.
-
-**`html_preview` fails with "This host is missing libraries T3's browser
-needs".** The image bakes those libraries and the browser binary, so a sandbox
-that reports them missing was built before that layer: `npm run rebuild --
-<name>`. Do not run `sudo t3 browser setup` inside the sandbox — it reaches for
-`apt-get`, and `deb.debian.org` is not in `runtime.allow`, so it fails with a
-proxy `403` that reads like a network outage. `/etc` is not a volume, so a
-runtime repair would not survive a restart anyway; the image is the only
-durable place. A browser that is missing altogether (`no chrome-headless-shell
-under ~/.t3/tools`) is the same `rebuild`: t3 would otherwise download it from
-`storage.googleapis.com`, which the runtime policy refuses.
+**An agent says it cannot reach an API.** Egress is deny-by-default, and the
+proxy does not fail like a network. It answers `403 Approval required for
+<host>:443`. Add the host to `kit/t3-code.yaml` (`network-policy@2`,
+`runtime.allow`) and to `policy/allow.txt`, then `npm run rebuild -- <name>`.
 
 **The sandbox will not start.** Check `sbx ls`, then `sbx diagnose`. A Kit that
-fails to build usually means the base image reference moved — it is the `BASE`
+fails to build usually means the base image reference moved. It is the `BASE`
 arg at the top of `kit/t3-code.dockerfile`.
+
+## Further reading
+
+- [`docs/host-setup.md`](docs/host-setup.md) — the host steps the kit cannot automate
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — every failure, by symptom
+- [`docs/toolchains.md`](docs/toolchains.md) — the baked toolchain and its pins
+- [`docs/operations/v2-dev-loop.md`](docs/operations/v2-dev-loop.md) — working on the kit itself
+- [`docs/design/sbx-seam.md`](docs/design/sbx-seam.md) — how the CLI talks to `sbx`
+- [`docs/adr/`](docs/adr/) — the decisions behind the above
+- [`GLOSSARY.md`](GLOSSARY.md) — the words these docs use
 
 ## License
 
