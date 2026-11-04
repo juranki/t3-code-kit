@@ -48,3 +48,11 @@ When writing Effect code, inspect `repos/effect/` for examples of idiomatic usag
 The conventions in this file and `docs/design/sbx-seam.md` are enforced by the
 rules in `lint/`, registered in `vite.config.ts`. See `lint/README.md` for the
 rule list and what each one catches.
+
+### Coding standards
+
+[`CODING_STANDARDS.md`](./CODING_STANDARDS.md) is the coding standard: the gate
+is the standard, and a lint warning is a defect. `npm run lint` must exit 0 with
+zero warnings, so the script runs `vp lint --deny-warnings`. Do not suppress a
+warning or downgrade a rule to get there; fix the code, or stop and report the
+warning you cannot fix.
