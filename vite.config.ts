@@ -35,6 +35,7 @@ export default defineConfig({
   lint: {
     ignorePatterns: ["node_modules", "package-lock.json", "*.tsbuildinfo", "repos"],
     plugins: ["eslint", "oxc", "unicorn", "typescript", "effecttsgo"],
+    jsPlugins: ["./lint/rules.js"],
     // The Effect diagnostics are the project's own rule set, so the preset is
     // the base and the rules below pin the severities the TypeScript plugin
     // block used to claim. `recommended` turns Oxlint's type-aware mode on.
@@ -56,6 +57,15 @@ export default defineConfig({
       ],
       "typescript/no-extraneous-class": "error",
       "oxc/no-accumulating-spread": "error",
+
+      // The project's own conventions. `lint/README.md` maps each rule to the
+      // sentence in AGENTS.md or docs/design/sbx-seam.md that it enforces.
+      "t3ck/exec-vs-exec-checked": "error",
+      "t3ck/host-process-only": "error",
+      "t3ck/no-argv-join": "error",
+      "t3ck/no-render-to-shell": "error",
+      "t3ck/no-stderr-switch": "error",
+      "t3ck/no-vendored-import": "error",
 
       // The 25 diagnostics the tsconfig plugin block declared as errors.
       "effecttsgo/any-unknown-in-error-context": "error",

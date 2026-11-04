@@ -5,7 +5,13 @@ import type { Command } from "./command.ts";
 
 export const MAX_ERROR_OUTPUT = 4_000;
 
-export const verbOf = (input: Command): string => input.args.slice(0, 2).join(" ") || input.bin;
+// The first two argv words, for an error label. Not a command string: the
+// seam never joins argv into something a shell could run.
+export const verbOf = (input: Command): string => {
+  const [first, second] = input.args;
+  if (first === undefined || first === "") return input.bin;
+  return second === undefined ? first : `${first} ${second}`;
+};
 
 /** Token-shaped JSON values become `[redacted]` before they reach an error or
  * a log line. The exact value stays in `cause`. */
