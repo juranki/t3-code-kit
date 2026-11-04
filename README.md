@@ -165,7 +165,7 @@ commit. The email is your real one, because that is what GitHub matches on.
 - `up` re-asserts the identity every time, so a `git config` you set by hand
   inside the sandbox is reverted. It prints the identity it applied.
 
-See [`docs/adr/0002-git-identity-from-host.md`](docs/adr/0002-git-identity-from-host.md).
+See [`docs/adr/0005-git-identity-from-host.md`](docs/adr/0005-git-identity-from-host.md).
 
 ## Skills
 

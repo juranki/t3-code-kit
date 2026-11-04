@@ -1,7 +1,8 @@
 # The v2 dev loop
 
 How to install, check, test and smoke the v2 workspace on a host. The rationale
-is in [ADR 0002](../adr/0002-v2-workspace-layout-and-distribution.md); the
+is in
+[the v2 workspace ADR](../adr/0002-v2-workspace-layout-and-distribution.md); the
 commands are here.
 
 Everything below was run on the Windows host on 2026-11-01 against `d8ab695`
@@ -25,8 +26,9 @@ On Windows the Vite+ global install **is** the Node install: `node`, `npm`, `vp`
 and `pnpm` all resolve into `%LOCALAPPDATA%\vite-plus\bin`. There is no second
 Node to keep in step, and `vp` is not optional — it is what provides Node.
 
-`pnpm` is on that `PATH` too (12.16.1) and the workspace never uses it. ADR 0002
-chose npm workspaces; `pnpm install` would write a second lockfile and a second
+`pnpm` is on that `PATH` too (12.16.1) and the workspace never uses it.
+[The v2 workspace ADR](../adr/0002-v2-workspace-layout-and-distribution.md) chose
+npm workspaces; `pnpm install` would write a second lockfile and a second
 `node_modules` shape. Leave it alone.
 
 `sbx` has no `--version` flag (`error: unknown flag: --version`, exit 1). Use

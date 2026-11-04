@@ -1,5 +1,7 @@
-// Repo-level invariants for the v2 workspace (ADR 0002). Each one is a decision
-// a later change would erode silently, so it is asserted rather than described.
+// Repo-level invariants for the v2 workspace
+// (docs/adr/0002-v2-workspace-layout-and-distribution.md). Each one is a
+// decision a later change would erode silently, so it is asserted rather than
+// described.
 // This file also proves the toolchain the ADR claims: a root-level program
 // resolving a workspace package through its subpath export, under `it.effect`.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
