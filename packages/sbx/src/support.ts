@@ -50,6 +50,4 @@ export const isNotLoggedIn = (stderr: string): boolean =>
   /not logged in|sign in|unauthorized|authentication/iu.test(stderr);
 
 export const isNotFound = (cause: unknown): boolean =>
-  PlatformError.isPlatformError(cause) &&
-  // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
-  cause.reason._tag === "NotFound";
+  PlatformError.isPlatformError(cause) && cause.reason._tag === "NotFound";

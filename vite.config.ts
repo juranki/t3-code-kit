@@ -57,6 +57,10 @@ export default defineConfig({
       ],
       "typescript/no-extraneous-class": "error",
       "oxc/no-accumulating-spread": "error",
+      // `_tag` is Effect's discriminant, not a private field. Allowing it here
+      // is the rule being fixed, not the call site muted: CODING_STANDARDS.md
+      // forbids `eslint-disable`, so the exemption belongs in the rule.
+      "eslint/no-underscore-dangle": ["warn", { allow: ["_tag"] }],
 
       // The project's own conventions. `lint/README.md` maps each rule to the
       // sentence in AGENTS.md or docs/design/sbx-seam.md that it enforces.

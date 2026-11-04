@@ -85,7 +85,6 @@ describe("ProcessRunner", () => {
       );
       yield* advanceUntilDone(fiber, Duration.millis(10));
       const error = yield* Fiber.join(fiber);
-      // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
       expect(error._tag).toBe("CommandTimeoutError");
     }),
   );
@@ -126,7 +125,6 @@ describe("ProcessRunner", () => {
       const error = yield* runWith(spawner, (runner) =>
         Effect.flip(runner.run({ bin: "missing", args: [] })),
       );
-      // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
       expect(error._tag).toBe("CommandNotFoundError");
     }),
   );
