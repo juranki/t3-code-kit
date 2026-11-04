@@ -10,7 +10,13 @@
 // file; the capability matrix on #30 is derived from it, and no cell is filled
 // in without a captured line behind it.
 //
-// ── SAFETY ──────────────────────────────────────────────────────────────────
+// --- where things are ------------------------------------------------------
+//   helpers   constants, report plumbing, process plumbing (`sbx`, `destroy`)
+//   probes    in-sandbox probes, host-side inventory, how sbx resolves, help
+//   entry     `main` (the phases), derived output, `await main()` at the end
+//   sections  every one is marked `// --- name ---`, as in scripts/smoke.ts
+//
+// --- SAFETY ----------------------------------------------------------------
 // This script is destructive, and it is destructive only to itself.
 //
 //   * It creates its own scratch sandbox, `t3ck-probe`, and refuses to start if
@@ -27,14 +33,14 @@
 //   * It publishes a host port (3799 by default; PROBE_PORT overrides) and
 //     removes the sandbox when it is done.
 //
-// ── COST ────────────────────────────────────────────────────────────────────
+// --- COST ------------------------------------------------------------------
 // The first `create` builds the kit image, and that is the slow part: roughly
 // 5–20 minutes on a cold cache. Every later `create` in this run reuses the
 // cached image, so the whole probe is one build and three cheap recreates.
 // Expect ~10–25 minutes cold, ~3–6 minutes warm. Every phase prints how long it
 // took, so the log says which it was.
 //
-// ── WHY THIS SHAPE ──────────────────────────────────────────────────────────
+// --- WHY THIS SHAPE --------------------------------------------------------
 // The argv mirrors what the v2 CLI asks `sbx` (create/run/stop/rm/exec), so the
 // probe asks the same questions the CLI asks. The one deliberate difference is
 // the sandbox name, which is fixed rather than taken from T3CK_NAME: a probe
@@ -46,7 +52,7 @@ import * as os from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 
-// ── constants ───────────────────────────────────────────────────────────────
+// --- constants -------------------------------------------------------------
 
 /** The only sandbox this script may create, stop, exec in, or remove. */
 const SCRATCH = "t3ck-probe";
@@ -84,7 +90,7 @@ const MARKER = ".probe-marker";
 /** A fresh token per run, so a stale marker from an earlier run cannot pass. */
 const RUN_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// ── report plumbing ─────────────────────────────────────────────────────────
+// --- report plumbing -------------------------------------------------------
 
 const report: string[] = [];
 
@@ -102,7 +108,7 @@ const note = (line: string): void => {
   emit(`# ${line}`);
 };
 
-// ── process plumbing ────────────────────────────────────────────────────────
+// --- process plumbing ------------------------------------------------------
 
 interface RunResult {
   readonly argv: ReadonlyArray<string>;
@@ -198,7 +204,7 @@ const destroy = (reason: string): RunResult => {
 const listed = (listing: string, name: string): boolean =>
   listing.split(/\r?\n/).some((line) => line.split(/\s+/).some((token) => token === name));
 
-// ── in-sandbox probes ───────────────────────────────────────────────────────
+// --- in-sandbox probes -----------------------------------------------------
 
 type Marker = "present" | "missing" | "nodir" | "unknown";
 
@@ -335,7 +341,7 @@ const createAndStart = (label: string): boolean => {
   return waitForExec();
 };
 
-// ── host-side inventory ─────────────────────────────────────────────────────
+// --- host-side inventory ---------------------------------------------------
 
 /**
  * Read-only listing of the host directories sbx might keep sandbox state in.
@@ -394,7 +400,7 @@ const hostInventory = (): void => {
   }
 };
 
-// ── how sbx resolves on this host ───────────────────────────────────────────
+// --- how sbx resolves on this host -----------------------------------------
 
 interface SbxIdentity {
   readonly version: string;
@@ -477,7 +483,7 @@ const probeIdentity = (): SbxIdentity => {
   return { version: versionText, kind: classified.kind, source: classified.source };
 };
 
-// ── help texts ──────────────────────────────────────────────────────────────
+// --- help texts ------------------------------------------------------------
 
 interface HelpFacts {
   readonly purgeFlags: ReadonlyArray<string>;
@@ -517,7 +523,7 @@ const probeHelp = (): HelpFacts => {
   return { purgeFlags, localVolumeLs, cloudVolumeLs };
 };
 
-// ── the phases ──────────────────────────────────────────────────────────────
+// --- the phases ------------------------------------------------------------
 
 const main = async (): Promise<void> => {
   banner("probe: local sbx capabilities and volume lifecycle (#30)");
@@ -576,7 +582,7 @@ const main = async (): Promise<void> => {
 
   const help = probeHelp();
 
-  // ── phase 1: build once ───────────────────────────────────────────────────
+  // ----------------------------------------------------- phase 1: build once
   const created = createAndStart("the one image build");
   const snapshots: Snapshot[] = [];
   if (!created) {
@@ -605,7 +611,7 @@ const main = async (): Promise<void> => {
   writeMarkers();
   snapshots.push(readState("created (baseline)"));
 
-  // ── phase 2: stop + start ─────────────────────────────────────────────────
+  // --------------------------------------------------- phase 2: stop + start
   banner("scenario 1: stop, then start");
   sbx(["stop", SCRATCH], 300_000);
   banner("exec against a stopped sandbox (the SandboxNotFoundError branch)");
@@ -614,7 +620,7 @@ const main = async (): Promise<void> => {
   if (restarted.status === 0) waitForExec();
   snapshots.push(readState("after stop + start"));
 
-  // ── phase 3: rm --force, inventory, recreate ──────────────────────────────
+  // -------------------------------- phase 3: rm --force, inventory, recreate
   banner("scenario 2: rm --force, then create the same name again");
   note("this is `rebuild`'s sequence in the v2 CLI");
   destroy("scenario 2");
@@ -635,7 +641,7 @@ const main = async (): Promise<void> => {
     });
   }
 
-  // ── phase 4: nuke ─────────────────────────────────────────────────────────
+  // ----------------------------------------------------------- phase 4: nuke
   banner("scenario 4: the retired launcher's nuke (rm --force, then the volume loop)");
   note("the pre-ADR-0003 sequence: rm --force, list volumes, remove each match by name");
   destroy("nuke, step 1");
@@ -671,7 +677,7 @@ const main = async (): Promise<void> => {
     });
   }
 
-  // ── phase 5: non-TTY exec (#24) ───────────────────────────────────────────
+  // --------------------------------------------- phase 5: non-TTY exec (#24)
   banner("non-TTY `sbx exec` (#24)");
   execInSandbox(
     "if [ -t 0 ]; then echo stdin-tty; else echo stdin-notty; fi; " +
@@ -695,7 +701,7 @@ const main = async (): Promise<void> => {
     note("pi round-trip skipped (PROBE_PI=0)");
   }
 
-  // ── teardown ──────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------- teardown
   banner("teardown");
   destroy("end of probe");
   sbx(["ls"], 120_000);
@@ -706,7 +712,7 @@ const main = async (): Promise<void> => {
   writeReport();
 };
 
-// ── derived output ──────────────────────────────────────────────────────────
+// --- derived output --------------------------------------------------------
 
 /**
  * The matrix, derived only from markers this run wrote and read.
