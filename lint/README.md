@@ -4,7 +4,8 @@ The conventions in [`AGENTS.md`](../AGENTS.md) and
 [`docs/design/sbx-seam.md`](../docs/design/sbx-seam.md) are enforced here. Each
 rule lives in [`rules.js`](./rules.js), is registered in `vite.config.ts` under
 `lint.jsPlugins`, and is enabled at `error`, so a violation fails `npm run
-check`.
+check`. `npm run lint` runs `vp lint --deny-warnings`, so a warning fails it
+too: see [`CODING_STANDARDS.md`](../CODING_STANDARDS.md).
 
 The Effect diagnostics are configured in the same `lint` block: `lint.rules`
 pins the severities the TypeScript plugin block used to declare, and

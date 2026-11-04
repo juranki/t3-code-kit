@@ -48,8 +48,9 @@ import { createInterface } from "node:readline/promises";
 
 // ── constants ───────────────────────────────────────────────────────────────
 
-/** The only sandbox this script may create, stop, exec in, or remove. */
-const SCRATCH = "t3ck-probe";
+/** The only sandbox this script may create, stop, exec in, or remove. Typed as
+ * `string` so `destroy`'s guard stays live if someone edits the literal. */
+const SCRATCH: string = "t3ck-probe";
 
 /** The kit descriptor directory, as the CLI passes it to `create`. */
 const KIT = resolve(import.meta.dirname, "..", "kit");
@@ -126,6 +127,11 @@ const clip = (text: string): string => {
 const quote = (arg: string): string =>
   /[\s"]/.test(arg) ? `"${arg.replaceAll('"', '\\"')}"` : arg;
 
+/** `spawnSync` types a failed spawn as a plain `Error`, but Node attaches the
+ * errno `code` at runtime. Read it defensively rather than asserting it. */
+const errnoCode = (error: Error | undefined): string | undefined =>
+  error !== undefined && "code" in error && typeof error.code === "string" ? error.code : undefined;
+
 const spawn = (argv: ReadonlyArray<string>, timeoutMs: number): RunResult => {
   const started = Date.now();
   const result = spawnSync(argv[0]!, argv.slice(1), {
@@ -135,7 +141,7 @@ const spawn = (argv: ReadonlyArray<string>, timeoutMs: number): RunResult => {
     maxBuffer: 32 * 1024 * 1024,
     shell: false,
   });
-  const code = (result.error as NodeJS.ErrnoException | undefined)?.code;
+  const code = errnoCode(result.error);
   return {
     argv,
     status: result.status,
@@ -145,7 +151,7 @@ const spawn = (argv: ReadonlyArray<string>, timeoutMs: number): RunResult => {
     timedOut: code === "ETIMEDOUT",
     missing: code === "ENOENT",
     durationMs: Date.now() - started,
-    spawnError: result.error === undefined ? null : String(result.error.message),
+    spawnError: result.error === undefined ? null : result.error.message,
   };
 };
 
@@ -201,6 +207,11 @@ const listed = (listing: string, name: string): boolean =>
 // ── in-sandbox probes ───────────────────────────────────────────────────────
 
 type Marker = "present" | "missing" | "nodir" | "unknown";
+
+/** The three markers `writeMarkers` can print. `unknown` is ours, not the
+ * sandbox's, so it is deliberately not accepted from the output. */
+const isMarker = (value: string): value is Marker =>
+  value === "present" || value === "missing" || value === "nodir";
 
 interface Snapshot {
   readonly phase: string;
@@ -281,8 +292,8 @@ const readState = (phase: string): Snapshot => {
       continue;
     }
     const marker = /^MARKER (\S+) (present|missing|nodir)(?:\s+(.*))?$/.exec(line);
-    if (marker?.[1] !== undefined && marker[2] !== undefined) {
-      markers[marker[1]] = marker[2] as Marker;
+    if (marker?.[1] !== undefined && marker[2] !== undefined && isMarker(marker[2])) {
+      markers[marker[1]] = marker[2];
       continue;
     }
     const stamp = /^INIT (\S+) (.*)$/.exec(line);

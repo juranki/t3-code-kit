@@ -8,24 +8,32 @@ import { join } from "node:path";
 import { describe, expect, it } from "@effect/vitest";
 import * as HostProcess from "@t3ck/host/HostProcess";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
-interface Manifest {
-  readonly name?: string;
-  readonly private?: boolean;
-  readonly exports?: Record<string, { readonly import?: string }>;
-  readonly dependencies?: Record<string, string>;
-  readonly devDependencies?: Record<string, string>;
-  readonly engines?: Record<string, string>;
-  readonly overrides?: Record<string, string>;
-  readonly main?: string;
-  readonly types?: string;
-  readonly files?: ReadonlyArray<string>;
-  readonly bin?: unknown;
-}
+// The manifest fields these invariants read. `Schema.Struct` ignores the rest,
+// so a package.json may carry anything else without breaking the layout suite.
+const Manifest = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  private: Schema.optional(Schema.Boolean),
+  exports: Schema.optional(
+    Schema.Record(Schema.String, Schema.Struct({ import: Schema.optional(Schema.String) })),
+  ),
+  dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  engines: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  overrides: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  main: Schema.optional(Schema.String),
+  types: Schema.optional(Schema.String),
+  files: Schema.optional(Schema.Array(Schema.String)),
+  bin: Schema.optional(Schema.Unknown),
+});
+
+type Manifest = typeof Manifest.Type;
 
 const root = join(import.meta.dirname, "..");
 
-const readJson = <A>(path: string): A => JSON.parse(readFileSync(join(root, path), "utf8")) as A;
+const readManifest = (path: string): Manifest =>
+  Schema.decodeUnknownSync(Manifest)(JSON.parse(readFileSync(join(root, path), "utf8")));
 
 const workspaceDirs = [
   ...readdirSync(join(root, "packages")).map((name) => `packages/${name}`),
@@ -34,10 +42,10 @@ const workspaceDirs = [
 
 const workspace = workspaceDirs.map((dir) => ({
   dir,
-  manifest: readJson<Manifest>(`${dir}/package.json`),
+  manifest: readManifest(`${dir}/package.json`),
 }));
 
-const rootManifest = readJson<Manifest>("package.json");
+const rootManifest = readManifest("package.json");
 
 const descriptorText = () => readFileSync(join(root, "kit/t3-code.yaml"), "utf8");
 const dockerfileText = () => readFileSync(join(root, "kit/t3-code.dockerfile"), "utf8");
@@ -48,7 +56,7 @@ const dockerfileArg = (key: string) => new RegExp(`ARG ${key}=(\\S+)`).exec(dock
 const internalDependencies = (manifest: Manifest): ReadonlyArray<string> =>
   Object.keys({ ...manifest.dependencies, ...manifest.devDependencies })
     .filter((name) => name.startsWith("@t3ck/"))
-    .toSorted();
+    .toSorted((a, b) => a.localeCompare(b));
 
 // The import graph the layout exists to make possible: libraries depend on
 // libraries, the program depends on all of them, nothing depends on the program.
@@ -61,7 +69,8 @@ const EXPECTED_EDGES: Record<string, ReadonlyArray<string>> = {
 
 describe("v2 workspace layout", () => {
   it("declares exactly the four v2 packages", () => {
-    expect(workspace.map((entry) => entry.manifest.name).toSorted()).toEqual([
+    const names = workspace.map((entry) => entry.manifest.name ?? `<unnamed: ${entry.dir}>`);
+    expect(names.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "@t3ck/cli",
       "@t3ck/host",
       "@t3ck/kit",

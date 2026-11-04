@@ -178,7 +178,7 @@ const runChecked = (
 
 const missingSandbox = (input: ExecResult, name: string, verb: string) =>
   input.exitCode !== 0 && isMissingSandbox(input.stderr)
-    ? Effect.fail(new SandboxMissingError({ name, verb }))
+    ? Effect.fail(new SandboxMissingError({ sandboxName: name, verb }))
     : Effect.succeed(input);
 
 const make = Effect.gen(function* () {
@@ -222,7 +222,7 @@ const make = Effect.gen(function* () {
     //   error: sandbox 't3ck-probe' already exists; connect to the existing sandbox
     //     try: sbx run --name t3ck-probe
     if (result.exitCode !== 0 && /already exists/iu.test(result.stderr)) {
-      return yield* new SandboxExistsError({ name: input.name });
+      return yield* new SandboxExistsError({ sandboxName: input.name });
     }
     return result;
   });

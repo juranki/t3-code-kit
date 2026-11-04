@@ -22,7 +22,7 @@
     "smoke": "node scripts/smoke.ts",
     "test": "vp test run",
     "typecheck": "tsc --noEmit",
-    "lint": "vp lint",
+    "lint": "vp lint --deny-warnings",
     "fmt": "vp fmt",
     "fmt:check": "vp fmt --check",
     "check": "npm run fmt:check && npm run lint && npm run typecheck && npm test",

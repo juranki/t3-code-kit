@@ -8,10 +8,13 @@ import * as Schema from "effect/Schema";
 
 import type { SbxError } from "@t3ck/sbx/Sbx";
 
-export class CliError extends Schema.TaggedError<CliError>()("CliError", {
-  reason: Schema.String,
-  exitCode: Schema.Int,
-}) {
+export class CliError extends Schema.TaggedError<CliError, { readonly brand: unique symbol }>()(
+  "CliError",
+  {
+    reason: Schema.String,
+    exitCode: Schema.Int,
+  },
+) {
   override get message(): string {
     return this.reason;
   }
