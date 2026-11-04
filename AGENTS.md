@@ -23,6 +23,21 @@ PowerShell twins are gone (#42). The CLI is `apps/cli`; the typed `sbx` seam is
 `packages/kit`. See `docs/operations/v2-dev-loop.md` and
 `docs/adr/0002-v2-workspace-layout-and-distribution.md`.
 
+### Imports and single tests
+
+`@t3ck/<package>/<Module>` is `packages/<package>/src/<Module>.ts` (`apps/cli`
+for `@t3ck/cli`), declared in that package's `exports`. `npx vp test run <path>`
+runs one test file in about a second; `npm run check` is the whole gate (about
+50 s) and the only run that counts as green.
+
+### Where a change lands
+
+| Change        | Files                                                                                                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add a verb    | `apps/cli/src/usage.ts` (verb table), `apps/cli/src/main.ts` (dispatch), `apps/cli/src/verbs.ts` + `verbs.test.ts`, `package.json`, `scripts/characterization/golden/` |
+| Change egress | `kit/t3-code.yaml` (network policy), `policy/allow.txt` (runtime), `policy/install.txt` (build), `packages/kit/src/Policy.ts`, `scripts/smoke.ts` (mirror check)       |
+| Bump a pin    | `kit/t3-code.yaml` (descriptor default), `kit/t3-code.dockerfile` (`ARG`), `scripts/layout.test.ts` (asserts they match)                                               |
+
 ### Durability
 
 `rebuild` recreates a sandbox from a freshly built image and keeps its durable
@@ -38,6 +53,11 @@ This project vendors external repositories under `repos/`.
 - Prefer examples and patterns from the vendored source code over generated guesses or web search results.
 - Do not edit files under `repos/` unless explicitly asked.
 - Do not import from `repos/` - application code should continue importing from normal package dependencies.
+
+A root `.ignore` excludes `repos/` from `rg` and `fd`, and `.gitattributes`
+marks it `linguist-vendored`, so a shell search returns project code only. That
+is about accidental noise, not about discouraging reference reading: open a
+vendored file deliberately whenever that is what you need.
 
 When writing Effect code, inspect `repos/effect/` for examples of idiomatic usage, tests, module structure, and API design. Treat it as the source of truth for Effect patterns. Read `repos/effect/LLMS.md` before writing any Effect code, then use the project-local notes in `agent-patterns/`.
 

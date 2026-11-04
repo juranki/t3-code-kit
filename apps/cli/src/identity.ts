@@ -1,8 +1,9 @@
 // The sandbox's git identity, derived from the host's own config.
 //
 // The name is decorated exactly once and the email is passed through untouched
-// (ADR 0002: the name is honesty, the email is what GitHub links on). The
-// decoration is idempotent because `up` re-asserts the identity on every run
+// (docs/adr/0005-git-identity-from-host.md: the name is honesty, the email is
+// what GitHub links on). The decoration is idempotent because `up` re-asserts
+// the identity on every run
 // and the value it reads is the host's *effective* config: a host whose global
 // `user.name` was already set to the decorated value, or a sandbox used as a
 // host, would otherwise collect one more prefix per run (#48).
@@ -18,7 +19,8 @@ export const resolveAgentNamePrefix = (raw: string | undefined): string =>
   raw ?? DEFAULT_AGENT_NAME_PREFIX;
 
 /** What `up` writes when the host has no git config at all. It names no person,
- * which is the point, and links to no account, which ADR 0002 accepts. */
+ * which is the point, and links to no account, which
+ * docs/adr/0005-git-identity-from-host.md accepts. */
 export const FALLBACK_NAME = "Agent";
 export const FALLBACK_EMAIL = "agent@t3-code-kit";
 

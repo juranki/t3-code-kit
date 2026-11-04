@@ -133,8 +133,9 @@ which only exists in `effect@4.1.x`; the root `overrides` pin `effect` to
 The root `overrides` now pin `"@effect/platform-node-shared": "4.0.5"`, and the
 live adapter runs end to end against a fake `sbx` on `PATH`. This was a durable
 fix, not a prototype detail: the production seam uses the same
-`NodeServices.layer`. The pin is recorded in ADR 0002 and asserted by
-`scripts/layout.test.ts`.
+`NodeServices.layer`. The pin is recorded in
+[the v2 workspace ADR](../adr/0002-v2-workspace-layout-and-distribution.md) and
+asserted by `scripts/layout.test.ts`.
 
 ## Open questions, and how they were answered
 

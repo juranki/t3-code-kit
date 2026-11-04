@@ -6,3 +6,7 @@
 # obvious error. The Dockerfile also strips CR defensively, but do not rely on
 # that alone.
 * text=auto eol=lf
+
+# The vendored trees under repos/ are reference material, not this project's
+# code, so GitHub's language statistics must not count them.
+repos/** linguist-vendored
