@@ -165,7 +165,6 @@ describe("Sbx over a fake process runner", () => {
       (sbx) =>
         Effect.gen(function* () {
           const error = yield* Effect.flip(sbx.exec({ name: "demo", argv: ["true"] }));
-          // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
           expect(error._tag).toBe("SbxNotFoundError");
         }),
       runner,
@@ -180,7 +179,6 @@ describe("Sbx over a fake process runner", () => {
       (sbx) =>
         Effect.gen(function* () {
           const error = yield* Effect.flip(sbx.exec({ name: "demo", argv: ["true"] }));
-          // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
           expect(error._tag).toBe("SandboxMissingError");
         }),
       runner,
@@ -226,7 +224,6 @@ describe("Sbx over a fake process runner", () => {
       (sbx) =>
         Effect.gen(function* () {
           const error = yield* Effect.flip(sbx.create({ name: "demo", kitDir: "/kit" }));
-          // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
           expect(error._tag).toBe("SandboxExistsError");
         }),
       runner,

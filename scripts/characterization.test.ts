@@ -8,10 +8,11 @@
 import { describe, expect, it } from "@effect/vitest";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import * as Schema from "effect/Schema";
 
 import {
   CASES,
-  type Golden,
+  Golden,
   makeFixtures,
   runCase,
   sandboxTable,
@@ -197,6 +198,7 @@ describe.skipIf(process.platform === "win32")("CLI destructive verbs", () => {
 });
 
 function readGolden(path: string): Golden {
-  if (existsSync(path)) return JSON.parse(readFileSync(path, "utf8")) as Golden;
+  if (existsSync(path))
+    return Schema.decodeUnknownSync(Golden)(JSON.parse(readFileSync(path, "utf8")));
   throw new Error(`missing golden ${path}; run: node scripts/characterization/update.ts`);
 }

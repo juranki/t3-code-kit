@@ -3,8 +3,9 @@ import { NodeServices } from "@effect/platform-node";
 import { Git, type GitIdentity } from "@t3ck/host/Git";
 import * as HostProcess from "@t3ck/host/HostProcess";
 import { ProcessRunner } from "@t3ck/host/ProcessRunner";
-import { make as makeFakeSbx, type FakeSbx } from "@t3ck/sbx/fake";
+import { command as sbxCommand } from "@t3ck/sbx/command";
 import { SbxCommandError } from "@t3ck/sbx/errors";
+import { make as makeFakeSbx, type FakeSbx } from "@t3ck/sbx/fake";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Terminal from "effect/Terminal";
@@ -151,7 +152,7 @@ describe("up", () => {
     const fake = makeFakeSbx({
       rules: [
         ...baseRules("charprobe").filter(
-          (rule) => rule.match({ args: ["ports"] } as never) === false,
+          (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["ports"] })),
         ),
         {
           match: (command) => command.args[0] === "ports",
@@ -222,7 +223,9 @@ describe("up", () => {
   it.effect("warns twice when the identity exec fails, but still prints the URL", () => {
     const fake = makeFakeSbx({
       rules: [
-        ...baseRules("other").filter((rule) => rule.match({ args: ["exec"] } as never) === false),
+        ...baseRules("other").filter(
+          (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["exec"] })),
+        ),
         {
           match: (command) => command.args[0] === "exec" && command.args.includes("t3"),
           response: { stdout: `${url}\n` },
@@ -311,7 +314,9 @@ describe("up", () => {
   it.effect("fails when create fails", () => {
     const fake = makeFakeSbx({
       rules: [
-        ...baseRules("other").filter((rule) => rule.match({ args: ["create"] } as never) === false),
+        ...baseRules("other").filter(
+          (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["create"] })),
+        ),
         {
           match: (command) => command.args[0] === "create",
           response: { exitCode: 1, stderr: "build failed\n" },
@@ -502,7 +507,7 @@ describe("down and refresh", () => {
       rules: [
         { match: (command) => command.args[0] === "stop", response: { exitCode: 0 } },
         ...baseRules("charprobe").filter(
-          (rule) => rule.match({ args: ["ports"] } as never) === false,
+          (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["ports"] })),
         ),
         {
           match: (command) => command.args[0] === "ports",
@@ -717,7 +722,9 @@ describe("nuke", () => {
   it.effect("fails with the remedy when rm says the instance is missing", () => {
     const fake = makeFakeSbx({
       rules: [
-        ...nukeRules("charprobe").filter((rule) => rule.match({ args: ["rm"] } as never) === false),
+        ...nukeRules("charprobe").filter(
+          (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["rm"] })),
+        ),
         {
           match: (command) => command.args[0] === "rm",
           response: { exitCode: 1, stderr: "error: sandbox 'charprobe' not found\n" },

@@ -34,12 +34,12 @@ export interface Result {
 }
 
 /** The binary could not be started: missing, or not executable. */
-export class CommandNotFoundError extends Schema.TaggedError<CommandNotFoundError>()(
-  "CommandNotFoundError",
-  {
-    bin: Schema.String,
-  },
-) {
+export class CommandNotFoundError extends Schema.TaggedError<
+  CommandNotFoundError,
+  { readonly brand: unique symbol }
+>()("CommandNotFoundError", {
+  bin: Schema.String,
+}) {
   override get message(): string {
     return `${this.bin} was not found.`;
   }
@@ -47,26 +47,26 @@ export class CommandNotFoundError extends Schema.TaggedError<CommandNotFoundErro
 
 /** The bounded command did not finish in time. Distinct from a non-zero exit:
  * the remedy is a larger bound, not reading stderr. */
-export class CommandTimeoutError extends Schema.TaggedError<CommandTimeoutError>()(
-  "CommandTimeoutError",
-  {
-    bin: Schema.String,
-    timeoutMs: Schema.Int,
-  },
-) {
+export class CommandTimeoutError extends Schema.TaggedError<
+  CommandTimeoutError,
+  { readonly brand: unique symbol }
+>()("CommandTimeoutError", {
+  bin: Schema.String,
+  timeoutMs: Schema.Int,
+}) {
   override get message(): string {
     return `${this.bin} timed out after ${this.timeoutMs}ms.`;
   }
 }
 
 /** The process was spawned but its streams or exit code could not be read. */
-export class CommandFailedError extends Schema.TaggedError<CommandFailedError>()(
-  "CommandFailedError",
-  {
-    bin: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {
+export class CommandFailedError extends Schema.TaggedError<
+  CommandFailedError,
+  { readonly brand: unique symbol }
+>()("CommandFailedError", {
+  bin: Schema.String,
+  cause: Schema.Defect(),
+}) {
   override get message(): string {
     return `${this.bin} could not run.`;
   }
@@ -108,9 +108,7 @@ const options = (input: Command): ChildProcess.CommandOptions => ({
 });
 
 const isNotFound = (cause: unknown): boolean =>
-  PlatformError.isPlatformError(cause) &&
-  // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
-  cause.reason._tag === "NotFound";
+  PlatformError.isPlatformError(cause) && cause.reason._tag === "NotFound";
 
 const runInScope = Effect.fn("ProcessRunner.runInScope")(function* (
   spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],

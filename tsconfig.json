@@ -19,79 +19,17 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    // The editor's Effect language service. Diagnostics are off here because
+    // Oxlint is the single reporter: the same rules run in `npm run lint` via
+    // @effect/tsgo, and a second reporter would duplicate every finding. The
+    // severities and per-file exemptions live in `vite.config.ts` (lint.rules
+    // and lint.overrides), which is the one place the gate reads.
     "plugins": [
       {
         "name": "@effect/language-service",
+        "diagnostics": false,
         "namespaceImportPackages": ["@effect/platform-node", "effect"],
-        "effectFn": ["span", "inferred-span", "suggested-span"],
-        "diagnosticSeverity": {
-          "missingEffectServiceDependency": "error",
-          "leakingRequirements": "error",
-          "globalErrorInEffectCatch": "error",
-          "globalErrorInEffectFailure": "error",
-          "unknownInEffectCatch": "error",
-          "nodeBuiltinImport": "error",
-          "globalTimers": "error",
-          "globalFetch": "error",
-          "globalDate": "error",
-          "globalConsole": "error",
-          "cryptoRandomUUID": "error",
-          "preferSchemaOverJson": "error",
-          "effectFnOpportunity": "error",
-          "anyUnknownInErrorContext": "error",
-          "unsafeEffectTypeAssertion": "error",
-          "instanceOfSchema": "error",
-          "deterministicKeys": "error",
-          "unnecessaryEffectGen": "error",
-          "runEffectInsideEffect": "error",
-          "tryCatchInEffectGen": "error",
-          "schemaStructWithTag": "error",
-          "preferTypedSchemaDecoder": "error",
-          "catchUnfailableEffect": "error",
-          "redundantMapError": "error",
-          "unnecessaryFailYieldableError": "error",
-          // `@effect/vitest` is the only test API there is, and every test
-          // touches it; the warning would fire on every `it` in the repo.
-          "unstableApiUsage": "off",
-          "returnEffectInGen": "off",
-          "strictEffectProvide": "off",
-          "strictBooleanExpressions": "off",
-          "lazyEffect": "off",
-          "schemaNumber": "off"
-        },
-        "overrides": [
-          {
-            // HostProcess is the one module allowed to read Node globals: it is
-            // where `process` and `node:os` are turned into references.
-            "include": ["packages/host/src/HostProcess.ts"],
-            "options": {
-              "diagnosticSeverity": { "nodeBuiltinImport": "off" }
-            }
-          },
-          {
-            // The sbx probe is a host tool, not part of the workspace: it shells
-            // out to `sbx` and reads the host filesystem, which is the whole
-            // point of it. Wrapping that in Effect services would be a rewrite
-            // of the thing under test.
-            "include": ["scripts/probe-sbx.ts"],
-            "options": {
-              "diagnosticSeverity": {
-                "nodeBuiltinImport": "off",
-                "globalDate": "off"
-              }
-            }
-          },
-          {
-            "include": ["**/*.test.ts", "scripts/characterization/**/*.ts"],
-            "options": {
-              "diagnosticSeverity": {
-                "preferSchemaOverJson": "off",
-                "effectFnOpportunity": "off",
-                "nodeBuiltinImport": "off"
-              }
-            }
-          }
-        ]
+        "effectFn": ["span", "inferred-span", "suggested-span"]
       }
     ]
   },

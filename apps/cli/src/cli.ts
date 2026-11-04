@@ -8,10 +8,13 @@ import * as Schema from "effect/Schema";
 
 import type { SbxError } from "@t3ck/sbx/Sbx";
 
-export class CliError extends Schema.TaggedError<CliError>()("CliError", {
-  reason: Schema.String,
-  exitCode: Schema.Int,
-}) {
+export class CliError extends Schema.TaggedError<CliError, { readonly brand: unique symbol }>()(
+  "CliError",
+  {
+    reason: Schema.String,
+    exitCode: Schema.Int,
+  },
+) {
   override get message(): string {
     return this.reason;
   }
@@ -31,7 +34,6 @@ export const warn = (message: string): Effect.Effect<void> => Console.error(`⚠
  * sentence. */
 export const reportSbxError = (error: SbxError): Effect.Effect<void> =>
   Effect.gen(function* () {
-    // eslint-disable-next-line no-underscore-dangle -- _tag is Effect's discriminant
     if (error._tag === "SbxCommandError") {
       if (error.stderr.length > 0) yield* Console.error(error.stderr.trimEnd());
       return;

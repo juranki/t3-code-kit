@@ -14,6 +14,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
+import * as Schema from "effect/Schema";
+
 export interface Rule {
   /** Argv prefix; `*` matches any single word. */
   match?: string[];
@@ -45,11 +47,17 @@ export interface Case {
   server?: boolean;
 }
 
-export interface Golden {
-  exit: number;
-  calls: string[][];
-  warnings: string[];
-}
+/** A golden file's shape. Decoded, never asserted: the file is on disk. */
+export const Golden = Schema.Struct({
+  exit: Schema.Number,
+  calls: Schema.Array(Schema.Array(Schema.String)),
+  warnings: Schema.Array(Schema.String),
+});
+
+export type Golden = typeof Golden.Type;
+
+/** One line of the fake `sbx`'s argv log. */
+const CallLine = Schema.Struct({ argv: Schema.Array(Schema.String) });
 
 export interface RunResult {
   exit: number;
@@ -187,7 +195,9 @@ export async function runCase(
     .split(/\r?\n/)
     .filter(Boolean)
     .map((line) =>
-      (JSON.parse(line) as { argv: string[] }).argv.map((word) => normalizeText(word, context)),
+      Schema.decodeUnknownSync(CallLine)(JSON.parse(line)).argv.map((word) =>
+        normalizeText(word, context),
+      ),
     );
 
   const stderr = normalizeText(raw.stderr, context);

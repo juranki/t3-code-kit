@@ -68,7 +68,7 @@ const startSandbox = (name: string): Effect.Effect<void, CliError, Sbx> =>
     const sbx = yield* Sbx;
     const result = yield* withContext(sbx.run({ name }), `could not start sandbox '${name}'`);
     yield* printResult(result);
-    if (result.exitCode !== 0) return yield* fail(`could not start sandbox '${name}'`);
+    return yield* result.exitCode === 0 ? Effect.void : fail(`could not start sandbox '${name}'`);
   });
 
 const createSandbox = (
@@ -98,7 +98,7 @@ const createSandbox = (
         }),
       );
     yield* printResult(result);
-    if (result.exitCode !== 0) return yield* fail(`could not create sandbox '${name}'`);
+    return yield* result.exitCode === 0 ? Effect.void : fail(`could not create sandbox '${name}'`);
   });
 
 const ensurePort = (name: string, hostPort: number): Effect.Effect<void, never, Sbx> =>

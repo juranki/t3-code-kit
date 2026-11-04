@@ -62,3 +62,17 @@ vendored file deliberately whenever that is what you need.
 When writing Effect code, inspect `repos/effect/` for examples of idiomatic usage, tests, module structure, and API design. Treat it as the source of truth for Effect patterns. Read `repos/effect/LLMS.md` before writing any Effect code, then use the project-local notes in `agent-patterns/`.
 
 `repos/effect` is a git subtree pinned to the `effect@4.0.5` tag. Its update command and the reason it is vendored are in `agent-patterns/README.md`.
+
+### Lint rules
+
+The conventions in this file and `docs/design/sbx-seam.md` are enforced by the
+rules in `lint/`, registered in `vite.config.ts`. See `lint/README.md` for the
+rule list and what each one catches.
+
+### Coding standards
+
+[`CODING_STANDARDS.md`](./CODING_STANDARDS.md) is the coding standard: the gate
+is the standard, and a lint warning is a defect. `npm run lint` must exit 0 with
+zero warnings, so the script runs `vp lint --deny-warnings`. Do not suppress a
+warning or downgrade a rule to get there; fix the code, or stop and report the
+warning you cannot fix.

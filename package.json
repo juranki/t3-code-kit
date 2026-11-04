@@ -22,12 +22,14 @@
     "smoke": "node scripts/smoke.ts",
     "test": "vp test run",
     "typecheck": "tsc --noEmit",
-    "lint": "vp lint",
+    "lint": "vp lint --deny-warnings",
     "fmt": "vp fmt",
     "fmt:check": "vp fmt --check",
-    "check": "npm run fmt:check && npm run lint && npm run typecheck && npm test"
+    "check": "npm run fmt:check && npm run lint && npm run typecheck && npm test",
+    "prepare": "effect-tsgo patch --no-typescript --oxlint"
   },
   "devDependencies": {
+    "@effect/tsgo": "0.67.1",
     "@types/node": "24.12.4",
     "typescript": "npm:@tsc-rs/typescript@0.8.0",
     "vite-plus": "1.4.0"
