@@ -39,6 +39,11 @@ This project vendors external repositories under `repos/`.
 - Do not edit files under `repos/` unless explicitly asked.
 - Do not import from `repos/` - application code should continue importing from normal package dependencies.
 
+A root `.ignore` excludes `repos/` from `rg` and `fd`, and `.gitattributes`
+marks it `linguist-vendored`, so a shell search returns project code only. That
+is about accidental noise, not about discouraging reference reading: open a
+vendored file deliberately whenever that is what you need.
+
 When writing Effect code, inspect `repos/effect/` for examples of idiomatic usage, tests, module structure, and API design. Treat it as the source of truth for Effect patterns. Read `repos/effect/LLMS.md` before writing any Effect code, then use the project-local notes in `agent-patterns/`.
 
 `repos/effect` is a git subtree pinned to the `effect@4.0.5` tag. Its update command and the reason it is vendored are in `agent-patterns/README.md`.

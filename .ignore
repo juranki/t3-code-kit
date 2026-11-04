@@ -1,0 +1,4 @@
+# Vendored reference trees. Read them deliberately; do not search them by
+# accident. Honored by ripgrep and fd, which is why it is .ignore and not a
+# tool-specific ignore file.
+repos/
