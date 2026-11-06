@@ -15,9 +15,24 @@ import { TestConsole } from "effect/testing";
 
 import { run } from "./main.ts";
 
-const table = (name: string): string =>
-  "  SANDBOX           AGENT             STATUS                 PORTS                                                                       WORKSPACE            CREATED\n" +
-  `  ${name.padEnd(18)}kit               ● running (detached)   127.0.0.1:60006->3773/tcp, ::1:60006->3773/tcp                              D:\\src\\t3-code-kit   43s\n`;
+// The shape `sbx ls --json` prints (sbx v0.51.0), trimmed to what the seam
+// reads.
+const listing = (name: string): string =>
+  JSON.stringify([
+    {
+      name,
+      agent: "kit",
+      status: "running",
+      ports: [{ host_ip: "127.0.0.1", host_port: 60006, sandbox_port: 3773, protocol: "tcp4" }],
+      created_at: "2026-11-06T18:17:57Z",
+      detached: true,
+    },
+  ]);
+
+// The seam puts the global `--no-input` before the verb, so a rule matches the
+// verb, not the first word.
+const verb = (command: { readonly args: ReadonlyArray<string> }): string | undefined =>
+  command.args[0] === "--no-input" ? command.args[1] : command.args[0];
 
 const secretPresent = {
   stdout: "SCOPE  TYPE   NAME    SECRET\nglobal api    github  ****\n",
@@ -75,32 +90,32 @@ const localUrl = "http://localhost:40773/pair#token=abc123";
 
 const baseRules = (lsName: string) => [
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "secret",
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "secret",
     response: secretPresent,
   },
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "ls",
-    response: { stdout: table(lsName) },
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "ls",
+    response: { stdout: listing(lsName) },
   },
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "create",
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "create",
     response: { stdout: "created\n" },
   },
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "run",
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "run",
     response: { stdout: "" },
   },
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "ports",
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "ports",
     response: { stdout: "" },
   },
   {
     match: (command: { args: ReadonlyArray<string> }) =>
-      command.args[0] === "exec" && command.args.includes("t3"),
+      verb(command) === "exec" && command.args.includes("t3"),
     response: { stdout: `${url}\n` },
   },
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "exec",
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "exec",
     response: { stdout: "" },
   },
 ];
@@ -120,22 +135,23 @@ describe("up", () => {
       const exit = yield* runCli(["up"], fake);
       expect(exit).toBe(0);
       const calls = argsOf(fake);
-      expect(calls[0]).toEqual(["secret", "ls"]);
-      expect(calls[1]).toEqual(["ls"]);
-      expect(calls[2]?.slice(0, 5)).toEqual([
+      expect(calls[0]).toEqual(["--no-input", "secret", "ls"]);
+      expect(calls[1]).toEqual(["--no-input", "ls", "--json"]);
+      expect(calls[2]?.slice(0, 6)).toEqual([
+        "--no-input",
         "create",
         "--name",
         "charprobe",
         "-p",
         "127.0.0.1:40773:3773",
       ]);
-      expect(calls[2]?.[5]).toMatch(/[\\/]kit$/u);
+      expect(calls[2]?.[6]).toMatch(/[\\/]kit$/u);
       expect(fake.commands[2]?.env).toEqual({ SBX_KIT_BUILDER: "sandbox" });
-      expect(calls[3]).toEqual(["run", "-d", "--name", "charprobe"]);
-      expect(calls[4]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      expect(calls[4]?.[5]).toContain("user.name");
-      expect(calls[5]?.[5]).toContain("user.email");
-      expect(calls[6]).toEqual(["exec", "charprobe", "--", "t3", "pair"]);
+      expect(calls[3]).toEqual(["--no-input", "run", "-d", "--name", "charprobe"]);
+      expect(calls[4]?.slice(0, 6)).toEqual(["--no-input", "exec", "charprobe", "--", "sh", "-c"]);
+      expect(calls[4]?.[6]).toContain("user.name");
+      expect(calls[5]?.[6]).toContain("user.email");
+      expect(calls[6]).toEqual(["--no-input", "exec", "charprobe", "--", "t3", "pair"]);
 
       const logs = yield* TestConsole.logLines;
       expect(logs).toContain(localUrl);
@@ -157,8 +173,11 @@ describe("up", () => {
           (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["ports"] })),
         ),
         {
-          match: (command) => command.args[0] === "ports",
-          response: { stdout: "127.0.0.1:40773->3773/tcp\n" },
+          match: (command) => verb(command) === "ports",
+          response: {
+            stdout:
+              "HOST IP     HOST PORT   SANDBOX PORT   PROTOCOL\n127.0.0.1   40773       3773           tcp4\n",
+          },
         },
       ],
     });
@@ -166,8 +185,8 @@ describe("up", () => {
       const exit = yield* runCli(["up"], fake);
       expect(exit).toBe(0);
       const calls = argsOf(fake);
-      expect(calls[2]).toEqual(["run", "-d", "--name", "charprobe"]);
-      expect(calls[3]).toEqual(["ports", "charprobe"]);
+      expect(calls[2]).toEqual(["--no-input", "run", "-d", "--name", "charprobe"]);
+      expect(calls[3]).toEqual(["--no-input", "ports", "charprobe"]);
       expect(calls.some((call) => call.includes("--publish"))).toBe(false);
     }).pipe(Effect.provide(TestConsole.layer));
   });
@@ -178,6 +197,7 @@ describe("up", () => {
       const exit = yield* runCli(["up"], fake);
       expect(exit).toBe(0);
       expect(argsOf(fake)).toContainEqual([
+        "--no-input",
         "ports",
         "charprobe",
         "--publish",
@@ -190,7 +210,7 @@ describe("up", () => {
     const fake = makeFakeSbx({
       rules: [
         {
-          match: (command) => command.args[0] === "secret",
+          match: (command) => verb(command) === "secret",
           response: {
             stdout: "SCOPE  TYPE   NAME        SECRET\nglobal api    anthropic   ****\n",
           },
@@ -210,7 +230,7 @@ describe("up", () => {
   it.effect("stays quiet when the secret listing itself failed", () => {
     const fake = makeFakeSbx({
       rules: [
-        { match: (command) => command.args[0] === "secret", response: { exitCode: 1 } },
+        { match: (command) => verb(command) === "secret", response: { exitCode: 1 } },
         ...baseRules("other").slice(1),
       ],
     });
@@ -229,10 +249,10 @@ describe("up", () => {
           (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["exec"] })),
         ),
         {
-          match: (command) => command.args[0] === "exec" && command.args.includes("t3"),
+          match: (command) => verb(command) === "exec" && command.args.includes("t3"),
           response: { stdout: `${url}\n` },
         },
-        { match: (command) => command.args[0] === "exec", response: { exitCode: 1 } },
+        { match: (command) => verb(command) === "exec", response: { exitCode: 1 } },
       ],
     });
     return Effect.gen(function* () {
@@ -254,8 +274,8 @@ describe("up", () => {
       });
       expect(exit).toBe(0);
       const calls = argsOf(fake);
-      expect(decodeIdentity(calls[4]?.[5])).toBe("Agent for Juhani Ränkimies");
-      expect(decodeIdentity(calls[5]?.[5])).toBe("juhani@example.com");
+      expect(decodeIdentity(calls[4]?.[6])).toBe("Agent for Juhani Ränkimies");
+      expect(decodeIdentity(calls[5]?.[6])).toBe("juhani@example.com");
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
@@ -267,7 +287,7 @@ describe("up", () => {
         email: "juhani@example.com",
       });
       expect(exit).toBe(0);
-      expect(decodeIdentity(argsOf(fake)[4]?.[5])).toBe("Agent for Juhani Ränkimies");
+      expect(decodeIdentity(argsOf(fake)[4]?.[6])).toBe("Agent for Juhani Ränkimies");
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
@@ -279,7 +299,7 @@ describe("up", () => {
         email: "juhani@example.com",
       });
       expect(exit).toBe(0);
-      expect(decodeIdentity(argsOf(fake)[4]?.[5])).toBe("Agent for Juhani Ränkimies");
+      expect(decodeIdentity(argsOf(fake)[4]?.[6])).toBe("Agent for Juhani Ränkimies");
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
@@ -291,7 +311,7 @@ describe("up", () => {
         T3CK_AGENT_NAME_PREFIX: "",
       });
       expect(exit).toBe(0);
-      expect(decodeIdentity(argsOf(fake)[4]?.[5])).toBe("Test User");
+      expect(decodeIdentity(argsOf(fake)[4]?.[6])).toBe("Test User");
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
@@ -304,8 +324,8 @@ describe("up", () => {
       });
       expect(exit).toBe(0);
       const calls = argsOf(fake);
-      expect(decodeIdentity(calls[4]?.[5])).toBe("Agent");
-      expect(decodeIdentity(calls[5]?.[5])).toBe("agent@t3-code-kit");
+      expect(decodeIdentity(calls[4]?.[6])).toBe("Agent");
+      expect(decodeIdentity(calls[5]?.[6])).toBe("agent@t3-code-kit");
       const errors = yield* TestConsole.errorLines;
       expect(errors).toContain(
         "⚠️  no user.name/user.email on this host; using Agent <agent@t3-code-kit>.",
@@ -320,7 +340,7 @@ describe("up", () => {
           (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["create"] })),
         ),
         {
-          match: (command) => command.args[0] === "create",
+          match: (command) => verb(command) === "create",
           response: { exitCode: 1, stderr: "build failed\n" },
         },
       ],
@@ -342,7 +362,7 @@ describe("url", () => {
     return Effect.gen(function* () {
       const exit = yield* runCli(["url"], fake);
       expect(exit).toBe(0);
-      expect(argsOf(fake)).toEqual([["exec", "charprobe", "--", "t3", "pair"]]);
+      expect(argsOf(fake)).toEqual([["--no-input", "exec", "charprobe", "--", "t3", "pair"]]);
       expect(yield* TestConsole.logLines).toContain(localUrl);
     }).pipe(Effect.provide(TestConsole.layer));
   });
@@ -364,8 +384,8 @@ describe("url", () => {
       const exit = yield* runCli(["url"], fake);
       expect(exit).toBe(0);
       expect(argsOf(fake)).toEqual([
-        ["exec", "charprobe", "--", "t3", "pair"],
-        ["exec", "charprobe", "--", "tail", "-n", "500", "/home/agent/.t3/serve.log"],
+        ["--no-input", "exec", "charprobe", "--", "t3", "pair"],
+        ["--no-input", "exec", "charprobe", "--", "tail", "-n", "500", "/home/agent/.t3/serve.log"],
       ]);
       expect(yield* TestConsole.logLines).toContain(localUrl);
     }).pipe(Effect.provide(TestConsole.layer));
@@ -398,7 +418,7 @@ describe("logs", () => {
       const exit = yield* runCli(["logs"], fake);
       expect(exit).toBe(0);
       expect(argsOf(fake)).toEqual([
-        ["exec", "charprobe", "--", "tail", "-n", "200", "/home/agent/.t3/serve.log"],
+        ["--no-input", "exec", "charprobe", "--", "tail", "-n", "200", "/home/agent/.t3/serve.log"],
       ]);
       expect(yield* TestConsole.logLines).toContain("log line");
     }).pipe(Effect.provide(TestConsole.layer));
@@ -411,7 +431,7 @@ describe("logs", () => {
     return Effect.gen(function* () {
       expect(yield* runCli(["logs", "charprobe", "50"], fake)).toBe(0);
       expect(argsOf(fake)).toEqual([
-        ["exec", "charprobe", "--", "tail", "-n", "50", "/home/agent/.t3/serve.log"],
+        ["--no-input", "exec", "charprobe", "--", "tail", "-n", "50", "/home/agent/.t3/serve.log"],
       ]);
     }).pipe(Effect.provide(TestConsole.layer));
   });
@@ -452,8 +472,8 @@ describe("shell", () => {
   it.effect("falls back to attach when the exec fails", () => {
     const fake = makeFakeSbx({
       rules: [
-        { match: (command) => command.args[0] === "exec", response: { exitCode: 1 } },
-        { match: (command) => command.args[0] === "attach", response: { exitCode: 0 } },
+        { match: (command) => verb(command) === "exec", response: { exitCode: 1 } },
+        { match: (command) => verb(command) === "attach", response: { exitCode: 0 } },
       ],
     });
     return Effect.gen(function* () {
@@ -469,17 +489,17 @@ describe("shell", () => {
 describe("down and refresh", () => {
   it.effect("stops the sandbox", () => {
     const fake = makeFakeSbx({
-      rules: [{ match: (command) => command.args[0] === "stop", response: { exitCode: 0 } }],
+      rules: [{ match: (command) => verb(command) === "stop", response: { exitCode: 0 } }],
     });
     return Effect.gen(function* () {
       expect(yield* runCli(["down"], fake)).toBe(0);
-      expect(argsOf(fake)).toEqual([["stop", "charprobe"]]);
+      expect(argsOf(fake)).toEqual([["--no-input", "stop", "charprobe"]]);
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
   it.effect("fails with the old launcher's sentence when stop fails", () => {
     const fake = makeFakeSbx({
-      rules: [{ match: (command) => command.args[0] === "stop", response: { exitCode: 1 } }],
+      rules: [{ match: (command) => verb(command) === "stop", response: { exitCode: 1 } }],
     });
     return Effect.gen(function* () {
       expect(yield* runCli(["down"], fake)).toBe(1);
@@ -490,29 +510,29 @@ describe("down and refresh", () => {
   it.effect("stops and then runs the up sequence", () => {
     const fake = makeFakeSbx({
       rules: [
-        { match: (command) => command.args[0] === "stop", response: { exitCode: 0 } },
+        { match: (command) => verb(command) === "stop", response: { exitCode: 0 } },
         ...baseRules("charprobe"),
       ],
     });
     return Effect.gen(function* () {
       expect(yield* runCli(["refresh"], fake)).toBe(0);
       const calls = argsOf(fake);
-      expect(calls[0]).toEqual(["stop", "charprobe"]);
-      expect(calls[1]).toEqual(["secret", "ls"]);
-      expect(calls[2]).toEqual(["ls"]);
-      expect(calls[3]).toEqual(["run", "-d", "--name", "charprobe"]);
+      expect(calls[0]).toEqual(["--no-input", "stop", "charprobe"]);
+      expect(calls[1]).toEqual(["--no-input", "secret", "ls"]);
+      expect(calls[2]).toEqual(["--no-input", "ls", "--json"]);
+      expect(calls[3]).toEqual(["--no-input", "run", "-d", "--name", "charprobe"]);
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
   it.effect("does not re-publish a port already in the sbx ports table", () => {
     const fake = makeFakeSbx({
       rules: [
-        { match: (command) => command.args[0] === "stop", response: { exitCode: 0 } },
+        { match: (command) => verb(command) === "stop", response: { exitCode: 0 } },
         ...baseRules("charprobe").filter(
           (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["ports"] })),
         ),
         {
-          match: (command) => command.args[0] === "ports",
+          match: (command) => verb(command) === "ports",
           response: {
             stdout:
               "HOST IP     HOST PORT   SANDBOX PORT   PROTOCOL\n" +
@@ -532,17 +552,18 @@ describe("rebuild", () => {
   it.effect("removes the sandbox, then runs the up sequence", () => {
     const fake = makeFakeSbx({
       rules: [
-        { match: (command) => command.args[0] === "rm", response: { exitCode: 0 } },
+        { match: (command) => verb(command) === "rm", response: { exitCode: 0 } },
         ...baseRules("other"),
       ],
     });
     return Effect.gen(function* () {
       expect(yield* runCli(["rebuild"], fake)).toBe(0);
       const calls = argsOf(fake);
-      expect(calls[0]).toEqual(["rm", "--force", "charprobe"]);
-      expect(calls[1]).toEqual(["secret", "ls"]);
-      expect(calls[2]).toEqual(["ls"]);
-      expect(calls[3]?.slice(0, 5)).toEqual([
+      expect(calls[0]).toEqual(["--no-input", "rm", "--force", "charprobe"]);
+      expect(calls[1]).toEqual(["--no-input", "secret", "ls"]);
+      expect(calls[2]).toEqual(["--no-input", "ls", "--json"]);
+      expect(calls[3]?.slice(0, 6)).toEqual([
+        "--no-input",
         "create",
         "--name",
         "charprobe",
@@ -559,7 +580,7 @@ describe("rebuild", () => {
     const fake = makeFakeSbx({
       rules: [
         {
-          match: (command) => command.args[0] === "rm",
+          match: (command) => verb(command) === "rm",
           response: { exitCode: 1, stderr: "rm failed\n" },
         },
         ...baseRules("other"),
@@ -567,7 +588,7 @@ describe("rebuild", () => {
     });
     return Effect.gen(function* () {
       expect(yield* runCli(["rebuild"], fake)).toBe(0);
-      expect(argsOf(fake)[1]).toEqual(["secret", "ls"]);
+      expect(argsOf(fake)[1]).toEqual(["--no-input", "secret", "ls"]);
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
@@ -585,28 +606,28 @@ describe("rebuild", () => {
 
 const nukeRules = (lsName: string, survivors = "") => [
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "ls",
-    response: { stdout: table(lsName) },
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "ls",
+    response: { stdout: listing(lsName) },
   },
   {
     match: (command: { args: ReadonlyArray<string> }) =>
-      command.args[0] === "exec" &&
+      verb(command) === "exec" &&
       (command.args.at(-1) ?? "").includes(".t3ck-nuke-marker") &&
       (command.args.at(-1) ?? "").includes(">"),
     response: { stdout: "" },
   },
   {
     match: (command: { args: ReadonlyArray<string> }) =>
-      command.args[0] === "exec" && (command.args.at(-1) ?? "").includes("-mindepth 1 -delete"),
+      verb(command) === "exec" && (command.args.at(-1) ?? "").includes("-mindepth 1 -delete"),
     response: { stdout: "" },
   },
   {
     match: (command: { args: ReadonlyArray<string> }) =>
-      command.args[0] === "exec" && (command.args.at(-1) ?? "").includes("[ ! -e"),
+      verb(command) === "exec" && (command.args.at(-1) ?? "").includes("[ ! -e"),
     response: { stdout: survivors },
   },
   {
-    match: (command: { args: ReadonlyArray<string> }) => command.args[0] === "rm",
+    match: (command: { args: ReadonlyArray<string> }) => verb(command) === "rm",
     response: { exitCode: 0 },
   },
 ];
@@ -626,13 +647,22 @@ describe("nuke", () => {
     return Effect.gen(function* () {
       expect(yield* runCli(["nuke", "--yes"], fake)).toBe(0);
       const calls = argsOf(fake);
-      expect(calls[0]).toEqual(["ls"]);
+      expect(calls[0]).toEqual(["--no-input", "ls", "--json"]);
       // The scripts are the wipe module's contract; this test pins the order
       // the verb drives: marker, wipe as root, verify, then rm.
-      expect(calls[1]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      expect(calls[2]?.slice(0, 7)).toEqual(["exec", "-u", "root", "charprobe", "--", "sh", "-c"]);
-      expect(calls[3]?.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
-      expect(calls[4]).toEqual(["rm", "--force", "charprobe"]);
+      expect(calls[1]?.slice(0, 6)).toEqual(["--no-input", "exec", "charprobe", "--", "sh", "-c"]);
+      expect(calls[2]?.slice(0, 8)).toEqual([
+        "--no-input",
+        "exec",
+        "-u",
+        "root",
+        "charprobe",
+        "--",
+        "sh",
+        "-c",
+      ]);
+      expect(calls[3]?.slice(0, 6)).toEqual(["--no-input", "exec", "charprobe", "--", "sh", "-c"]);
+      expect(calls[4]).toEqual(["--no-input", "rm", "--force", "charprobe"]);
       expect(yield* TestConsole.logLines).toContain(
         "done. 'charprobe' is gone; its volume storage stays allocated, empty — sbx has no per-sandbox purge.",
       );
@@ -644,7 +674,7 @@ describe("nuke", () => {
     return Effect.gen(function* () {
       expect(yield* runCli(["nuke"], fake, defaultEnv, undefined, { stdinIsTTY: false })).toBe(2);
       // The existence check is read-only; the refusal comes before any wipe.
-      expect(argsOf(fake)).toEqual([["ls"]]);
+      expect(argsOf(fake)).toEqual([["--no-input", "ls", "--json"]]);
       expect(yield* TestConsole.errorLines).toContain(
         "t3-code-kit: refusing to nuke 'charprobe' without --yes on a non-TTY",
       );
@@ -673,8 +703,8 @@ describe("nuke", () => {
         }),
       ).toBe(0);
       expect(displayed).toContain('Type "charprobe" to destroy it: ');
-      expect(argsOf(fake)[0]).toEqual(["ls"]);
-      expect(argsOf(fake).some((call) => call[0] === "rm")).toBe(true);
+      expect(argsOf(fake)[0]).toEqual(["--no-input", "ls", "--json"]);
+      expect(argsOf(fake).some((call) => verb({ args: call }) === "rm")).toBe(true);
     }).pipe(Effect.provide(TestConsole.layer));
   });
 
@@ -696,7 +726,7 @@ describe("nuke", () => {
         }),
       ).toBe(2);
       // The existence check is read-only; the refusal comes before any wipe.
-      expect(argsOf(fake)).toEqual([["ls"]]);
+      expect(argsOf(fake)).toEqual([["--no-input", "ls", "--json"]]);
       expect(yield* TestConsole.errorLines).toContain(
         "t3-code-kit: not confirmed; nothing was removed.",
       );
@@ -707,7 +737,7 @@ describe("nuke", () => {
     const fake = makeFakeSbx({ rules: nukeRules("other") });
     return Effect.gen(function* () {
       expect(yield* runCli(["nuke", "--yes"], fake)).toBe(1);
-      expect(argsOf(fake)).toEqual([["ls"]]);
+      expect(argsOf(fake)).toEqual([["--no-input", "ls", "--json"]]);
       expect(yield* TestConsole.errorLines).toContain(
         "t3-code-kit: no sandbox named 'charprobe': its volume contents may still be on disk. run 'npm run up -- charprobe', then 'npm run nuke -- charprobe'",
       );
@@ -721,7 +751,7 @@ describe("nuke", () => {
     return Effect.gen(function* () {
       expect(yield* runCli(["nuke", "--yes"], fake)).toBe(1);
       const calls = argsOf(fake);
-      expect(calls.some((call) => call[0] === "rm")).toBe(false);
+      expect(calls.some((call) => verb({ args: call }) === "rm")).toBe(false);
       const errors = yield* TestConsole.errorLines;
       // The retry warning is the wipe module's; the detail and the failure
       // sentence are the verb's.
@@ -739,7 +769,7 @@ describe("nuke", () => {
           (rule) => !rule.match(sbxCommand({ bin: "sbx", args: ["rm"] })),
         ),
         {
-          match: (command) => command.args[0] === "rm",
+          match: (command) => verb(command) === "rm",
           response: { exitCode: 1, stderr: "error: sandbox 'charprobe' not found\n" },
         },
       ],

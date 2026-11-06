@@ -84,26 +84,43 @@ const MARKER_TEXT = "smoke-durability-marker";
  * `lost+found` back. */
 const VOLUME_METADATA = [".sbx-volume-initialized", "lost+found"] as const;
 
-/** Write the durability marker into every path. `set -e` makes a failed write
- * fail the whole probe rather than leaving a volume unmarked. */
+/** Write the durability marker into every path, then flush it to disk.
+ *
+ * `set -e` makes a failed write fail the whole probe rather than leaving a
+ * volume unmarked. `sync` is load-bearing: both callers destroy the instance
+ * within a second of writing (that is what the check is about), and a volume
+ * whose last few seconds of metadata never reached the disk reattaches without
+ * the marker. Without the flush this measures write-back timing, not
+ * retention. */
 export const writeMarkerScript = (paths: ReadonlyArray<string>): string =>
   [
     "set -e",
     ...paths.map((volumePath) => `printf '%s\\n' '${MARKER_TEXT}' > ${volumePath}/${MARKER}`),
+    "sync",
   ].join("\n");
 
-/** Read the markers back. A missing marker is not an error: its absence is
- * exactly what the nuke check is looking for. */
+/** Read the markers back, one `present <path>` or `missing <path>` line each.
+ * A missing marker is not an error: its absence is exactly what the nuke check
+ * is looking for. Naming the path is what makes a failure attributable. */
 export const readMarkerScript = (paths: ReadonlyArray<string>): string =>
-  ["set -e", ...paths.map((volumePath) => `cat ${volumePath}/${MARKER} 2>/dev/null || true`)].join(
-    "\n",
-  );
+  [
+    "set -e",
+    ...paths.map(
+      (volumePath) =>
+        `if [ -f ${volumePath}/${MARKER} ]; then printf 'present %s\\n' ${volumePath}; else printf 'missing %s\\n' ${volumePath}; fi`,
+    ),
+  ].join("\n");
 
-export const markerCount = (stdout: string): number =>
+/** The paths a marker read reported as `present` or `missing`, in order. */
+export const markerPaths = (stdout: string, status: "present" | "missing"): ReadonlyArray<string> =>
   stdout
     .split(/\r?\n/u)
     .map((line) => line.trim())
-    .filter((line) => line === MARKER_TEXT).length;
+    .filter((line) => line.startsWith(`${status} `))
+    .map((line) => line.slice(`${status} `.length));
+
+/** How many paths the marker survived in. */
+export const markerCount = (stdout: string): number => markerPaths(stdout, "present").length;
 
 /** Normalize the three mise tools' version output. The descriptor pins exact
  * versions, so the comparison is a string equality after this. */
@@ -995,7 +1012,10 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
       } else if (markerCount(read.success.stdout) === rebuildPaths.length) {
         yield* reporter.pass("rebuild kept the marker in .t3/userdata and workspace");
       } else {
-        yield* reporter.fail("rebuild lost the marker: durable state did not survive");
+        const lost = markerPaths(read.success.stdout, "missing").join(", ");
+        yield* reporter.fail(
+          `rebuild lost the marker in ${lost || "a volume"}: durable state did not survive`,
+        );
       }
     }
   }
@@ -1058,7 +1078,10 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
         } else if (markerCount(read.success.stdout) === 0) {
           yield* reporter.pass("nuke left no marker in any of the four volumes");
         } else {
-          yield* reporter.fail("a marker survived nuke: the wipe did not destroy the data");
+          const survived = markerPaths(read.success.stdout, "present").join(", ");
+          yield* reporter.fail(
+            `a marker survived nuke in ${survived}: the wipe did not destroy the data`,
+          );
         }
 
         // `.t3/userdata` is not asserted empty: t3 writes its own state there

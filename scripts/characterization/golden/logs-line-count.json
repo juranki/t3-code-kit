@@ -1,5 +1,7 @@
 {
   "exit": 0,
-  "calls": [["exec", "<name>", "--", "tail", "-n", "50", "/home/agent/.t3/serve.log"]],
+  "calls": [
+    ["--no-input", "exec", "<name>", "--", "tail", "-n", "50", "/home/agent/.t3/serve.log"]
+  ],
   "warnings": []
 }

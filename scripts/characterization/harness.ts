@@ -291,15 +291,26 @@ const secretNearMiss: Rule = {
 
 const secretUnknown: Rule = { match: ["secret", "ls"], exit: 1 };
 
-// `sbx ls` prints a fixed-width table, not one name per line. The seam slices
-// it by header offsets, so the fixture must be a realistic table — the shape a
-// real `sbx` prints.
-export const sandboxTable = (name: string): string =>
-  "  SANDBOX           AGENT             STATUS                 PORTS                                                                       WORKSPACE            CREATED\n" +
-  `  ${name.padEnd(18)}kit               ● running (detached)   127.0.0.1:60006->3773/tcp, ::1:60006->3773/tcp                              D:\\src\\t3-code-kit   43s\n`;
+// `sbx ls --json` prints an array of objects. The fixture is the shape a real
+// `sbx` v0.51.0 prints, trimmed to the fields the seam reads.
+export const sandboxList = (name: string): string =>
+  JSON.stringify([
+    {
+      name,
+      id: "d337f82e-4fa2-46de-ade0-d43a17fb89ca",
+      agent: "kit",
+      status: "running",
+      ports: [
+        { host_ip: "127.0.0.1", host_port: 60006, sandbox_port: 3773, protocol: "tcp4" },
+        { host_ip: "::1", host_port: 60006, sandbox_port: 3773, protocol: "tcp" },
+      ],
+      created_at: "2026-11-06T18:17:57Z",
+      detached: true,
+    },
+  ]);
 
-const notExists: Rule = { match: ["ls"], stdout: sandboxTable("other") };
-const exists: Rule = { match: ["ls"], stdout: sandboxTable("charprobe") };
+const notExists: Rule = { match: ["ls", "--json"], stdout: sandboxList("other") };
+const exists: Rule = { match: ["ls", "--json"], stdout: sandboxList("charprobe") };
 const createOk: Rule = { match: ["create"], exit: 0 };
 const runOk: Rule = { match: ["run"], exit: 0 };
 const identityOk: Rule = { match: ["exec", "*", "--", "sh", "-c"], exit: 0 };
@@ -311,7 +322,8 @@ const pairOk: Rule = {
 
 const portsPublished: Rule = {
   match: ["ports", "*"],
-  stdout: "127.0.0.1:{{port}}->3773/tcp\n",
+  stdout:
+    "HOST IP     HOST PORT   SANDBOX PORT   PROTOCOL\n127.0.0.1   {{port}}    3773           tcp4\n",
 };
 
 const upCreateCalls = [notExists, secretPresent, createOk, runOk, identityOk, pairOk];
