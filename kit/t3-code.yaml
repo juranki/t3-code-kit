@@ -99,6 +99,7 @@ capabilities:
             - T3CODE_NO_BROWSER
             - ${{ kit.args.providerApiKeyEnv }}
             - CODEX_API_KEY
+            - SBX_CRED_OPENAI_MODE
             - GH_TOKEN
             - HTTP_PROXY
             - HTTPS_PROXY
@@ -188,13 +189,16 @@ capabilities:
             format: "Bearer %s"
 
   # Codex's model provider. Same proxy-managed pattern as pi's: the sandbox
-  # holds a sentinel, and the proxy swaps it for the real key on the way to
-  # api.openai.com. `codex app-server` reads credentials from
-  # ~/.codex/auth.json rather than OPENAI_API_KEY, so kit/serve.sh writes the
-  # sentinel there with `codex login --with-api-key` before t3 starts.
+  # holds a sentinel, and the proxy swaps it for the real credential on the
+  # way to OpenAI. Declaring both `apiKey` and `oauth` means "whichever the
+  # host bound": `sbx secret set openai` stores an API key, `... --oauth`
+  # stores ChatGPT tokens. sbx surfaces the choice as SBX_CRED_OPENAI_MODE,
+  # and kit/serve.sh seeds ~/.codex/config.toml and auth.json from it.
   #
-  # ⚠️ This is an API key, not ChatGPT OAuth. A ChatGPT token would have to
-  # live in the sandbox, which is the one thing this kit refuses to do.
+  # OAuth does not put a token in the sandbox: the proxy intercepts the token
+  # endpoint, serves the sentinels below, and substitutes the real bearer at
+  # chatgpt.com. Codex's OAuth-mode model calls go to
+  # chatgpt.com/backend-api/codex, which is why that host is a resourceHost.
   #
   # The service is `openai`, the same name `sbx secret set openai` uses. If
   # you also point pi at openai, the two credentials collide on (openai,
@@ -212,6 +216,16 @@ capabilities:
           - domain: api.openai.com
             header: Authorization
             format: "Bearer %s"
+          - domain: openai.com
+            header: Authorization
+            format: "Bearer %s"
+      oauth:
+        tokenEndpoint: { host: auth.openai.com, path: /oauth/token }
+        resourceHosts:
+          - chatgpt.com
+        sentinels:
+          accessToken: oai-oat01-proxy-managed
+          refreshToken: oai-ort01-proxy-managed
 
   # Mirrors policy/allow.txt (runtime) and policy/install.txt (install-time).
   # The descriptor is normative — it travels with the
@@ -244,6 +258,14 @@ capabilities:
           - api.anthropic.com
           # Serves both pi (when its provider is openai) and Codex.
           - api.openai.com
+          - openai.com
+          # Codex's ChatGPT OAuth: token refresh at auth.openai.com, model
+          # calls at chatgpt.com/backend-api/codex. files.openai.com is
+          # attachments/uploads; releases.openai.com is the update check.
+          - auth.openai.com
+          - chatgpt.com
+          - files.openai.com
+          - releases.openai.com
           - api.mistral.ai
           - github.com
           - api.github.com

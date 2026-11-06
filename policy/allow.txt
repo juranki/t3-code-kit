@@ -21,6 +21,17 @@ api.anthropic.com
 api.openai.com
 api.mistral.ai
 
+# --- Codex's ChatGPT OAuth. auth.openai.com is the token endpoint the proxy
+# intercepts; chatgpt.com is where OAuth-mode model calls go
+# (chatgpt.com/backend-api/codex) and where the proxy swaps the sentinel for
+# the real bearer. files.openai.com is attachments/uploads;
+# releases.openai.com is the update check.
+openai.com
+auth.openai.com
+chatgpt.com
+files.openai.com
+releases.openai.com
+
 # --- git: clone and push only
 github.com
 api.github.com

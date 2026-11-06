@@ -47,30 +47,31 @@ then approving the new domain's binding.
 ## Codex shows as unauthenticated in t3, or answers `401`
 
 `codex app-server` reads credentials from `~/.codex/auth.json`, not from
-`OPENAI_API_KEY`. `kit/serve.sh` writes the proxy-managed sentinel there with
-`codex login --with-api-key` on every start, so the provider card should read
-**OpenAI API Key**.
+`OPENAI_API_KEY`. `kit/serve.sh` seeds `~/.codex/config.toml` and `auth.json`
+on every start from `SBX_CRED_OPENAI_MODE`, which sbx derives from the host
+binding: `oauth` for a ChatGPT plan, `apikey` for an API key, `none` for no
+binding.
 
 If it does not:
 
-- `sbx secret ls` must show `openai (stored)`, **not** `(oauth configured)`.
-  The kit's credential is an `apiKey`, so an OAuth credential for `openai`
-  does not match it: the proxy has nothing to inject and the sentinel reaches
-  OpenAI unchanged. The error names it: `401 ... incorrect api key provided:
-  proxy-ma*aged`. Replace the OAuth credential with an API key:
-  `sbx secret set openai --force`.
-- The binding must include `api.openai.com`. A stored secret is not an
-  approval.
-- `npm run logs -- <name>` shows either `codex is signed in with the
-  proxy-managed API key` or `codex login failed`. The second means
-  `CODEX_API_KEY` was empty, which is the withheld-credential case.
-- If the log says the key was written but the API still answers `401`, the
-  `inject` rule is missing or the binding is for the wrong domain. The sentinel
-  reached `api.openai.com` unchanged.
+- `sbx secret ls` must show `openai` as either `(stored)` (API key) or
+  `(oauth configured)` (ChatGPT plan). Both are supported; the kit declares
+  both presentations and the proxy uses the one the host bound.
+- The binding must match the credential type. API key: `api.openai.com` and
+  `openai.com`. OAuth: `auth.openai.com` and `chatgpt.com`. A stored secret is
+  not an approval, and a binding for the other type does not authorize this
+  one.
+- `npm run logs -- <name>` names the mode: `codex is in ChatGPT OAuth mode
+  through the proxy`, `codex is signed in with the proxy-managed API key`, or
+  `codex has no openai binding`. A `codex login failed` means `CODEX_API_KEY`
+  was empty, which is the withheld-credential case.
+- If the log names a mode but the API answers `401 ... proxy-ma*aged`, the
+  sentinel reached OpenAI unchanged: the binding is missing a host for that
+  mode, or the `inject` / `resourceHosts` rule is absent.
 
 Do not run `codex login` by hand inside the sandbox with a real key. `serve.sh`
-overwrites it on the next start, and a ChatGPT token in the sandbox is exactly
-what the proxy-injected-credential model exists to avoid.
+overwrites it on the next start, and a real ChatGPT token in the sandbox is
+exactly what the proxy-injected-credential model exists to avoid.
 
 ## Codex is an older version than the kit pins
 

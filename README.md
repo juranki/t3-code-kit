@@ -226,12 +226,12 @@ on. The `SMOKE_*` reference is in
   enabled, and shows as unauthenticated until you set the `openai` secret and
   approve its binding. Adding another provider is one Dockerfile block, one
   credential, and one egress entry.
-- ⚠️ **Codex uses an OpenAI API key, not a ChatGPT plan.** The proxy injects
-  the key, so the sandbox never holds it — but a ChatGPT OAuth token would have
-  to live in the sandbox, which this kit refuses. Codex's ChatGPT-plan features
-  are therefore unavailable here. The `openai` service is shared with pi: if
-  you point pi at openai too, the two credentials collide on `(openai,
-  runtime)`, so keep pi on a different provider. See
+- **Codex takes an OpenAI API key or a ChatGPT plan.** Both are proxy-injected:
+  the sandbox holds a sentinel, and the proxy swaps it on egress. OAuth mode
+  routes model calls through `chatgpt.com/backend-api/codex`; API-key mode uses
+  the default OpenAI provider. The `openai` service is shared with pi: if you
+  point pi at openai too, the two credentials collide on `(openai, runtime)`,
+  so keep pi on a different provider. See
   [ADR 0006](docs/adr/0006-codex-as-second-agent.md).
 - **GitHub is the only git host wired in.** t3 itself supports Bitbucket,
   GitLab, and Gitea/Codeberg too, but the Kit ships one credential and one
