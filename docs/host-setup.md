@@ -19,6 +19,12 @@ This page covers the rest.
 | `sbx secret set openai`                         | Codex's model key; only if you use Codex                         | `sbx secret ls` |
 | Approve the credential binding                  | a stored secret is **not** an approval                           | see below       |
 
+`sbx secret set openai` stores an **API key**. Do not pass `--oauth`: the kit's
+credential is an `apiKey`, and an OAuth credential leaves the proxy with
+nothing to inject, so OpenAI answers `401 ... proxy-ma*aged`. If `sbx secret ls`
+already says `openai (oauth configured)`, overwrite it with
+`sbx secret set openai --force` and paste the API key.
+
 ### The binding is the step that bites
 
 `sbx` records which kit may use which service and domain in

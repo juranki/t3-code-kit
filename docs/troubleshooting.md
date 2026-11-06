@@ -53,18 +53,39 @@ then approving the new domain's binding.
 
 If it does not:
 
-- `sbx secret ls` must show `openai`, and the binding must include
-  `api.openai.com`. A stored secret is not an approval.
+- `sbx secret ls` must show `openai (stored)`, **not** `(oauth configured)`.
+  The kit's credential is an `apiKey`, so an OAuth credential for `openai`
+  does not match it: the proxy has nothing to inject and the sentinel reaches
+  OpenAI unchanged. The error names it: `401 ... incorrect api key provided:
+  proxy-ma*aged`. Replace the OAuth credential with an API key:
+  `sbx secret set openai --force`.
+- The binding must include `api.openai.com`. A stored secret is not an
+  approval.
 - `npm run logs -- <name>` shows either `codex is signed in with the
   proxy-managed API key` or `codex login failed`. The second means
   `CODEX_API_KEY` was empty, which is the withheld-credential case.
-- If the log says the key was written but the API answers `401`, the `inject`
-  rule is missing or the binding is for the wrong domain. The sentinel reached
-  `api.openai.com` unchanged.
+- If the log says the key was written but the API still answers `401`, the
+  `inject` rule is missing or the binding is for the wrong domain. The sentinel
+  reached `api.openai.com` unchanged.
 
 Do not run `codex login` by hand inside the sandbox with a real key. `serve.sh`
 overwrites it on the next start, and a ChatGPT token in the sandbox is exactly
 what the proxy-injected-credential model exists to avoid.
+
+## Codex is an older version than the kit pins
+
+`sbx exec <name> -- codex --version` should print `codex-cli 0.166.0`, the
+`codexVersion` pin. If it does not, the sandbox is running an image built
+before the pin: `npm run rebuild -- <name>`.
+
+If the shell reports the pin but t3's provider card shows an older version, t3
+is using its managed runtime instead of the baked CLI. Check **Settings →
+Providers → Codex → Binary path**; it should resolve `codex` on the server's
+`PATH`. The managed runtime is a download into `$T3CODE_HOME/tools`, which a
+`rebuild` discards, so the bake is the intended path.
+
+`0.166.0` is deliberate: it is the release t3 0.1.5 manages and its manifest
+marks supported. Bumping it is a `codexVersion` change and a `rebuild`.
 
 ## An agent says it cannot reach an API
 
