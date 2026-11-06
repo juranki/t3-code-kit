@@ -38,7 +38,7 @@ wrong tool. It deliberately gives you no host mount.
 
 On the host:
 
-- **Node 26.13.0 and Vite+ 1.4.0 (`vp`)**. The Vite+ installer provides both;
+- **Node 26.13.0 and Vite+ 1.5.0 (`vp`)**. The Vite+ installer provides both;
   there is no separate Node install to keep in step.
 - [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/install/) (`sbx`):
   macOS 14+ on Apple silicon, Windows 11 x64, or Ubuntu 24.04+ with KVM.

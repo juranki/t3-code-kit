@@ -6,8 +6,10 @@ import { ProcessRunner } from "@t3ck/host/ProcessRunner";
 import { command as sbxCommand } from "@t3ck/sbx/command";
 import { SbxCommandError } from "@t3ck/sbx/errors";
 import { make as makeFakeSbx, type FakeSbx } from "@t3ck/sbx/fake";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Queue from "effect/Queue";
 import * as Terminal from "effect/Terminal";
 import { TestConsole } from "effect/testing";
 
@@ -609,6 +611,15 @@ const nukeRules = (lsName: string, survivors = "") => [
   },
 ];
 
+// `Terminal.size` is a queue that starts with the current dimensions. Nothing
+// under test reads it, but an empty queue would hang a reader forever, so seed
+// it the way effect's own MockTerminal does.
+const terminalSize: Terminal.Terminal["size"] = Effect.gen(function* () {
+  const queue = yield* Queue.make<Terminal.Size, Cause.Done>();
+  yield* Queue.offer(queue, { columns: 80, rows: 24 });
+  return queue;
+});
+
 describe("nuke", () => {
   it.effect("wipes, then removes the instance", () => {
     const fake = makeFakeSbx({ rules: nukeRules("charprobe") });
@@ -645,6 +656,7 @@ describe("nuke", () => {
     const terminal = Terminal.make({
       columns: Effect.succeed(80),
       rows: Effect.succeed(24),
+      size: terminalSize,
       readInput: Effect.die("not used"),
       readLine: Effect.succeed("charprobe"),
       display: (text) =>
@@ -670,6 +682,7 @@ describe("nuke", () => {
     const terminal = Terminal.make({
       columns: Effect.succeed(80),
       rows: Effect.succeed(24),
+      size: terminalSize,
       readInput: Effect.die("not used"),
       readLine: Effect.succeed("wrong"),
       display: () => Effect.void,

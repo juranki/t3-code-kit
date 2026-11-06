@@ -17,7 +17,7 @@ only. The final acceptance run is in
 | ------------ | ------------------ | ------- | -------------------------------------------- |
 | Node         | 26.13.0            | 26.13.0 | `%LOCALAPPDATA%\vite-plus\bin\node.exe`      |
 | npm          | 11.20.0            | 11.20.0 | the same Vite+ install                       |
-| Vite+ (`vp`) | 1.4.0              | 1.4.0   | the same Vite+ install                       |
+| Vite+ (`vp`) | 1.5.0              | 1.5.0   | the same Vite+ install                       |
 | `sbx`        | 0.50.1 (`ddb0268`) | n/a     | `%LOCALAPPDATA%\DockerSandboxes\bin\sbx.exe` |
 | git          | 2.34.1.windows.1   | n/a     | `C:\Program Files\Git\cmd\git.exe`           |
 | fd           | n/a                | 10.5.0  | `/usr/local/bin/fd` in the image             |
@@ -147,6 +147,6 @@ both verbs.
 
 ## The image
 
-`kit/t3-code.dockerfile` bakes the same Node 26.13.0 plus Vite+ 1.4.0 and
+`kit/t3-code.dockerfile` bakes the same Node 26.13.0 plus Vite+ 1.5.0 and
 fd 10.5.0. `scripts/layout.test.ts` asserts those pins match the descriptor, so
 a bump that touches one and not the other fails `npm test`.

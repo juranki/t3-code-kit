@@ -14,7 +14,7 @@ or repeatedly fetching snippets. `node_modules/effect` is not enough: it is
 gitignored, and its `src` is a published copy rather than the repository an
 agent can explore.
 
-The subtree is pinned to the **`effect@4.0.5`** tag (commit `7f524e25c`), the
+The subtree is pinned to the **`effect@4.1.2`** tag (commit `506eef143b`), the
 same version the workspace overrides in `package.json`.
 
 ## Update it
@@ -23,7 +23,7 @@ same version the workspace overrides in `package.json`.
 git subtree pull \
   --prefix=repos/effect \
   https://github.com/Effect-TS/effect.git \
-  effect@4.0.5 \
+  effect@4.1.2 \
   --squash
 ```
 

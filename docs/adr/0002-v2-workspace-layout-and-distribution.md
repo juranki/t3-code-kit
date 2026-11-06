@@ -21,18 +21,18 @@ published package's `from "vitest"` cannot resolve and the patch rewrites it to
 `vite-plus/test`. `catalog:` keeps one version per dependency across ~40
 packages. `packageExtensions` supplies the peer that patch implies. A probe
 showed none of it is needed under npm: installing `vite-plus@1.4.0`,
-`effect@4.0.5` and `@effect/vitest@4.0.5` hoists `vitest@5.0.5` (vite-plus's
-own dependency), the _unpatched_ `from "vitest"` resolves to it, and
-`it.effect` runs under `vp test`. A second probe in a two-package npm
-workspace confirmed the real shape: `vp test run` at the root and
-`vp test run --config ../../vite.config.ts --dir .` from a package both pass,
-and a package imports another's `src/*.ts` through its `exports` subpath. Root
-`overrides` pin `effect`, `vitest`, `vite`, `typescript` and
-`@effect/platform-node-shared`, which is the single-copy guarantee the catalog
-was buying.
+`effect@4.0.5` and `@effect/vitest@4.0.5` hoisted `vitest@5.0.5` (vite-plus's
+own dependency), the _unpatched_ `from "vitest"` resolved to it, and
+`it.effect` ran under `vp test`. The same holds at the current pins
+(`vite-plus@1.5.0`, `effect@4.1.2`, hoisted `vitest@5.1.0`). A second probe in
+a two-package npm workspace confirmed the real shape: `vp test run` at the
+root and `vp test run --config ../../vite.config.ts --dir .` from a package
+both pass, and a package imports another's `src/*.ts` through its `exports`
+subpath. Root `overrides` pin `effect`, `vitest`, `vite` and `typescript`,
+which is the single-copy guarantee the catalog was buying.
 
 The `vite` override is the one that is not obvious. `vite-plus` depends on
-`vite` as an npm alias (`npm:@voidzero-dev/vite-plus-core@1.4.0`), and vitest
+`vite` as an npm alias (`npm:@voidzero-dev/vite-plus-core@1.5.0`), and vitest
 wants a _real_ `vite` peer. Left alone, npm installs registry `vite@8.3.5` at
 the root to satisfy the peer and nests the alias under `vite-plus`, so `vp test`
 runs against a different Vite than the toolchain does — and on a fresh install
@@ -52,15 +52,21 @@ resolution identical everywhere. t3code needs the same exemption
 (`peerDependencyRules.allowAny: [typescript, vite]`), which is the
 confirmation that this is not a local workaround.
 
-The `@effect/platform-node-shared` override is the third. `@effect/platform-node@4.0.5`
-declares `@effect/platform-node-shared: ^4.0.5`, so npm installs 4.1.1, and
-4.1.1 imports `effect/dist/process/CommandLine.js` — a path that only exists
-in `effect@4.1.x`, while the root override pins `effect` to 4.0.5. Nothing
+A third override, `@effect/platform-node-shared`, existed while `effect` was
+4.0.5 and is now gone. `@effect/platform-node@4.0.5` declared
+`@effect/platform-node-shared: ^4.0.5`, so npm installed 4.1.1, and 4.1.1
+imports `effect/dist/process/CommandLine.js` — a path that only exists in
+`effect@4.1.x`, while the root override pinned `effect` to 4.0.5. Nothing
 imported `NodeServices` before the live `Sbx` adapter, so the mismatch stayed
-invisible; it only fails when the platform-node entry point is actually
-loaded. Pinning shared to `4.0.5` keeps the pair in step. npm still nests that
-copy under `@effect/platform-node` rather than hoisting it, and the lockfile
-keeps that nested resolution.
+invisible; it only failed when the platform-node entry point was actually
+loaded. Pinning shared to `4.0.5` kept the pair in step, at the cost of a
+nested copy under `@effect/platform-node`.
+
+`effect` 4.1.2 ships a matching `@effect/platform-node-shared` —
+`@effect/platform-node@4.1.2` declares it exactly — so the override has
+nothing left to pin and #75 deleted it. The lesson it leaves behind is the one
+worth keeping: a dependency that only one code path loads can hide a version
+mismatch from the whole test suite.
 
 **A single package at the repo root — rejected.** The seam is the point:
 `packages/sbx` has two consumers that must not share a process (the CLI verbs
@@ -90,8 +96,12 @@ despite printing its `> script` header on stdout.
   `t3-code-kit` any more; the project name survives only in the error prefix
   and the docs.
 - **One exact Node pin, `26.13.0`**, in `engines.node` and — via #41 — in the
-  image's `nodeVersion`/`NODE_VERSION`. `@types/node` stays at t3code's
-  `24.12.4`; bump it only when a Node 26 API is actually needed, and say why.
+  image's `nodeVersion`/`NODE_VERSION`. `@types/node` was deliberately held at
+  t3code's `24.12.4` while the runtime moved to Node 26, on the rule that it
+  would be bumped only once a Node 26 API was actually needed. #77 dropped that
+  hold and moved it to `26.6.6` — not because an API was needed, but because
+  the type surface was two majors behind the runtime and `effect@4.1.1` had
+  removed the DOM-lib obstacle that made the bump awkward.
 - **The phantom-dependency guardrail is gone.** pnpm's strict `node_modules`
   would have failed an import of a package that was never declared; npm hoists
   and lets it resolve. That is the one guardrail traded away, accepted because

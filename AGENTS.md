@@ -14,7 +14,7 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 
 ### Workspace
 
-Node 26.13.0, npm workspaces, Vite+ 1.4.0, Effect 4.0.5. `npm ci` installs the
+Node 26.13.0, npm workspaces, Vite+ 1.5.0, Effect 4.1.2. `npm ci` installs the
 workspace; `npm run check` is the fast gate (format, lint, typecheck, tests) and
 `npm run smoke` is the host acceptance. There is no `bin/` launcher: `npm run
 <verb>` is the interface, `npm run help` prints the verbs, and the old `sh` and
@@ -61,7 +61,7 @@ vendored file deliberately whenever that is what you need.
 
 When writing Effect code, inspect `repos/effect/` for examples of idiomatic usage, tests, module structure, and API design. Treat it as the source of truth for Effect patterns. Read `repos/effect/LLMS.md` before writing any Effect code, then use the project-local notes in `agent-patterns/`.
 
-`repos/effect` is a git subtree pinned to the `effect@4.0.5` tag. Its update command and the reason it is vendored are in `agent-patterns/README.md`.
+`repos/effect` is a git subtree pinned to the `effect@4.1.2` tag. Its update command and the reason it is vendored are in `agent-patterns/README.md`.
 
 ### Lint rules
 

@@ -120,18 +120,14 @@ describe("v2 workspace layout", () => {
   });
 
   it("pins the dependencies that must never be duplicated", () => {
-    expect(rootManifest.overrides?.effect).toBe("4.0.5");
-    expect(rootManifest.overrides?.vitest).toBe("5.0.5");
+    expect(rootManifest.overrides?.effect).toBe("4.1.2");
+    expect(rootManifest.overrides?.vitest).toBe("5.1.0");
     // Without this, npm installs registry vite for vitest's peer and nests
     // vite-plus's alias, so `vp test` runs against a second Vite.
-    expect(rootManifest.overrides?.vite).toBe("npm:@voidzero-dev/vite-plus-core@1.4.0");
+    expect(rootManifest.overrides?.vite).toBe("npm:@voidzero-dev/vite-plus-core@1.5.0");
     // Without this, npm installs registry typescript for vite-plus-core's peer.
     // Linux merely warns; Windows fails the install outright.
     expect(rootManifest.overrides?.typescript).toBe("npm:@tsc-rs/typescript@0.8.0");
-    // platform-node 4.0.5 asks for shared ^4.0.5, and shared 4.1.1 imports a
-    // path that only exists in effect 4.1.x. Nothing loads NodeServices until
-    // the live Sbx adapter does, so only this pin keeps the pair in step.
-    expect(rootManifest.overrides?.["@effect/platform-node-shared"]).toBe("4.0.5");
   });
 
   it.effect("resolves a workspace package through its subpath export", () =>

@@ -124,18 +124,24 @@ Cannot find module 'effect/dist/process/CommandLine.js'
 imported from @effect/platform-node-shared/dist/NodeChildProcessSpawner.js
 ```
 
-`@effect/platform-node@4.0.5` declares `@effect/platform-node-shared: ^4.0.5`,
-so npm installed `4.1.1`. That version imports `effect/dist/process/CommandLine.js`,
-which only exists in `effect@4.1.x`; the root `overrides` pin `effect` to
-`4.0.5`, so the tree was inconsistent. Nothing in the repo had imported
-`NodeServices` before, so the existing tests never exercised it.
+`@effect/platform-node@4.0.5` declared
+`@effect/platform-node-shared: ^4.0.5`, so npm installed `4.1.1`. That version
+imported `effect/dist/process/CommandLine.js`, which only exists in
+`effect@4.1.x`; the root `overrides` pinned `effect` to `4.0.5`, so the tree was
+inconsistent. Nothing in the repo had imported `NodeServices` before, so the
+existing tests never exercised it.
 
-The root `overrides` now pin `"@effect/platform-node-shared": "4.0.5"`, and the
-live adapter runs end to end against a fake `sbx` on `PATH`. This was a durable
-fix, not a prototype detail: the production seam uses the same
-`NodeServices.layer`. The pin is recorded in
+The root `overrides` pinned `"@effect/platform-node-shared": "4.0.5"` to keep
+the pair in step, and the live adapter ran end to end against a fake `sbx` on
+`PATH`. This was a durable fix, not a prototype detail: the production seam
+uses the same `NodeServices.layer`. The pin was recorded in
 [the v2 workspace ADR](../adr/0002-v2-workspace-layout-and-distribution.md) and
 asserted by `scripts/layout.test.ts`.
+
+The pin is history now: `effect` 4.1.2 ships a matching
+`@effect/platform-node-shared`, so #75 deleted the override and its assertion.
+The finding stands — nothing loaded `NodeServices` until the live adapter did,
+so only a real run could have caught it.
 
 ## Open questions, and how they were answered
 
