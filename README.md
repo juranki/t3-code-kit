@@ -3,8 +3,9 @@
 # t3-code-kit
 
 **Run [T3 Code](https://t3.codes) with [pi](https://github.com/earendil-works/pi)
-inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/), and drive it
-from a browser on the host.**
+or [Codex](https://developers.openai.com/codex/cli) inside a [Docker
+Sandbox](https://docs.docker.com/ai/sandboxes/), and drive it from a browser on
+the host.**
 
 Nothing is installed on the host. Nothing on the host is reachable from the
 sandbox. An agent running with full permissions can rewrite anything it can
@@ -80,7 +81,8 @@ credential withheld and warns.
 ```sh
 sbx login                             # Docker OAuth; no sandbox runs without it
 sbx secret set github                 # the value, first
-sbx secret set mistral                # ...and your provider's
+sbx secret set mistral                # ...and pi's provider's
+sbx secret set openai                 # ...and Codex's, if you enable it
 sbx create --name myproject ./kit     # approve the credential prompts
 sbx run --name myproject              # start it; Ctrl-\ detaches
 ```
@@ -112,7 +114,7 @@ with no path argument it mounts the current directory. `create` with no path is
 the mountless form, which is what keeps the host filesystem out of reach.
 
 Open the printed `http://localhost:3773/pair#token=…` in your browser. That is
-the whole workflow: the t3 web UI runs in the sandbox, and pi is one of the
+the whole workflow: the t3 web UI runs in the sandbox, and pi and Codex are the
 agents it can drive.
 
 ```sh
@@ -176,15 +178,16 @@ The agent workflow these docs describe — `/triage`, `/code-review`,
 and a CLI version, and bakes the names listed in
 [`kit/skills.txt`](kit/skills.txt). Changing them is a `rebuild`, not an
 in-sandbox change; why they are baked in and not a volume is
-[ADR 0001](docs/adr/0001-skills-baked-into-image.md).
+[ADR 0001](docs/adr/0001-skills-baked-into-image.md). pi and Codex share the
+same global directory, so one install serves both.
 
 ## Toolchains
 
 The image bakes node, go, and python through [`mise`](https://mise.jdx.dev) at
 the `nodeVersion` / `goVersion` / `pythonVersion` kit args, plus Vite+, `fd`,
-and T3's preview browser. A repo's `.mise.toml` selects a version but cannot
-install one: the build installs exactly one line per tool, so a different
-version is a kit-arg change and a `rebuild`. Pins, Java, and the
+Codex, and T3's preview browser. A repo's `.mise.toml` selects a version but
+cannot install one: the build installs exactly one line per tool, so a
+different version is a kit-arg change and a `rebuild`. Pins, Java, and the
 `403`-means-allowlist failure are in [`docs/toolchains.md`](docs/toolchains.md).
 
 ## Verify
@@ -197,11 +200,11 @@ npm run doctor       # what this host's sbx reports: version and capabilities
 ```
 
 `npm run smoke` brings a sandbox up, waits for the server, mints a pairing URL,
-and proves the toolchain, the preview browser, the volume, GitHub egress, and
-the durability model. It ends with the sandbox nuked, so give it a dedicated
-name: `npm run smoke -- <name>`, or `T3CK_NAME`. The pi round-trip is off by
-default because it spends real model tokens; `SMOKE_AGENT=1` turns it on. The
-`SMOKE_*` reference is in
+and proves the toolchain, Codex, the preview browser, the volume, GitHub
+egress, and the durability model. It ends with the sandbox nuked, so give it a
+dedicated name: `npm run smoke -- <name>`, or `T3CK_NAME`. The pi round-trip is
+off by default because it spends real model tokens; `SMOKE_AGENT=1` turns it
+on. The `SMOKE_*` reference is in
 [`docs/operations/v2-dev-loop.md`](docs/operations/v2-dev-loop.md).
 
 ## Limits
@@ -214,13 +217,22 @@ default because it spends real model tokens; `SMOKE_AGENT=1` turns it on. The
   the spec is experimental** (a final version is targeted for Q4 2026). The kit
   descriptor, the base image reference, and the `sbx` verbs are the parts most
   likely to move under you.
-- ⚠️ **No self-update inside the sandbox.** t3, the skills, Vite+, fd, and
-  T3's preview browser are pinned at build time; pi defaults to `latest`.
+- ⚠️ **No self-update inside the sandbox.** t3, the skills, Vite+, fd, Codex,
+  and T3's preview browser are pinned at build time; pi defaults to `latest`.
   Bumping any of them is a `rebuild`. The browser's `CHROME_VERSION` is a plain
   `ARG` rather than a kit arg, because it has to track the t3 binary instead of
   being chosen.
-- **One provider ships in v1** (pi). Adding another is one Dockerfile block,
-  one credential, and one egress entry.
+- **Two providers ship** (pi and Codex). pi is the default; Codex is baked and
+  enabled, and shows as unauthenticated until you set the `openai` secret and
+  approve its binding. Adding another provider is one Dockerfile block, one
+  credential, and one egress entry.
+- ⚠️ **Codex uses an OpenAI API key, not a ChatGPT plan.** The proxy injects
+  the key, so the sandbox never holds it — but a ChatGPT OAuth token would have
+  to live in the sandbox, which this kit refuses. Codex's ChatGPT-plan features
+  are therefore unavailable here. The `openai` service is shared with pi: if
+  you point pi at openai too, the two credentials collide on `(openai,
+  runtime)`, so keep pi on a different provider. See
+  [ADR 0006](docs/adr/0006-codex-as-second-agent.md).
 - **GitHub is the only git host wired in.** t3 itself supports Bitbucket,
   GitLab, and Gitea/Codeberg too, but the Kit ships one credential and one
   host's allowlist entries. Adding another is the same kind of three-part change

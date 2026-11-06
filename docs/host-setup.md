@@ -16,6 +16,7 @@ This page covers the rest.
 | `sbx login`                                     | Docker OAuth; no sandbox runs without it                         | `sbx ls`        |
 | `sbx secret set github`                         | the value git pushes with; the sandbox only ever sees a sentinel | `sbx secret ls` |
 | `sbx secret set <provider>` (default `mistral`) | pi's model key                                                   | `sbx secret ls` |
+| `sbx secret set openai`                         | Codex's model key; only if you use Codex                         | `sbx secret ls` |
 | Approve the credential binding                  | a stored secret is **not** an approval                           | see below       |
 
 ### The binding is the step that bites
@@ -41,7 +42,13 @@ bindings:
   mistral:
     apiKey:
       domains: [api.mistral.ai]
+  openai:
+    apiKey:
+      domains: [api.openai.com]
 ```
+
+`openai` is Codex's service. If you point pi at openai too, both credentials
+would claim `(openai, runtime)`; keep pi on a different provider.
 
 A malformed file breaks every `sbx` command, so delete it and re-approve rather
 than hand-fixing it.
@@ -76,6 +83,13 @@ in [Troubleshooting](troubleshooting.md).
 
 - Add or enable a **pi provider instance**. The kit installs pi and starts t3;
   it does not create t3's provider records.
-- Refresh its model list from provider settings (`server.refreshProviders`).
-  This is t3's own state in `statev2.sqlite` and the one cache a shell cannot
-  reach — `npm run refresh -- <name>` covers the other two.
+- **Codex** is baked, on `PATH`, and enabled by default. Set the `openai`
+  secret and approve its binding; the kit writes the proxy-managed key to
+  `~/.codex/auth.json` on every start, so the provider card should show
+  **OpenAI API Key** rather than a login prompt. If it shows unauthenticated,
+  check `sbx secret ls` and the `openai` binding, then
+  `npm run logs -- <name>`.
+- Refresh the provider's model list from provider settings
+  (`server.refreshProviders`). This is t3's own state in `statev2.sqlite` and
+  the one cache a shell cannot reach — `npm run refresh -- <name>` covers the
+  other two.

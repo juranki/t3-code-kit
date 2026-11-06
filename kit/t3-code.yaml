@@ -19,6 +19,13 @@ args:
     default: "latest"
     pattern: "^[A-Za-z0-9.@/_-]+$"
     buildArg: PI_VERSION
+  # Codex is the second agent t3 can drive. It is a separate CLI, not a pi
+  # provider: t3 finds `codex` on PATH and talks to its app-server. Pinned like
+  # t3Version and the toolchain — nothing self-updates inside the sandbox.
+  codexVersion:
+    default: "0.166.0"
+    pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    buildArg: CODEX_VERSION
   # The baked mise toolchain. Java is not here: it is the base image's
   # OpenJDK 21, put on PATH by the Dockerfile. Bumping one of these is a
   # `rebuild`, the same as t3Version and piVersion. Node is the v2 workspace's
@@ -91,6 +98,7 @@ capabilities:
             - T3CODE_PORT
             - T3CODE_NO_BROWSER
             - ${{ kit.args.providerApiKeyEnv }}
+            - CODEX_API_KEY
             - GH_TOKEN
             - HTTP_PROXY
             - HTTPS_PROXY
@@ -179,6 +187,32 @@ capabilities:
             header: Authorization
             format: "Bearer %s"
 
+  # Codex's model provider. Same proxy-managed pattern as pi's: the sandbox
+  # holds a sentinel, and the proxy swaps it for the real key on the way to
+  # api.openai.com. `codex app-server` reads credentials from
+  # ~/.codex/auth.json rather than OPENAI_API_KEY, so kit/serve.sh writes the
+  # sentinel there with `codex login --with-api-key` before t3 starts.
+  #
+  # ⚠️ This is an API key, not ChatGPT OAuth. A ChatGPT token would have to
+  # live in the sandbox, which is the one thing this kit refuses to do.
+  #
+  # The service is `openai`, the same name `sbx secret set openai` uses. If
+  # you also point pi at openai, the two credentials collide on (openai,
+  # runtime); keep pi on a different provider.
+  - type: com.docker.sandbox/credential@1
+    name: Codex model provider
+    optional: true
+    config:
+      service: openai
+      phase: runtime
+      apiKey:
+        name: CODEX_API_KEY
+        proxyManaged: true
+        inject:
+          - domain: api.openai.com
+            header: Authorization
+            format: "Bearer %s"
+
   # Mirrors policy/allow.txt (runtime) and policy/install.txt (install-time).
   # The descriptor is normative — it travels with the
   # image, under one digest — and `npm run smoke` fails if the two disagree.
@@ -208,6 +242,7 @@ capabilities:
       runtime:
         allow:
           - api.anthropic.com
+          # Serves both pi (when its provider is openai) and Codex.
           - api.openai.com
           - api.mistral.ai
           - github.com

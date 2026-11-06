@@ -32,11 +32,12 @@ runs one test file in about a second; `npm run check` is the whole gate (about
 
 ### Where a change lands
 
-| Change        | Files                                                                                                                                                                  |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add a verb    | `apps/cli/src/usage.ts` (verb table), `apps/cli/src/main.ts` (dispatch), `apps/cli/src/verbs.ts` + `verbs.test.ts`, `package.json`, `scripts/characterization/golden/` |
-| Change egress | `kit/t3-code.yaml` (network policy), `policy/allow.txt` (runtime), `policy/install.txt` (build), `packages/kit/src/Policy.ts`, `scripts/smoke.ts` (mirror check)       |
-| Bump a pin    | `kit/t3-code.yaml` (descriptor default), `kit/t3-code.dockerfile` (`ARG`), `scripts/layout.test.ts` (asserts they match)                                               |
+| Change         | Files                                                                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add a verb     | `apps/cli/src/usage.ts` (verb table), `apps/cli/src/main.ts` (dispatch), `apps/cli/src/verbs.ts` + `verbs.test.ts`, `package.json`, `scripts/characterization/golden/`                         |
+| Change egress  | `kit/t3-code.yaml` (network policy), `policy/allow.txt` (runtime), `policy/install.txt` (build), `packages/kit/src/Policy.ts`, `scripts/smoke.ts` (mirror check)                               |
+| Bump a pin     | `kit/t3-code.yaml` (descriptor default), `kit/t3-code.dockerfile` (`ARG`), `scripts/layout.test.ts` (asserts they match)                                                                       |
+| Add a provider | `kit/t3-code.yaml` (version arg, credential, egress), `kit/t3-code.dockerfile` (install), `kit/serve.sh` (auth), `scripts/smoke.ts` (version check), `docs/adr/`, README, `docs/host-setup.md` |
 
 ### Durability
 

@@ -15,7 +15,8 @@
 # HTTP 403 with "Approval required for <host:port>", so an agent that "cannot
 # reach the API" is usually a missing line here.
 
-# --- model providers: pi's endpoint, plus the two you are most likely to add
+# --- model providers: pi's endpoint, plus the two you are most likely to add.
+# api.openai.com also serves Codex, the second baked agent.
 api.anthropic.com
 api.openai.com
 api.mistral.ai

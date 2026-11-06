@@ -13,14 +13,18 @@ mise's shims are first on the image's `PATH`. A non-interactive shell resolves
 `node`, `go`, and `python` through them, and that is what the agent's bash tool
 runs. No shell rc file is read, and nothing calls `mise activate`.
 
-Two more tools are baked without mise:
+Three more tools are baked without mise:
 
 - **Vite+** (`vp`) is a global npm install at the `vitePlusVersion` pin. The v2
   workspace runs its tests, lint, and format through it.
 - **fd** is a pinned release binary in `/usr/local/bin`, at the `fdVersion` pin.
   pi finds it on `PATH` and skips its own first-run download.
+- **Codex** (`codex`) is a global npm install at the `codexVersion` pin. t3
+  finds it on `PATH` and starts its app-server; without the bake, t3 would
+  download a managed runtime into `$T3CODE_HOME/tools` on first use, which a
+  `rebuild` throws away.
 
-Bumping either one is a `rebuild`. `rg` is the base image's, not the kit's: the
+Bumping any of them is a `rebuild`. `rg` is the base image's, not the kit's: the
 kit does not pin it.
 
 ## Pinning a repo's toolchain
@@ -71,9 +75,10 @@ starts. A wrong package name then fails the layer, not the smoke.
 ## Bumping a pin
 
 Change the `nodeVersion` / `goVersion` / `pythonVersion` / `vitePlusVersion` /
-`fdVersion` defaults in [`kit/t3-code.yaml`](../kit/t3-code.yaml), and the
-matching `ARG` in the Dockerfile. Bump them the same way `t3Version` and
-`piVersion` are bumped, then rebuild.
+`fdVersion` / `codexVersion` defaults in
+[`kit/t3-code.yaml`](../kit/t3-code.yaml), and the matching `ARG` in the
+Dockerfile. Bump them the same way `t3Version` and `piVersion` are bumped, then
+rebuild.
 
 ## Java
 

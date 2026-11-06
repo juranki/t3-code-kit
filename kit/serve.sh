@@ -60,6 +60,24 @@ else
   note "could not clear $manifest; t3 may reuse its cached model manifest"
 fi
 
+# Codex reads credentials from ~/.codex/auth.json, not from OPENAI_API_KEY:
+# `codex app-server` starts with environment API-key auth disabled. The sandbox
+# only ever holds the proxy-managed sentinel, so write that sentinel into the
+# auth file and let the proxy swap it for the real key on the way to
+# api.openai.com. Best-effort: Codex is optional, and a failed write leaves the
+# pi path untouched. Re-running login on every start is what makes a rebuild
+# work, because ~/.codex is not a volume.
+#
+# This overwrites a manual `codex login` in the sandbox by design. A real
+# ChatGPT token in the sandbox is the one thing this kit refuses to hold.
+if [ -n "${CODEX_API_KEY:-}" ] && command -v codex >/dev/null 2>&1; then
+  if printf '%s' "$CODEX_API_KEY" | codex login --with-api-key >>"$log" 2>&1; then
+    note "codex is signed in with the proxy-managed API key"
+  else
+    note "codex login failed; Codex will show as unauthenticated in t3"
+  fi
+fi
+
 # Chromium does not read SSL_CERT_FILE or NODE_EXTRA_CA_CERTS: it verifies TLS
 # against the NSS platform store at $HOME/.pki/nssdb. The sandbox proxy
 # re-signs every connection with a CA minted per sandbox, so without this the

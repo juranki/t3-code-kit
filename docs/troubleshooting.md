@@ -44,6 +44,28 @@ cannot be a kit arg. Switching provider therefore means editing `provider`,
 `providerApiKeyEnv`, and the `inject` block in `kit/t3-code.yaml` together, and
 then approving the new domain's binding.
 
+## Codex shows as unauthenticated in t3, or answers `401`
+
+`codex app-server` reads credentials from `~/.codex/auth.json`, not from
+`OPENAI_API_KEY`. `kit/serve.sh` writes the proxy-managed sentinel there with
+`codex login --with-api-key` on every start, so the provider card should read
+**OpenAI API Key**.
+
+If it does not:
+
+- `sbx secret ls` must show `openai`, and the binding must include
+  `api.openai.com`. A stored secret is not an approval.
+- `npm run logs -- <name>` shows either `codex is signed in with the
+  proxy-managed API key` or `codex login failed`. The second means
+  `CODEX_API_KEY` was empty, which is the withheld-credential case.
+- If the log says the key was written but the API answers `401`, the `inject`
+  rule is missing or the binding is for the wrong domain. The sentinel reached
+  `api.openai.com` unchanged.
+
+Do not run `codex login` by hand inside the sandbox with a real key. `serve.sh`
+overwrites it on the next start, and a ChatGPT token in the sandbox is exactly
+what the proxy-injected-credential model exists to avoid.
+
 ## An agent says it cannot reach an API
 
 Egress is deny-by-default, and the proxy does not fail like a network. It
