@@ -13,10 +13,10 @@
     }
   },
   "dependencies": {
-    "effect": "4.0.5"
+    "effect": "4.1.2"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.5",
+    "@effect/vitest": "4.1.2",
     "@types/node": "24.12.4",
     "vite-plus": "1.4.0"
   }

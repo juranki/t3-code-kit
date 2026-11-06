@@ -13,14 +13,14 @@
     }
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.5",
+    "@effect/platform-node": "4.1.2",
     "@t3ck/host": "*",
     "@t3ck/kit": "*",
     "@t3ck/sbx": "*",
-    "effect": "4.0.5"
+    "effect": "4.1.2"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.5",
+    "@effect/vitest": "4.1.2",
     "@types/node": "24.12.4",
     "vite-plus": "1.4.0"
   }

@@ -65,5 +65,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-`repos/effect/` is a git subtree pinned to the `effect@4.0.5` tag and keeps
+`repos/effect/` is a git subtree pinned to the `effect@4.1.2` tag and keeps
 its own `LICENSE` file. See `agent-patterns/README.md` for why it is vendored.

@@ -3,7 +3,7 @@
 Source of truth: `repos/effect/ai-docs/src/09_testing/` and
 `repos/effect/LLMS.md` ("Testing Effect programs").
 
-The workspace uses `@effect/vitest` 4.0.5 under `vite-plus`. `it.effect` runs
+The workspace uses `@effect/vitest` 4.1.2 under `vite-plus`. `it.effect` runs
 on `TestClock`; `it.live` runs on the real clock and is only for subprocess or
 network fixtures. There is no `retry`; a flaky test is fixed.
 
