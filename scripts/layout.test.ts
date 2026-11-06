@@ -142,6 +142,11 @@ describe("v2 workspace layout", () => {
     expect(dockerfileArg("NODE_VERSION")).toBe(rootManifest.engines?.node);
   });
 
+  it("bakes the Go pin the descriptor declares", () => {
+    expect(descriptorDefault("goVersion")).toBeDefined();
+    expect(dockerfileArg("GO_VERSION")).toBe(descriptorDefault("goVersion"));
+  });
+
   it("bakes the Vite+ and fd pins the descriptor declares", () => {
     // Vite+ is the workspace's own devDependency, so the image pin must match
     // it; fd has no manifest pin, so the descriptor is the source of truth.

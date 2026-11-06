@@ -23,7 +23,7 @@ ARG CODEX_VERSION=0.166.0
 # Node is the v2 workspace's exact pin (package.json engines.node), so the
 # repo and the image cannot drift.
 ARG NODE_VERSION=26.13.0
-ARG GO_VERSION=1.25.14
+ARG GO_VERSION=1.27.3
 ARG PYTHON_VERSION=3.13.18
 
 # Vite+ is the v2 workspace's test/lint/format runner. A global npm install,
@@ -35,7 +35,7 @@ ARG VITE_PLUS_VERSION=1.5.0
 # first run (#25): a runtime install, a first-run stall, and a binary a rebuild
 # throws away. The release tarball comes from github.com and
 # objects.githubusercontent.com, both already in install.allow.
-ARG FD_VERSION=10.5.0
+ARG FD_VERSION=10.5.1
 
 # The skills pin is a commit, not a branch, and that is load-bearing: with a
 # ref set the `skills` CLI clones at that sha instead of asking api.github.com
@@ -43,7 +43,7 @@ ARG FD_VERSION=10.5.0
 # registry.npmjs.org — no new install-time host in network-policy@2. Verified
 # with api.github.com blackholed: same 27 skills, byte-identical, hashes
 # computed locally.
-ARG SKILLS_VERSION=1.7.4
+ARG SKILLS_VERSION=1.7.6
 ARG SKILLS_REF=a496f5513d4a4cf889bc48e189e579f4b0bdf6aa
 
 # t3 ships prebuilt native modules that link libatomic. mise is the toolchain
