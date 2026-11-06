@@ -21,17 +21,18 @@ published package's `from "vitest"` cannot resolve and the patch rewrites it to
 `vite-plus/test`. `catalog:` keeps one version per dependency across ~40
 packages. `packageExtensions` supplies the peer that patch implies. A probe
 showed none of it is needed under npm: installing `vite-plus@1.4.0`,
-`effect@4.1.2` and `@effect/vitest@4.1.2` hoists `vitest@5.0.5` (vite-plus's
-own dependency), the _unpatched_ `from "vitest"` resolves to it, and
-`it.effect` runs under `vp test`. A second probe in a two-package npm
-workspace confirmed the real shape: `vp test run` at the root and
-`vp test run --config ../../vite.config.ts --dir .` from a package both pass,
-and a package imports another's `src/*.ts` through its `exports` subpath. Root
-`overrides` pin `effect`, `vitest`, `vite` and `typescript`, which is the
-single-copy guarantee the catalog was buying.
+`effect@4.0.5` and `@effect/vitest@4.0.5` hoisted `vitest@5.0.5` (vite-plus's
+own dependency), the _unpatched_ `from "vitest"` resolved to it, and
+`it.effect` ran under `vp test`. The same holds at the current pins
+(`vite-plus@1.5.0`, `effect@4.1.2`, hoisted `vitest@5.1.0`). A second probe in
+a two-package npm workspace confirmed the real shape: `vp test run` at the
+root and `vp test run --config ../../vite.config.ts --dir .` from a package
+both pass, and a package imports another's `src/*.ts` through its `exports`
+subpath. Root `overrides` pin `effect`, `vitest`, `vite` and `typescript`,
+which is the single-copy guarantee the catalog was buying.
 
 The `vite` override is the one that is not obvious. `vite-plus` depends on
-`vite` as an npm alias (`npm:@voidzero-dev/vite-plus-core@1.4.0`), and vitest
+`vite` as an npm alias (`npm:@voidzero-dev/vite-plus-core@1.5.0`), and vitest
 wants a _real_ `vite` peer. Left alone, npm installs registry `vite@8.3.5` at
 the root to satisfy the peer and nests the alias under `vite-plus`, so `vp test`
 runs against a different Vite than the toolchain does — and on a fresh install

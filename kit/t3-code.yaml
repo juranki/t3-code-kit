@@ -38,7 +38,7 @@ args:
   # Not mise's: Vite+ is a global npm install and fd is a pinned release
   # binary in /usr/local/bin. Both are `rebuild` pins like the toolchain above.
   vitePlusVersion:
-    default: "1.4.0"
+    default: "1.5.0"
     pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     buildArg: VITE_PLUS_VERSION
   fdVersion:

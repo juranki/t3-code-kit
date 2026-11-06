@@ -28,7 +28,7 @@ ARG PYTHON_VERSION=3.13.18
 # Vite+ is the v2 workspace's test/lint/format runner. A global npm install,
 # not a mise tool: mise has no vite-plus plugin, and the npm backend would only
 # add a second install path. The pin matches package.json's devDependency.
-ARG VITE_PLUS_VERSION=1.4.0
+ARG VITE_PLUS_VERSION=1.5.0
 
 # fd is pinned because pi otherwise downloads it into ~/.pi/agent/bin on its
 # first run (#25): a runtime install, a first-run stall, and a binary a rebuild

@@ -74,7 +74,7 @@ PowerShell as a launcher.
    ```powershell
    irm https://vite.plus/ps1 | iex
    node --version   # v26.13.0
-   vp --version     # 1.4.0
+   vp --version     # 1.5.0
    ```
 
 2. **Clone and install.**

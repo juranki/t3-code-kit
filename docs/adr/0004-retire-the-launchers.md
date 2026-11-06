@@ -53,7 +53,7 @@ are recorded in the goldens.
 
 ## What this changes for the host
 
-- **Node 26.13.0 and Vite+ 1.4.0 replace PowerShell 7.** The Vite+ installer
+- **Node 26.13.0 and Vite+ 1.5.0 replace PowerShell 7.** The Vite+ installer
   provides Node on Windows; `npm ci` installs the workspace. The old
   "PowerShell 7 is the one Windows prerequisite" line is gone.
 - **`npm run` replaces the `t3-code-kit` command.** Hints in errors and docs
