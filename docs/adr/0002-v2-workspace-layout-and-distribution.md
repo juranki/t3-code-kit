@@ -96,8 +96,12 @@ despite printing its `> script` header on stdout.
   `t3-code-kit` any more; the project name survives only in the error prefix
   and the docs.
 - **One exact Node pin, `26.13.0`**, in `engines.node` and — via #41 — in the
-  image's `nodeVersion`/`NODE_VERSION`. `@types/node` stays at t3code's
-  `24.12.4`; bump it only when a Node 26 API is actually needed, and say why.
+  image's `nodeVersion`/`NODE_VERSION`. `@types/node` was deliberately held at
+  t3code's `24.12.4` while the runtime moved to Node 26, on the rule that it
+  would be bumped only once a Node 26 API was actually needed. #77 dropped that
+  hold and moved it to `26.6.6` — not because an API was needed, but because
+  the type surface was two majors behind the runtime and `effect@4.1.1` had
+  removed the DOM-lib obstacle that made the bump awkward.
 - **The phantom-dependency guardrail is gone.** pnpm's strict `node_modules`
   would have failed an import of a package that was never declared; npm hoists
   and lets it resolve. That is the one guardrail traded away, accepted because

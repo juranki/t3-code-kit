@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@effect/tsgo": "0.67.4",
-    "@types/node": "24.12.4",
+    "@types/node": "26.6.6",
     "typescript": "npm:@tsc-rs/typescript@0.8.0",
     "vite-plus": "1.5.0"
   },
