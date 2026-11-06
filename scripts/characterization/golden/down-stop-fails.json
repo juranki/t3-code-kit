@@ -1,5 +1,5 @@
 {
   "exit": 1,
-  "calls": [["stop", "<name>"]],
+  "calls": [["--no-input", "stop", "<name>"]],
   "warnings": ["could not stop '<name>'"]
 }

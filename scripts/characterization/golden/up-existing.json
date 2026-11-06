@@ -1,11 +1,12 @@
 {
   "exit": 0,
   "calls": [
-    ["secret", "ls"],
-    ["ls"],
-    ["run", "-d", "--name", "<name>"],
-    ["ports", "<name>"],
+    ["--no-input", "secret", "ls"],
+    ["--no-input", "ls", "--json"],
+    ["--no-input", "run", "-d", "--name", "<name>"],
+    ["--no-input", "ports", "<name>"],
     [
+      "--no-input",
       "exec",
       "<name>",
       "--",
@@ -14,6 +15,7 @@
       "git config --global user.name \"$(printf %s '<b64:Agent for Test User>')\""
     ],
     [
+      "--no-input",
       "exec",
       "<name>",
       "--",
@@ -21,7 +23,7 @@
       "-c",
       "git config --global user.email \"$(printf %s '<b64:test@example.com>')\""
     ],
-    ["exec", "<name>", "--", "t3", "pair"]
+    ["--no-input", "exec", "<name>", "--", "t3", "pair"]
   ],
   "warnings": []
 }

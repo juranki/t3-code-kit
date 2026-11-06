@@ -7,6 +7,9 @@
 import { appendFileSync, readFileSync } from "node:fs";
 
 const argv = process.argv.slice(2);
+// `--no-input` is a global flag the seam puts before the verb. The rules match
+// from the verb; the golden records the full argv, so the flag is still pinned.
+const verbArgv = argv[0] === "--no-input" ? argv.slice(1) : argv;
 
 const log = process.env.FAKE_SBX_LOG;
 if (log) appendFileSync(log, `${JSON.stringify({ argv })}\n`);
@@ -16,7 +19,7 @@ const scenario = scenarioPath ? JSON.parse(readFileSync(scenarioPath, "utf8")) :
 
 const matches = (rule) => {
   const prefix = rule.match ?? [];
-  const prefixOk = prefix.every((word, index) => word === "*" || argv[index] === word);
+  const prefixOk = prefix.every((word, index) => word === "*" || verbArgv[index] === word);
   const containsOk = (rule.contains ?? []).every((needle) =>
     argv.some((word) => word.includes(needle)),
   );

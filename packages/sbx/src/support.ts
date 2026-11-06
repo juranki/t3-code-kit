@@ -5,12 +5,23 @@ import type { Command } from "./command.ts";
 
 export const MAX_ERROR_OUTPUT = 4_000;
 
-// The first two argv words, for an error label. Not a command string: the
-// seam never joins argv into something a shell could run.
+// The verb words, for an error label. Not a command string: the seam never
+// joins argv into something a shell could run.
+//
+// A leading flag is a global (`--no-input`), and a flag after the verb starts
+// its arguments (`ls --json`), so neither is part of the name. Two words is the
+// most a verb has (`secret ls`).
 export const verbOf = (input: Command): string => {
-  const [first, second] = input.args;
-  if (first === undefined || first === "") return input.bin;
-  return second === undefined ? first : `${first} ${second}`;
+  const words: Array<string> = [];
+  for (const word of input.args) {
+    if (word.startsWith("-")) {
+      if (words.length === 0) continue;
+      break;
+    }
+    if (words.length === 2) break;
+    words.push(word);
+  }
+  return words.length === 0 ? input.bin : words.join(" ");
 };
 
 /** Token-shaped JSON values become `[redacted]` before they reach an error or

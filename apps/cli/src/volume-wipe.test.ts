@@ -9,9 +9,13 @@ import { wipeVolumeContents, type WipeOutcome } from "./volume-wipe.ts";
 const scriptOf = (command: { readonly args: ReadonlyArray<string> }): string =>
   command.args.at(-1) ?? "";
 
+// The seam puts the global `--no-input` before the verb.
+const verb = (command: { readonly args: ReadonlyArray<string> }): string | undefined =>
+  command.args[0] === "--no-input" ? command.args[1] : command.args[0];
+
 const markerRule = {
   match: (command: { args: ReadonlyArray<string> }) =>
-    command.args[0] === "exec" &&
+    verb(command) === "exec" &&
     scriptOf(command).includes(".t3ck-nuke-marker") &&
     scriptOf(command).includes(">"),
   response: { stdout: "" },
@@ -19,20 +23,20 @@ const markerRule = {
 
 const wipeRule = {
   match: (command: { args: ReadonlyArray<string> }) =>
-    command.args[0] === "exec" && scriptOf(command).includes("-mindepth 1 -delete"),
+    verb(command) === "exec" && scriptOf(command).includes("-mindepth 1 -delete"),
   response: { stdout: "" },
 };
 
 const verifyRule = (survivors = "") => ({
   match: (command: { args: ReadonlyArray<string> }) =>
-    command.args[0] === "exec" && scriptOf(command).includes("[ ! -e"),
+    verb(command) === "exec" && scriptOf(command).includes("[ ! -e"),
   response: { stdout: survivors },
 });
 
 const runWipe = (fake: FakeSbx): Effect.Effect<WipeOutcome> =>
   wipeVolumeContents("charprobe").pipe(Effect.provide(fake.layer));
 
-const execCalls = (fake: FakeSbx) => fake.commands.filter((command) => command.args[0] === "exec");
+const execCalls = (fake: FakeSbx) => fake.commands.filter((command) => verb(command) === "exec");
 
 describe("wipeVolumeContents", () => {
   it.effect("marks, wipes as root, and verifies the four volumes", () => {
@@ -42,14 +46,22 @@ describe("wipeVolumeContents", () => {
       const calls = execCalls(fake);
       expect(calls).toHaveLength(3);
 
-      expect(calls[0]?.args.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
+      expect(calls[0]?.args.slice(0, 6)).toEqual([
+        "--no-input",
+        "exec",
+        "charprobe",
+        "--",
+        "sh",
+        "-c",
+      ]);
       expect(calls[0]?.timeoutMs).toBe(5 * 60_000);
       const marker = scriptOf(calls[0]!);
       for (const path of VOLUME_PATHS) {
         expect(marker).toContain(`'${path}'/.t3ck-nuke-marker`);
       }
 
-      expect(calls[1]?.args.slice(0, 7)).toEqual([
+      expect(calls[1]?.args.slice(0, 8)).toEqual([
+        "--no-input",
         "exec",
         "-u",
         "root",
@@ -65,7 +77,14 @@ describe("wipeVolumeContents", () => {
         expect(wipe).toContain(`find '${path}' -mindepth 1 -delete`);
       }
 
-      expect(calls[2]?.args.slice(0, 5)).toEqual(["exec", "charprobe", "--", "sh", "-c"]);
+      expect(calls[2]?.args.slice(0, 6)).toEqual([
+        "--no-input",
+        "exec",
+        "charprobe",
+        "--",
+        "sh",
+        "-c",
+      ]);
       expect(scriptOf(calls[2]!)).toContain("[ ! -e");
     }).pipe(Effect.provide(TestConsole.layer));
   });
@@ -75,7 +94,7 @@ describe("wipeVolumeContents", () => {
       rules: [
         {
           match: (command: { args: ReadonlyArray<string> }) =>
-            command.args[0] === "exec" && scriptOf(command).includes(".t3ck-nuke-marker"),
+            verb(command) === "exec" && scriptOf(command).includes(".t3ck-nuke-marker"),
           response: { exitCode: 1, stderr: "error: sandbox 'charprobe' not found\n" },
         },
       ],
@@ -108,7 +127,7 @@ describe("wipeVolumeContents", () => {
         markerRule,
         {
           match: (command: { args: ReadonlyArray<string> }) =>
-            command.args[0] === "exec" && scriptOf(command).includes("-mindepth 1 -delete"),
+            verb(command) === "exec" && scriptOf(command).includes("-mindepth 1 -delete"),
           response: { exitCode: 1, stderr: "find: permission denied\n" },
         },
       ],
@@ -132,7 +151,7 @@ describe("wipeVolumeContents", () => {
       rules: [
         {
           match: (command: { args: ReadonlyArray<string> }) =>
-            command.args[0] === "exec" && scriptOf(command).includes(".t3ck-nuke-marker"),
+            verb(command) === "exec" && scriptOf(command).includes(".t3ck-nuke-marker"),
           response: { fail: "not-found" },
         },
       ],

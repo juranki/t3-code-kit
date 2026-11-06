@@ -9,6 +9,7 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 import type { Capabilities } from "./capabilities.ts";
 import { command, type Command } from "./command.ts";
@@ -24,14 +25,23 @@ import {
 } from "./errors.ts";
 import { bound, isMissingSandbox, isNotLoggedIn, verbOf } from "./support.ts";
 
+/** One published mapping, as `sbx ls --json` reports it. */
+export interface SandboxPort {
+  readonly hostIp: string;
+  readonly hostPort: number;
+  readonly sandboxPort: number;
+  readonly protocol: string;
+}
+
+/** One row of `sbx ls --json`. The listing also carries `id`, `cpus`,
+ * `memory`, `last_used_at`, and `detached`; none of them is a decision the CLI
+ * makes, so the seam does not model them. */
 export interface SandboxSummary {
   readonly name: string;
   readonly agent: string;
   readonly status: string;
-  readonly state: "running" | "stopped" | "unknown";
-  readonly ports: string;
-  readonly workspace: string;
-  readonly created: string;
+  readonly ports: ReadonlyArray<SandboxPort>;
+  readonly createdAt: string;
 }
 
 export interface PortMapping {
@@ -151,14 +161,27 @@ export class Sbx extends Context.Service<
 // into a timeout.
 const CREATE_TIMEOUT_MS = 60 * 60_000;
 
-const sbxCommand = (
-  args: ReadonlyArray<string>,
-  extra?: {
-    readonly env?: Readonly<Record<string, string | undefined>>;
-    readonly tty?: boolean;
-    readonly timeoutMs?: number;
-  },
-): Command => command({ bin: "sbx", args, ...extra });
+interface SbxCommandOptions {
+  readonly env?: Readonly<Record<string, string | undefined>>;
+  readonly tty?: boolean;
+  readonly timeoutMs?: number;
+  /** `attach` and an interactive `exec -it` must keep sbx's own prompts. */
+  readonly interactive?: boolean;
+}
+
+// `--no-input` (a global flag since sbx 0.51.0) turns a prompt into an error
+// naming the command to run. Without it a prompt waits on stdin until the
+// command's timeout, and `create`'s is an hour. It goes before the verb because
+// that is where sbx's global flags live; for `exec` it cannot go after `--`,
+// where the words belong to the sandbox.
+const sbxCommand = (args: ReadonlyArray<string>, options: SbxCommandOptions = {}): Command => {
+  const { interactive = false, ...rest } = options;
+  return command({
+    bin: "sbx",
+    args: interactive ? args : ["--no-input", ...args],
+    ...rest,
+  });
+};
 
 const runChecked = (
   adapter: Adapter["Service"],
@@ -189,7 +212,7 @@ const make = Effect.gen(function* () {
   });
 
   const list = Effect.fn("Sbx.list")(function* () {
-    const result = yield* runChecked(adapter, sbxCommand(["ls"]));
+    const result = yield* runChecked(adapter, sbxCommand(["ls", "--json"]));
     return yield* Effect.try({
       try: () => parseSandboxList(result.stdout),
       catch: () => new SbxOutputError({ verb: "ls", field: "sandbox rows" }),
@@ -261,6 +284,7 @@ const make = Effect.gen(function* () {
         {
           ...(input.tty === undefined ? {} : { tty: input.tty }),
           ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+          interactive: input.tty === true,
         },
       ),
     );
@@ -278,7 +302,9 @@ const make = Effect.gen(function* () {
   });
 
   const attach = Effect.fn("Sbx.attach")(function* (input: { readonly name: string }) {
-    const result = yield* adapter.run(sbxCommand(["attach", input.name], { tty: true }));
+    const result = yield* adapter.run(
+      sbxCommand(["attach", input.name], { tty: true, interactive: true }),
+    );
     return yield* missingSandbox(result, input.name, "attach");
   });
 
@@ -345,84 +371,60 @@ const make = Effect.gen(function* () {
 export const layer: Layer.Layer<Sbx, never, Adapter> = Layer.effect(Sbx, make);
 
 // --- parsers ---------------------------------------------------------------
-// `sbx` has no JSON output for these verbs. The parsers are deliberately
-// tolerant and throw on a row they cannot read; `SbxOutputError` is the
-// "sbx moved under us" signal.
+// `sbx` has JSON output for `ls` and not for the rest. A parser throws on
+// output it cannot read, and `SbxOutputError` is the "sbx moved under us"
+// signal.
 
-// `sbx ls` prints a fixed-width table. STATUS, PORTS, and WORKSPACE all
-// contain spaces, so whitespace splitting is wrong; slice by the header's
-// column offsets instead. Confirmed against `sbx` v0.50.1 on Windows
-// (`docs/research/sbx-probe-2026-11-01.log`):
+// `sbx ls --json` prints an array of objects. The shape below was captured from
+// `sbx` v0.51.0 on Windows; the table it replaced was fixed-width and had to be
+// sliced by header offsets, which broke as soon as a column moved.
 //
-//   SANDBOX           AGENT             STATUS                 PORTS ... WORKSPACE ... CREATED
-//   spike             kit               ● running (detached)   127.0.0.1:60006->3773/tcp ... ~/src/t3-code-kit   43s
-const SANDBOX_COLUMNS = ["SANDBOX", "AGENT", "STATUS", "PORTS", "WORKSPACE", "CREATED"] as const;
+//   [{ "name": "t3", "agent": "kit", "status": "running",
+//      "ports": [{ "host_ip": "127.0.0.1", "host_port": 3773,
+//                  "sandbox_port": 3773, "protocol": "tcp4" }],
+//      "created_at": "2026-11-06T18:17:57Z", "detached": true, ... }]
+const SandboxPortJson = Schema.Struct({
+  host_ip: Schema.String,
+  host_port: Schema.Number,
+  sandbox_port: Schema.Number,
+  protocol: Schema.String,
+});
 
-const columnStarts = (header: string): ReadonlyArray<number> => {
-  const starts = SANDBOX_COLUMNS.map((column) => header.indexOf(column));
-  if (starts.some((start) => start < 0)) {
-    throw new Error("sbx ls header is missing a column");
-  }
-  return starts;
-};
+const SandboxJson = Schema.Struct({
+  name: Schema.String,
+  agent: Schema.String,
+  status: Schema.String,
+  ports: Schema.optionalKey(Schema.Array(SandboxPortJson)),
+  created_at: Schema.String,
+});
 
-const cell = (row: string, starts: ReadonlyArray<number>, index: number): string => {
-  const start = starts[index];
-  if (start === undefined) return "";
-  const end = starts[index + 1] ?? row.length;
-  return row.slice(start, end).trim();
-};
+const SandboxListJson = Schema.fromJsonString(Schema.Array(SandboxJson));
 
-export const parseSandboxList = (stdout: string): ReadonlyArray<SandboxSummary> => {
-  const lines = stdout.split(/\r?\n/u).filter((line) => line.trim().length > 0);
-  const headerIndex = lines.findIndex((line) => /^\s*SANDBOX\b/u.test(line));
-  const header = lines[headerIndex];
-  if (headerIndex < 0 || header === undefined) {
-    throw new Error("sbx ls did not print a header");
-  }
-  const starts = columnStarts(header);
-  return lines.slice(headerIndex + 1).map((line) => {
-    const name = cell(line, starts, 0);
-    if (name.length === 0) {
-      throw new Error("empty sandbox row");
-    }
-    const status = cell(line, starts, 2);
-    return {
-      name,
-      agent: cell(line, starts, 1),
-      status,
-      state: status.includes("running")
-        ? ("running" as const)
-        : status.includes("stopped")
-          ? ("stopped" as const)
-          : ("unknown" as const),
-      ports: cell(line, starts, 3),
-      workspace: cell(line, starts, 4),
-      created: cell(line, starts, 5),
-    };
-  });
-};
+export const parseSandboxList = (stdout: string): ReadonlyArray<SandboxSummary> =>
+  Schema.decodeSync(SandboxListJson)(stdout).map((row) => ({
+    name: row.name,
+    agent: row.agent,
+    status: row.status,
+    ports: (row.ports ?? []).map((port) => ({
+      hostIp: port.host_ip,
+      hostPort: port.host_port,
+      sandboxPort: port.sandbox_port,
+      protocol: port.protocol,
+    })),
+    createdAt: row.created_at,
+  }));
 
 /** The host ports already published for a sandbox. `sbx ports` prints a table
- * (`HOST IP / HOST PORT / SANDBOX PORT / PROTOCOL`); `sbx ls` prints the same
- * mappings inline (`127.0.0.1:3774->3773/tcp4`). The CLI asks one question —
- * "is this host port already published?" — so accept both shapes. */
+ * (`HOST IP / HOST PORT / SANDBOX PORT / PROTOCOL`); the CLI asks one question
+ * — "is this host port already published?" — so only the host-port column is
+ * read. */
 export const publishedHostPorts = (stdout: string): ReadonlyArray<number> => {
   const ports: Array<number> = [];
   for (const line of stdout.split(/\r?\n/u)) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
-
-    for (const match of trimmed.matchAll(/:(\d+)->\d+\//gu)) {
-      const port = Number.parseInt(match[1] ?? "", 10);
-      if (Number.isInteger(port)) ports.push(port);
-    }
-
-    const columns = trimmed.split(/\s+/u);
-    if (columns.length >= 4 && /^\d+$/u.test(columns[1] ?? "")) {
-      const port = Number.parseInt(columns[1] ?? "", 10);
-      if (Number.isInteger(port)) ports.push(port);
-    }
+    const columns = line.trim().split(/\s+/u);
+    if (columns.length < 4 || !/^\d+$/u.test(columns[1] ?? "")) continue;
+    const port = Number.parseInt(columns[1] ?? "", 10);
+    if (Number.isInteger(port)) ports.push(port);
   }
   return ports;
 };

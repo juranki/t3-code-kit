@@ -146,3 +146,12 @@ A browser that is missing altogether (`no chrome-headless-shell under
 Check `sbx ls`, then `sbx diagnose`. A Kit that fails to build usually means
 the base image reference moved. It is the `BASE` arg at the top of
 `kit/t3-code.dockerfile`.
+
+On `sbx` 0.51.0 and later a startup command that fails no longer fails
+`sbx run`: it prints a warning with the log tail and exits 0. `npm run up` still
+catches it, but the symptom becomes a readiness timeout rather than a startup
+error. The install and startup logs are inside the sandbox at
+`/var/log/sbx-kits/<kit>/install-<n>.log`. List them with
+`sbx exec <name> -- sh -c 'ls -t /var/log/sbx-kits/*/'`, then read the newest
+with `sbx exec <name> -- tail -n 100 <path>`. `npm run logs -- <name>` is a
+different file: the server's own `/home/agent/.t3/serve.log`.

@@ -37,4 +37,8 @@ describe("support", () => {
   it("names the verb from the first two argv words", () => {
     expect(verbOf(command({ bin: "sbx", args: ["secret", "ls"] }))).toBe("secret ls");
   });
+
+  it("skips the global --no-input flag when naming the verb", () => {
+    expect(verbOf(command({ bin: "sbx", args: ["--no-input", "ls", "--json"] }))).toBe("ls");
+  });
 });

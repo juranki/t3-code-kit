@@ -1,5 +1,5 @@
 {
   "exit": 0,
-  "calls": [["exec", "<name>", "--", "t3", "pair"]],
+  "calls": [["--no-input", "exec", "<name>", "--", "t3", "pair"]],
   "warnings": []
 }

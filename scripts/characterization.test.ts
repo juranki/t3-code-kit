@@ -15,7 +15,7 @@ import {
   Golden,
   makeFixtures,
   runCase,
-  sandboxTable,
+  sandboxList,
   type Rule,
   type Scenario,
   slug,
@@ -34,7 +34,7 @@ interface NukeCase {
   readonly stdout?: ReadonlyArray<string>;
 }
 
-const nukeList = (name: string): Rule => ({ match: ["ls"], stdout: sandboxTable(name) });
+const nukeList = (name: string): Rule => ({ match: ["ls", "--json"], stdout: sandboxList(name) });
 
 // The marker, wipe, and verify are all `exec … sh -c <script>`; only the
 // script tells them apart, so the rules match on a substring of the one script
@@ -62,9 +62,9 @@ const nukeRm = (response: { readonly exit?: number; readonly stderr?: string } =
   ...response,
 });
 
-const markerCall = ["exec", "<name>", "--", "sh", "-c", "<marker>"];
-const wipeCall = ["exec", "-u", "root", "<name>", "--", "sh", "-c", "<wipe>"];
-const verifyCall = ["exec", "<name>", "--", "sh", "-c", "<verify>"];
+const markerCall = ["--no-input", "exec", "<name>", "--", "sh", "-c", "<marker>"];
+const wipeCall = ["--no-input", "exec", "-u", "root", "<name>", "--", "sh", "-c", "<wipe>"];
+const verifyCall = ["--no-input", "exec", "<name>", "--", "sh", "-c", "<verify>"];
 const missingRemedy =
   "no sandbox named '<name>': its volume contents may still be on disk. run 'npm run up -- <name>', then 'npm run nuke -- <name>'";
 
@@ -76,7 +76,13 @@ const NUKE_CASES: ReadonlyArray<NukeCase> = [
       calls: [nukeList("charprobe"), nukeMarker, nukeWipe, nukeVerify(), nukeRm()],
     },
     exit: 0,
-    calls: [["ls"], markerCall, wipeCall, verifyCall, ["rm", "--force", "<name>"]],
+    calls: [
+      ["--no-input", "ls", "--json"],
+      markerCall,
+      wipeCall,
+      verifyCall,
+      ["--no-input", "rm", "--force", "<name>"],
+    ],
     warnings: [],
     stdout: ["done."],
   },
@@ -85,7 +91,7 @@ const NUKE_CASES: ReadonlyArray<NukeCase> = [
     args: ["nuke", "charprobe"],
     scenario: { calls: [nukeList("charprobe")] },
     exit: 2,
-    calls: [["ls"]],
+    calls: [["--no-input", "ls", "--json"]],
     warnings: ["refusing to nuke '<name>' without --yes on a non-TTY"],
   },
   {
@@ -93,7 +99,7 @@ const NUKE_CASES: ReadonlyArray<NukeCase> = [
     args: ["nuke", "charprobe", "--yes"],
     scenario: { calls: [nukeList("other")] },
     exit: 1,
-    calls: [["ls"]],
+    calls: [["--no-input", "ls", "--json"]],
     warnings: [missingRemedy],
   },
   {
@@ -108,7 +114,15 @@ const NUKE_CASES: ReadonlyArray<NukeCase> = [
       ],
     },
     exit: 1,
-    calls: [["ls"], markerCall, wipeCall, verifyCall, markerCall, wipeCall, verifyCall],
+    calls: [
+      ["--no-input", "ls", "--json"],
+      markerCall,
+      wipeCall,
+      verifyCall,
+      markerCall,
+      wipeCall,
+      verifyCall,
+    ],
     warnings: [
       "wipe of '<name>' left data behind; retrying once",
       "could not wipe '<name>'; the sandbox was not removed (its data is still there)",
@@ -127,7 +141,13 @@ const NUKE_CASES: ReadonlyArray<NukeCase> = [
       ],
     },
     exit: 1,
-    calls: [["ls"], markerCall, wipeCall, verifyCall, ["rm", "--force", "<name>"]],
+    calls: [
+      ["--no-input", "ls", "--json"],
+      markerCall,
+      wipeCall,
+      verifyCall,
+      ["--no-input", "rm", "--force", "<name>"],
+    ],
     warnings: [missingRemedy],
   },
 ];

@@ -16,7 +16,7 @@ export interface Capabilities {
   readonly volumes: VolumeSupport;
   readonly rm: {
     readonly force: boolean;
-    /** A per-sandbox purge flag. False on `sbx` v0.50.1. */
+    /** A per-sandbox purge flag. False on `sbx` v0.50.1 and v0.51.0. */
     readonly purge: boolean;
   };
   readonly egress: EgressModel;

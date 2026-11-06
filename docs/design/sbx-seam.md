@@ -50,7 +50,7 @@ CLI verb ──► Sbx service ──► Adapter ──► live: ChildProcessSpa
 | Method        | Returns            | Notes                                                                                      |
 | ------------- | ------------------ | ------------------------------------------------------------------------------------------ |
 | `probe`       | `Capabilities`     | Runs `sbx version` and `sbx rm --help`; no destructive command.                            |
-| `list`        | `SandboxSummary[]` | Slices the `sbx ls` fixed-width table by header offsets; confirmed against v0.50.1.        |
+| `list`        | `SandboxSummary[]` | Runs `sbx ls --json`; the listing is decoded, not sliced. Confirmed against v0.51.0.       |
 | `create`      | `ExecResult`       | `sbx create --name <n> [-p 127.0.0.1:h:c] <kit>`; `SandboxExistsError` on a name conflict. |
 | `exec`        | `ExecResult`       | Exit code is data. A missing sandbox is a typed failure.                                   |
 | `execChecked` | `ExecResult`       | Fails on a non-zero exit. A verb asks `sbx` to do something.                               |
@@ -102,7 +102,13 @@ The seam returns data. The CLI owns everything that is policy or presentation:
 
 ## `sbx` quirks the seam hides
 
-- `sbx` has no `--version`; the invocation is `sbx version`.
+- The invocation is `sbx version`, not `sbx --version`: `--version` (added in
+  0.51.0) prints the client version only, and the probe wants the daemon and
+  build detail too.
+- `--no-input` (0.51.0) is a global flag and goes before the verb. The seam
+  puts it on every command except `attach` and an interactive `exec -it`, so a
+  prompt fails fast with the command to run instead of waiting on stdin until
+  the command's timeout — `create`'s is an hour.
 - `sbx exec` on a stopped sandbox starts it, which runs the `lifecycle@1` hook
   and starts `t3 serve`. `nuke` must kill it before wiping.
 - `sbx rm --force` keeps volume storage; retention is conditional in `sbx`'s
@@ -160,9 +166,11 @@ kept here because the answers are what the production module encodes.
    `exec`.
 4. **`list` parsing.** The host run confirmed the columns
    `SANDBOX AGENT STATUS PORTS WORKSPACE CREATED`, and that `STATUS`, `PORTS`,
-   and `WORKSPACE` all contain spaces. The parser now slices by the header's
-   column offsets. Is that table stable across `sbx` versions, and is there a
-   `--json` or `--format` flag that would make the parser unnecessary?
+   and `WORKSPACE` all contain spaces. The parser sliced by the header's column
+   offsets. Is that table stable across `sbx` versions, and is there a `--json`
+   or `--format` flag that would make the parser unnecessary? **Answered by
+   `sbx` 0.51.0:** `sbx ls --json` exists, and the offset slicing is gone. The
+   same flag is available on `sbx ports`, which still parses its table.
 5. **`SecretAbsentError` placement.** The seam defines it; the CLI throws it.
    Is that the right split, or should `secrets` take the name and fail?
 6. **`PortMapping`.** The prototype hardcodes `127.0.0.1` in `create`. Should

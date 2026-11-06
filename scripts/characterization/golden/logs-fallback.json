@@ -1,8 +1,8 @@
 {
   "exit": 0,
   "calls": [
-    ["exec", "<name>", "--", "tail", "-n", "200", "/home/agent/.t3/serve.log"],
-    ["exec", "<name>", "--", "tail", "-n", "200", "/var/log/sbx-kit-startup.log"]
+    ["--no-input", "exec", "<name>", "--", "tail", "-n", "200", "/home/agent/.t3/serve.log"],
+    ["--no-input", "exec", "<name>", "--", "tail", "-n", "200", "/var/log/sbx-kit-startup.log"]
   ],
   "warnings": [
     "no /home/agent/.t3/serve.log in '<name>' - serve.sh never started.",

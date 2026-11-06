@@ -18,9 +18,12 @@ only. The final acceptance run is in
 | Node         | 26.13.0            | 26.13.0 | `%LOCALAPPDATA%\vite-plus\bin\node.exe`      |
 | npm          | 11.20.0            | 11.20.0 | the same Vite+ install                       |
 | Vite+ (`vp`) | 1.5.0              | 1.5.0   | the same Vite+ install                       |
-| `sbx`        | 0.50.1 (`ddb0268`) | n/a     | `%LOCALAPPDATA%\DockerSandboxes\bin\sbx.exe` |
+| `sbx`        | 0.51.0 (`2329d12`) | n/a     | `%LOCALAPPDATA%\DockerSandboxes\bin\sbx.exe` |
 | git          | 2.34.1.windows.1   | n/a     | `C:\Program Files\Git\cmd\git.exe`           |
 | fd           | n/a                | 10.5.0  | `/usr/local/bin/fd` in the image             |
+
+`sbx` 0.51.0 is a floor, not a preference: the seam puts the global
+`--no-input` before every non-interactive verb, and that flag is new in 0.51.0.
 
 On Windows the Vite+ global install **is** the Node install: `node`, `npm`, `vp`
 and `pnpm` all resolve into `%LOCALAPPDATA%\vite-plus\bin`. There is no second
@@ -103,8 +106,8 @@ it before the fake ever runs, which is why the suite is skipped there.
 `sbx` is a real executable — one `sbx.exe` on `PATH` — so `spawn("sbx", argv)`
 with no `shell: true` is enough, and the seam needs no escaped-command-line
 branch. Verified with `spawnSync("sbx", ["version"])`, which ran the binary and
-returned `v0.50.1 ddb0268…` with status 0. A `.cmd` or `.bat` shim here would
-mean the seam had to quote the whole command line itself.
+returned its version with status 0. A `.cmd` or `.bat` shim here would mean the
+seam had to quote the whole command line itself.
 
 ## Smoke
 

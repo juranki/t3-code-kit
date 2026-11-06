@@ -19,9 +19,23 @@ import {
   splitStatus,
 } from "./Sbx.ts";
 
-const table = (name: string): string =>
-  "  SANDBOX           AGENT             STATUS                 PORTS                                                                       WORKSPACE            CREATED\n" +
-  `  ${name.padEnd(18)}kit               ● running (detached)   127.0.0.1:60006->3773/tcp, ::1:60006->3773/tcp                              D:\\src\\t3-code-kit   43s\n`;
+// Captured from `sbx ls --json` on sbx v0.51.0, trimmed to the fields the
+// seam reads. The first row is a sandbox with no published ports.
+const listing = (name: string): string =>
+  JSON.stringify([
+    {
+      name,
+      id: "d337f82e-4fa2-46de-ade0-d43a17fb89ca",
+      agent: "kit",
+      status: "running",
+      ports: [
+        { host_ip: "127.0.0.1", host_port: 60006, sandbox_port: 3773, protocol: "tcp4" },
+        { host_ip: "::1", host_port: 60006, sandbox_port: 3773, protocol: "tcp" },
+      ],
+      created_at: "2026-11-06T18:17:57Z",
+      detached: true,
+    },
+  ]);
 
 interface FakeRunner {
   readonly layer: Layer.Layer<ProcessRunner>;
@@ -59,22 +73,50 @@ const withSbx = <A, E>(
   }).pipe(Effect.provide(liveLayer.pipe(Layer.provide(runner.layer))));
 
 describe("Sbx parsers", () => {
-  it("slices the sbx ls table by header offsets", () => {
-    expect(parseSandboxList(table("charprobe"))).toEqual([
+  it("reads the sbx ls json listing", () => {
+    expect(parseSandboxList(listing("charprobe"))).toEqual([
       {
         name: "charprobe",
         agent: "kit",
-        status: "● running (detached)",
-        state: "running",
-        ports: "127.0.0.1:60006->3773/tcp, ::1:60006->3773/tcp",
-        workspace: "D:\\src\\t3-code-kit",
-        created: "43s",
+        status: "running",
+        ports: [
+          { hostIp: "127.0.0.1", hostPort: 60006, sandboxPort: 3773, protocol: "tcp4" },
+          { hostIp: "::1", hostPort: 60006, sandboxPort: 3773, protocol: "tcp" },
+        ],
+        createdAt: "2026-11-06T18:17:57Z",
       },
     ]);
   });
 
-  it("rejects a listing without the header", () => {
+  it("reads a row that has no published ports", () => {
+    expect(
+      parseSandboxList(
+        JSON.stringify([
+          {
+            name: "builder",
+            agent: "kit",
+            status: "running",
+            created_at: "2026-11-01T17:49:58Z",
+          },
+        ]),
+      ),
+    ).toEqual([
+      {
+        name: "builder",
+        agent: "kit",
+        status: "running",
+        ports: [],
+        createdAt: "2026-11-01T17:49:58Z",
+      },
+    ]);
+  });
+
+  it("rejects a listing that is not json", () => {
     expect(() => parseSandboxList("charprobe\n")).toThrow();
+  });
+
+  it("rejects a row without a name", () => {
+    expect(() => parseSandboxList(JSON.stringify([{ agent: "kit" }]))).toThrow();
   });
 
   it("reads the third column as the secret name", () => {
@@ -92,12 +134,6 @@ describe("Sbx parsers", () => {
           "::1         60001       3773           tcp\n",
       ),
     ).toEqual([3799, 60_001, 60_001]);
-  });
-
-  it("reads host ports from the sbx ls inline form", () => {
-    expect(publishedHostPorts("127.0.0.1:3774->3773/tcp4, 127.0.0.1:60008->3773/tcp\n")).toEqual([
-      3774, 60_008,
-    ]);
   });
 
   it("splits curl's status line from the body", () => {
@@ -119,7 +155,14 @@ describe("Sbx over a fake process runner", () => {
         Effect.gen(function* () {
           const result = yield* sbx.exec({ name: "demo", argv: ["t3", "pair"] });
           expect(result.exitCode).toBe(7);
-          expect(runner.commands[0]?.args).toEqual(["exec", "demo", "--", "t3", "pair"]);
+          expect(runner.commands[0]?.args).toEqual([
+            "--no-input",
+            "exec",
+            "demo",
+            "--",
+            "t3",
+            "pair",
+          ]);
         }),
       runner,
     );
@@ -145,6 +188,7 @@ describe("Sbx over a fake process runner", () => {
         Effect.gen(function* () {
           yield* sbx.exec({ name: "demo", argv: ["sh", "-c", "true"], user: "root" });
           expect(runner.commands[0]?.args).toEqual([
+            "--no-input",
             "exec",
             "-u",
             "root",
@@ -197,6 +241,7 @@ describe("Sbx over a fake process runner", () => {
             env: { SBX_KIT_BUILDER: "sandbox" },
           });
           expect(runner.commands[0]?.args).toEqual([
+            "--no-input",
             "create",
             "--name",
             "demo",
@@ -259,8 +304,8 @@ describe("Sbx over a fake process runner", () => {
             publish: { hostPort: 40_773, containerPort: 3773 },
           });
           expect(runner.commands.map((command) => command.args)).toEqual([
-            ["ports", "demo"],
-            ["ports", "demo", "--publish", "127.0.0.1:40773:3773"],
+            ["--no-input", "ports", "demo"],
+            ["--no-input", "ports", "demo", "--publish", "127.0.0.1:40773:3773"],
           ]);
         }),
       runner,

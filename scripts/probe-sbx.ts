@@ -615,6 +615,9 @@ const main = async (): Promise<void> => {
 
   banner("listing shapes");
   sbx(["ls"], 120_000);
+  // The seam reads this one: the table above is kept only to show what the
+  // JSON replaced.
+  sbx(["ls", "--json"], 120_000);
   sbx(["ls", "--all"], 120_000);
   sbx(["ports", SCRATCH], 60_000);
 
