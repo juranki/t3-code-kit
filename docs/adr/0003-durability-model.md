@@ -65,11 +65,14 @@ volumes." It takes no flags.
    already asks this and the kit already suppresses it with `--force`, so the
    kit restores the check at the layer that knows a wipe is coming.
 2. **Wipe.** One `sbx exec` running `sh -c`: kill `t3 serve` and `pi`, then
-   `find <dir> -mindepth 1 -delete` in each of the four mountpoints. `sbx exec`
-   starts a stopped sandbox, which runs the `lifecycle@1` hook and starts
-   `t3 serve`, so the kill is not optional — otherwise the wipe races a live
-   SQLite writer. `find -delete` rather than `rm -rf dir/*`, which misses
-   dotfiles.
+   `find <dir> -mindepth 1 -delete` in each of the four mountpoints, then
+   `sync`. `sbx exec` starts a stopped sandbox, which runs the `lifecycle@1`
+   hook and starts `t3 serve`, so the kill is not optional — otherwise the wipe
+   races a live SQLite writer. `find -delete` rather than `rm -rf dir/*`, which
+   misses dotfiles. The `sync` is not optional either: the unlinks sit in the
+   page cache, `rm --force` follows within seconds, and a volume whose last
+   changes never reached the disk reattaches with the data still there. The
+   verify in step 3 runs in the same mount, so it cannot see that.
 3. **Verify.** Re-read for a marker; retry the wipe once. If a marker survives
    both attempts, **abort before `rm --force`** and exit 1. Removing the
    instance after a failed wipe is the worst outcome available: the data is
@@ -133,8 +136,10 @@ wipe is the promise.
 - **Retention is load-bearing for `rebuild` and adversarial for `nuke`.** If a
   future `sbx` drops it, `rebuild` silently starts losing state and `nuke`
   becomes correct by accident. The guard is the `rebuild` smoke assertion — a
-  marker written to `.t3/userdata` and `workspace`, rebuilt, read back — not a
-  version check. Smoke prints `sbx version` so a failure is attributable.
+  marker written to `.t3/userdata` and `workspace`, flushed with `sync`,
+  rebuilt, read back — not a version check. Smoke prints `sbx version` so a
+  failure is attributable, and the read names the volume a marker was lost
+  from, or survived in.
 - **`nuke` cannot reclaim disk.** A nuked sandbox leaves its storage allocated
   until `sbx` grows a per-sandbox purge.
 - **The README and both launchers are wrong until the port lands.** `nuke`'s

@@ -46,6 +46,12 @@ const wipeScript = [
   "pkill -x pi 2>/dev/null || true",
   "pkill -f '[b]in/pi( |$)' 2>/dev/null || true",
   ...VOLUME_PATHS.map((path) => `find ${shellQuote(path)} -mindepth 1 -delete`),
+  // The verify below runs in the same mount, so it sees the deletions whether
+  // or not they have reached the disk. `sbx rm --force` follows within
+  // seconds, and a volume whose last unflushed changes never made it out
+  // reattaches with the data still there - the one outcome ADR 0003 says must
+  // not happen. `sync` is what makes the wipe's promise durable.
+  "sync",
 ].join("\n");
 
 const verifyScript = [

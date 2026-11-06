@@ -12,6 +12,7 @@ import {
   countSkills,
   dockerfileArg,
   markerCount,
+  markerPaths,
   nonEmpty,
   parseBrowserProbe,
   parseDevices,
@@ -58,16 +59,24 @@ describe("smoke helpers", () => {
     });
   });
 
-  it("writes and reads the durability marker in every volume", () => {
+  it("writes, flushes, and reads the durability marker in every volume", () => {
     const paths = ["/home/agent/workspace", "/home/agent/.t3/userdata"];
     const write = writeMarkerScript(paths);
     expect(write).toContain("set -e");
     expect(write).toContain("> /home/agent/workspace/.smoke-marker");
     expect(write).toContain("> /home/agent/.t3/userdata/.smoke-marker");
+    // The marker has to be on disk before the instance is destroyed, or the
+    // check measures write-back timing instead of retention.
+    expect(write.trimEnd().endsWith("sync")).toBe(true);
     const read = readMarkerScript(paths);
-    expect(read).toContain("cat /home/agent/workspace/.smoke-marker");
-    expect(read).toContain("cat /home/agent/.t3/userdata/.smoke-marker");
-    expect(markerCount("smoke-durability-marker\nsmoke-durability-marker\n")).toBe(2);
+    expect(read).toContain("[ -f /home/agent/workspace/.smoke-marker ]");
+    expect(read).toContain("[ -f /home/agent/.t3/userdata/.smoke-marker ]");
+    expect(read).toContain("printf 'present %s\\n' /home/agent/workspace");
+    expect(read).toContain("printf 'missing %s\\n' /home/agent/.t3/userdata");
+    const output = "present /a\nmissing /b\npresent /c\n";
+    expect(markerCount(output)).toBe(2);
+    expect(markerPaths(output, "present")).toEqual(["/a", "/c"]);
+    expect(markerPaths(output, "missing")).toEqual(["/b"]);
     expect(markerCount("")).toBe(0);
   });
 

@@ -76,6 +76,9 @@ describe("wipeVolumeContents", () => {
       for (const path of VOLUME_PATHS) {
         expect(wipe).toContain(`find '${path}' -mindepth 1 -delete`);
       }
+      // The deletions must be on disk before `rm --force`: the verify runs in
+      // the same mount and cannot see that they are not.
+      expect(wipe.trimEnd().endsWith("sync")).toBe(true);
 
       expect(calls[2]?.args.slice(0, 6)).toEqual([
         "--no-input",
