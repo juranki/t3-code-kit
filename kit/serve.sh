@@ -86,13 +86,9 @@ approval_policy = "never"
 sandbox_mode = "danger-full-access"
 EOF
   case "$codex_mode" in
-    oauth|apikey)
-      printf 'forced_login_method = "api"\n' >>"$codex_home/config.toml"
-      ;;
-  esac
-  if [ "$codex_mode" = "oauth" ]; then
-    cat >>"$codex_home/config.toml" <<'EOF'
-
+    oauth)
+      cat >>"$codex_home/config.toml" <<'EOF'
+forced_login_method = "api"
 model_provider = "sandboxd"
 
 [model_providers.sandboxd]
@@ -101,18 +97,25 @@ base_url = "https://chatgpt.com/backend-api/codex"
 experimental_bearer_token = "oai-oat01-proxy-managed"
 requires_openai_auth = false
 EOF
-    printf '{"OPENAI_API_KEY":"proxy-managed"}\n' >"$codex_home/auth.json"
-    note "codex is in ChatGPT OAuth mode through the proxy"
-  elif [ "$codex_mode" = "apikey" ] && [ -n "${CODEX_API_KEY:-}" ]; then
-    if printf '%s' "$CODEX_API_KEY" | codex login --with-api-key >>"$log" 2>&1; then
-      note "codex is signed in with the proxy-managed API key"
-    else
-      note "codex login failed; Codex will show as unauthenticated in t3"
-    fi
-  else
-    rm -f "$codex_home/auth.json"
-    note "codex has no openai binding; it will show as unauthenticated in t3"
-  fi
+      printf '{"OPENAI_API_KEY":"proxy-managed"}\n' >"$codex_home/auth.json"
+      note "codex is in ChatGPT OAuth mode through the proxy"
+      ;;
+    apikey)
+      printf 'forced_login_method = "api"\n' >>"$codex_home/config.toml"
+      if [ -z "${CODEX_API_KEY:-}" ]; then
+        rm -f "$codex_home/auth.json"
+        note "codex has no openai binding; it will show as unauthenticated in t3"
+      elif printf '%s' "$CODEX_API_KEY" | codex login --with-api-key >>"$log" 2>&1; then
+        note "codex is signed in with the proxy-managed API key"
+      else
+        note "codex login failed; Codex will show as unauthenticated in t3"
+      fi
+      ;;
+    *)
+      rm -f "$codex_home/auth.json"
+      note "codex has no openai binding; it will show as unauthenticated in t3"
+      ;;
+  esac
 fi
 
 # Chromium does not read SSL_CERT_FILE or NODE_EXTRA_CA_CERTS: it verifies TLS
