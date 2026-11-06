@@ -60,6 +60,64 @@ else
   note "could not clear $manifest; t3 may reuse its cached model manifest"
 fi
 
+# Codex reads credentials from ~/.codex/auth.json, not from OPENAI_API_KEY:
+# `codex app-server` starts with environment API-key auth disabled. The kit
+# declares both an API key and OAuth for `openai`; sbx surfaces which one the
+# host bound as SBX_CRED_OPENAI_MODE. Re-seeding on every start is what makes a
+# rebuild work, because ~/.codex is not a volume.
+#
+#   oauth  -> a custom model_provider points Codex at the proxy
+#             (chatgpt.com/backend-api/codex) with the sentinel bearer. The
+#             proxy swaps in the real ChatGPT token; none enters the sandbox.
+#   apikey -> the default provider, with the sentinel written to auth.json by
+#             `codex login --with-api-key`; the proxy swaps it at
+#             api.openai.com.
+#   none   -> no auth.json, so t3 shows Codex as unauthenticated.
+#
+# This overwrites a manual `codex login` or config by design: the kit owns
+# ~/.codex, and a real ChatGPT token in the sandbox is what the proxy exists to
+# avoid.
+if command -v codex >/dev/null 2>&1; then
+  codex_home="${CODEX_HOME:-$HOME/.codex}"
+  codex_mode="${SBX_CRED_OPENAI_MODE:-none}"
+  mkdir -p "$codex_home"
+  cat >"$codex_home/config.toml" <<'EOF'
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+EOF
+  case "$codex_mode" in
+    oauth)
+      cat >>"$codex_home/config.toml" <<'EOF'
+forced_login_method = "api"
+model_provider = "sandboxd"
+
+[model_providers.sandboxd]
+name = "Sandbox Proxy"
+base_url = "https://chatgpt.com/backend-api/codex"
+experimental_bearer_token = "oai-oat01-proxy-managed"
+requires_openai_auth = false
+EOF
+      printf '{"OPENAI_API_KEY":"proxy-managed"}\n' >"$codex_home/auth.json"
+      note "codex is in ChatGPT OAuth mode through the proxy"
+      ;;
+    apikey)
+      printf 'forced_login_method = "api"\n' >>"$codex_home/config.toml"
+      if [ -z "${CODEX_API_KEY:-}" ]; then
+        rm -f "$codex_home/auth.json"
+        note "codex has no openai binding; it will show as unauthenticated in t3"
+      elif printf '%s' "$CODEX_API_KEY" | codex login --with-api-key >>"$log" 2>&1; then
+        note "codex is signed in with the proxy-managed API key"
+      else
+        note "codex login failed; Codex will show as unauthenticated in t3"
+      fi
+      ;;
+    *)
+      rm -f "$codex_home/auth.json"
+      note "codex has no openai binding; it will show as unauthenticated in t3"
+      ;;
+  esac
+fi
+
 # Chromium does not read SSL_CERT_FILE or NODE_EXTRA_CA_CERTS: it verifies TLS
 # against the NSS platform store at $HOME/.pki/nssdb. The sandbox proxy
 # re-signs every connection with a CA minted per sandbox, so without this the

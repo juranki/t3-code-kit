@@ -622,6 +622,15 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     /vp v(\d+(?:\.\d+)*)/u,
   );
   yield* checkToolVersion("fd", "fd --version", "fdVersion", /^fd (\d+(?:\.\d+)*)/mu);
+  // Codex is the second agent t3 can drive. This only proves the binary and
+  // its platform package are baked; enabling it in the UI and its credential
+  // are the host's job, like pi's provider record.
+  yield* checkToolVersion(
+    "codex",
+    "codex --version 2>/dev/null",
+    "codexVersion",
+    /^codex-cli (\d+(?:\.\d+)*)/mu,
+  );
 
   // Java is the base image's OpenJDK 21, not mise's: mise-java.jdx.dev is not
   // in the allowlist and the base image already carries a JDK. This asserts the

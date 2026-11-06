@@ -44,6 +44,50 @@ cannot be a kit arg. Switching provider therefore means editing `provider`,
 `providerApiKeyEnv`, and the `inject` block in `kit/t3-code.yaml` together, and
 then approving the new domain's binding.
 
+## Codex shows as unauthenticated in t3, or answers `401`
+
+`codex app-server` reads credentials from `~/.codex/auth.json`, not from
+`OPENAI_API_KEY`. `kit/serve.sh` seeds `~/.codex/config.toml` and `auth.json`
+on every start from `SBX_CRED_OPENAI_MODE`, which sbx derives from the host
+binding: `oauth` for a ChatGPT plan, `apikey` for an API key, `none` for no
+binding.
+
+If it does not:
+
+- `sbx secret ls` must show `openai` as either `(stored)` (API key) or
+  `(oauth configured)` (ChatGPT plan). Both are supported; the kit declares
+  both presentations and the proxy uses the one the host bound.
+- The binding must match the credential type. API key: `api.openai.com` and
+  `openai.com`. OAuth: `auth.openai.com` and `chatgpt.com`. A stored secret is
+  not an approval, and a binding for the other type does not authorize this
+  one.
+- `npm run logs -- <name>` names the mode: `codex is in ChatGPT OAuth mode
+  through the proxy`, `codex is signed in with the proxy-managed API key`, or
+  `codex has no openai binding`. A `codex login failed` means `CODEX_API_KEY`
+  was empty, which is the withheld-credential case.
+- If the log names a mode but the API answers `401 ... proxy-ma*aged`, the
+  sentinel reached OpenAI unchanged: the binding is missing a host for that
+  mode, or the `inject` / `resourceHosts` rule is absent.
+
+Do not run `codex login` by hand inside the sandbox with a real key. `serve.sh`
+overwrites it on the next start, and a real ChatGPT token in the sandbox is
+exactly what the proxy-injected-credential model exists to avoid.
+
+## Codex is an older version than the kit pins
+
+`sbx exec <name> -- codex --version` should print `codex-cli 0.166.0`, the
+`codexVersion` pin. If it does not, the sandbox is running an image built
+before the pin: `npm run rebuild -- <name>`.
+
+If the shell reports the pin but t3's provider card shows an older version, t3
+is using its managed runtime instead of the baked CLI. Check **Settings →
+Providers → Codex → Binary path**; it should resolve `codex` on the server's
+`PATH`. The managed runtime is a download into `$T3CODE_HOME/tools`, which a
+`rebuild` discards, so the bake is the intended path.
+
+`0.166.0` is deliberate: it is the release t3 0.1.5 manages and its manifest
+marks supported. Bumping it is a `codexVersion` change and a `rebuild`.
+
 ## An agent says it cannot reach an API
 
 Egress is deny-by-default, and the proxy does not fail like a network. It

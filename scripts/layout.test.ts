@@ -149,4 +149,10 @@ describe("v2 workspace layout", () => {
     expect(dockerfileArg("VITE_PLUS_VERSION")).toBe(descriptorDefault("vitePlusVersion"));
     expect(dockerfileArg("FD_VERSION")).toBe(descriptorDefault("fdVersion"));
   });
+
+  it("bakes the Codex pin the descriptor declares", () => {
+    // Codex has no manifest pin, so the descriptor is the source of truth and
+    // the Dockerfile ARG must match it. A rebuild is the only way to move it.
+    expect(dockerfileArg("CODEX_VERSION")).toBe(descriptorDefault("codexVersion"));
+  });
 });

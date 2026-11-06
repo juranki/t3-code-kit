@@ -16,7 +16,22 @@ This page covers the rest.
 | `sbx login`                                     | Docker OAuth; no sandbox runs without it                         | `sbx ls`        |
 | `sbx secret set github`                         | the value git pushes with; the sandbox only ever sees a sentinel | `sbx secret ls` |
 | `sbx secret set <provider>` (default `mistral`) | pi's model key                                                   | `sbx secret ls` |
+| `sbx secret set openai`                         | Codex's OpenAI API key; only if you use Codex                    | `sbx secret ls` |
+| `sbx secret set openai --oauth`                 | Codex on a ChatGPT plan instead of an API key                    | `sbx secret ls` |
 | Approve the credential binding                  | a stored secret is **not** an approval                           | see below       |
+
+Codex accepts either credential. `sbx secret set openai` stores an API key;
+`sbx secret set openai --oauth` stores ChatGPT OAuth tokens. The kit declares
+both and reads `SBX_CRED_OPENAI_MODE` to decide which one the host bound. Use
+`--force` to replace one with the other:
+
+```powershell
+sbx secret set openai --force          # replace OAuth with an API key
+sbx secret set openai --oauth --force  # replace an API key with OAuth
+```
+
+In OAuth mode the proxy intercepts `auth.openai.com/oauth/token` and swaps the
+sentinel bearer at `chatgpt.com`; no ChatGPT token enters the sandbox.
 
 ### The binding is the step that bites
 
@@ -41,7 +56,22 @@ bindings:
   mistral:
     apiKey:
       domains: [api.mistral.ai]
+  # Codex with an API key:
+  openai:
+    apiKey:
+      domains: [api.openai.com, openai.com]
+  # ...or Codex on a ChatGPT plan:
+  # openai:
+  #   oauth:
+  #     domains: [auth.openai.com, chatgpt.com]
 ```
+
+Use one `openai` block, matching the credential type in `sbx secret ls`. The
+kit's `oauth` declaration adds `auth.openai.com` and `chatgpt.com`; the
+`apiKey` declaration adds `api.openai.com` and `openai.com`.
+
+`openai` is Codex's service. If you point pi at openai too, both credentials
+would claim `(openai, runtime)`; keep pi on a different provider.
 
 A malformed file breaks every `sbx` command, so delete it and re-approve rather
 than hand-fixing it.
@@ -76,6 +106,14 @@ in [Troubleshooting](troubleshooting.md).
 
 - Add or enable a **pi provider instance**. The kit installs pi and starts t3;
   it does not create t3's provider records.
-- Refresh its model list from provider settings (`server.refreshProviders`).
-  This is t3's own state in `statev2.sqlite` and the one cache a shell cannot
-  reach — `npm run refresh -- <name>` covers the other two.
+- **Codex** is baked, on `PATH`, and enabled by default. Set the `openai`
+  secret (API key or `--oauth`) and approve its binding. On every start the kit
+  seeds `~/.codex/config.toml` and `auth.json` from `SBX_CRED_OPENAI_MODE`:
+  OAuth mode routes model calls through the proxy at
+  `chatgpt.com/backend-api/codex`, API-key mode writes the sentinel to
+  `auth.json`. If the provider card shows unauthenticated, check
+  `sbx secret ls` and the `openai` binding, then `npm run logs -- <name>`.
+- Refresh the provider's model list from provider settings
+  (`server.refreshProviders`). This is t3's own state in `statev2.sqlite` and
+  the one cache a shell cannot reach — `npm run refresh -- <name>` covers the
+  other two.

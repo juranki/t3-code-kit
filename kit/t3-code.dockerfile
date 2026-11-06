@@ -14,6 +14,7 @@ FROM ${BASE}
 # `npm run rebuild`.
 ARG T3_VERSION=0.1.5
 ARG PI_VERSION=latest
+ARG CODEX_VERSION=0.166.0
 
 # The baked mise toolchain. These are mise versions, not image tags: bumping
 # one is a `rebuild`, the same as T3_VERSION and PI_VERSION. Java is
@@ -247,6 +248,18 @@ RUN set -eux; \
 # like this one, plus its credential and its egress entry.
 RUN npm install -g "@earendil-works/pi-coding-agent@${PI_VERSION}"
 
+# Codex — the second agent t3 drives. t3 finds `codex` on PATH and starts its
+# app-server; it does not need t3's managed install. The npm package is the
+# official CLI and pulls the platform binary as an optional dependency, so the
+# same line works on amd64 and arm64. Pinned like the toolchain: bumping it is
+# a `rebuild`.
+#
+# `codex --version` is the assertion, not decoration: it proves the optional
+# platform package resolved during the build, instead of failing later inside a
+# sandbox where the npm registry is no longer the right place to fix it.
+RUN npm install -g "@openai/codex@${CODEX_VERSION}" \
+ && codex --version
+
 # Vite+ — the v2 toolchain's test/lint/format runner, installed globally so
 # `vp` is on PATH in every sandbox without a repo-local install. Same npm
 # prefix as pi, and the same rule: the pin is a build arg, so bumping it is a
@@ -262,9 +275,8 @@ RUN npm install -g "vite-plus@${VITE_PLUS_VERSION}" \
 # -a pi, not --all: the base image also includes `claude`, and adding a copy
 # for an agent the kit does not support is unexplained surface. --copy, not
 # the default symlinks: the image must not depend on a cache directory that
-# the last line removes. -g puts them in ~/.agents/skills, which is both the
-# CLI's global store and pi's Agent Skills location — one copy, no
-# indirection.
+# the last line removes. -g puts them in ~/.agents/skills, the CLI's global
+# store for both pi and Codex — one copy, no indirection.
 #
 # The count assertion is the point: `-s` silently ignores a name that no
 # longer exists upstream, so a SKILLS_REF bump that renames a skill would

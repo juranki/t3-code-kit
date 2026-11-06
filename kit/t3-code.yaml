@@ -19,6 +19,13 @@ args:
     default: "latest"
     pattern: "^[A-Za-z0-9.@/_-]+$"
     buildArg: PI_VERSION
+  # Codex is the second agent t3 can drive. It is a separate CLI, not a pi
+  # provider: t3 finds `codex` on PATH and talks to its app-server. Pinned like
+  # t3Version and the toolchain — nothing self-updates inside the sandbox.
+  codexVersion:
+    default: "0.166.0"
+    pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    buildArg: CODEX_VERSION
   # The baked mise toolchain. Java is not here: it is the base image's
   # OpenJDK 21, put on PATH by the Dockerfile. Bumping one of these is a
   # `rebuild`, the same as t3Version and piVersion. Node is the v2 workspace's
@@ -91,6 +98,8 @@ capabilities:
             - T3CODE_PORT
             - T3CODE_NO_BROWSER
             - ${{ kit.args.providerApiKeyEnv }}
+            - CODEX_API_KEY
+            - SBX_CRED_OPENAI_MODE
             - GH_TOKEN
             - HTTP_PROXY
             - HTTPS_PROXY
@@ -179,6 +188,45 @@ capabilities:
             header: Authorization
             format: "Bearer %s"
 
+  # Codex's model provider. Same proxy-managed pattern as pi's: the sandbox
+  # holds a sentinel, and the proxy swaps it for the real credential on the
+  # way to OpenAI. Declaring both `apiKey` and `oauth` means "whichever the
+  # host bound": `sbx secret set openai` stores an API key, `... --oauth`
+  # stores ChatGPT tokens. sbx surfaces the choice as SBX_CRED_OPENAI_MODE,
+  # and kit/serve.sh seeds ~/.codex/config.toml and auth.json from it.
+  #
+  # OAuth does not put a token in the sandbox: the proxy intercepts the token
+  # endpoint, serves the sentinels below, and substitutes the real bearer at
+  # chatgpt.com. Codex's OAuth-mode model calls go to
+  # chatgpt.com/backend-api/codex, which is why that host is a resourceHost.
+  #
+  # The service is `openai`, the same name `sbx secret set openai` uses. If
+  # you also point pi at openai, the two credentials collide on (openai,
+  # runtime); keep pi on a different provider.
+  - type: com.docker.sandbox/credential@1
+    name: Codex model provider
+    optional: true
+    config:
+      service: openai
+      phase: runtime
+      apiKey:
+        name: CODEX_API_KEY
+        proxyManaged: true
+        inject:
+          - domain: api.openai.com
+            header: Authorization
+            format: "Bearer %s"
+          - domain: openai.com
+            header: Authorization
+            format: "Bearer %s"
+      oauth:
+        tokenEndpoint: { host: auth.openai.com, path: /oauth/token }
+        resourceHosts:
+          - chatgpt.com
+        sentinels:
+          accessToken: oai-oat01-proxy-managed
+          refreshToken: oai-ort01-proxy-managed
+
   # Mirrors policy/allow.txt (runtime) and policy/install.txt (install-time).
   # The descriptor is normative — it travels with the
   # image, under one digest — and `npm run smoke` fails if the two disagree.
@@ -208,7 +256,16 @@ capabilities:
       runtime:
         allow:
           - api.anthropic.com
+          # Serves both pi (when its provider is openai) and Codex.
           - api.openai.com
+          - openai.com
+          # Codex's ChatGPT OAuth: token refresh at auth.openai.com, model
+          # calls at chatgpt.com/backend-api/codex. files.openai.com is
+          # attachments/uploads; releases.openai.com is the update check.
+          - auth.openai.com
+          - chatgpt.com
+          - files.openai.com
+          - releases.openai.com
           - api.mistral.ai
           - github.com
           - api.github.com
