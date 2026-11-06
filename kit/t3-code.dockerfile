@@ -12,7 +12,7 @@ FROM ${BASE}
 
 # Pinned on purpose: nothing self-updates inside the sandbox. Bumping is a
 # `npm run rebuild`.
-ARG T3_VERSION=0.1.5
+ARG T3_VERSION=0.1.7
 ARG PI_VERSION=latest
 ARG CODEX_VERSION=0.166.0
 
@@ -211,14 +211,14 @@ RUN curl -fsSL -o /tmp/t3-install.sh https://t3.codes/install.sh \
 # wrong package name in the apt list above fails here, in minutes, instead of in
 # the smoke on the host. `unzip`, `curl` and `sha256sum` are the base image's,
 # the same way `tar` and `curl` are in the fd layer above.
-ARG CHROME_VERSION=156.0.8078.70
+ARG CHROME_VERSION=156.0.8078.80
 RUN set -eux; \
     arch="${TARGETARCH:-$(uname -m)}"; \
     case "$arch" in \
       amd64|x86_64) chrome_platform=linux64; \
-        chrome_sha256=a313da592261ff1e342c1e507d315f25b1809006c0508f77ce86151d464d4ccb ;; \
+        chrome_sha256=547dcd374e02961bf998f6046a267644f8502225c36bb78ca307dab32a0b3eb4 ;; \
       arm64|aarch64) chrome_platform=linux-arm64; \
-        chrome_sha256=dca11213d2e0b1db52141edd9f92ec423fd52ca25715846790d84fa1d5d16e8a ;; \
+        chrome_sha256=5bb6a00a4285c13303d3f72c5afdb70f144ea7a93eed462365a52b69631c9607 ;; \
       *) echo "unsupported architecture for chrome-headless-shell: $arch" >&2; exit 1 ;; \
     esac; \
     t3_bin="$(readlink -f /home/agent/.local/bin/t3)"; \
