@@ -9,6 +9,11 @@ The image bakes node, go, and python with [`mise`](https://mise.jdx.dev), at the
 `nodeVersion`, `goVersion`, and `pythonVersion` kit args. mise comes from the
 base image's apt source, not from a `curl | sh` installer.
 
+**Python stays on the 3.13 line, pinned to 3.13.18.** The decision in
+[#80](https://github.com/juranki/t3-code-kit/issues/80) keeps compatibility with
+repos already pinning 3.13. No package in this workspace uses Python, and there
+is no requirement for a newer line to justify changing that default.
+
 mise's shims are first on the image's `PATH`. A non-interactive shell resolves
 `node`, `go`, and `python` through them, and that is what the agent's bash tool
 runs. No shell rc file is read, and nothing calls `mise activate`.
@@ -53,6 +58,12 @@ npm run rebuild -- myproject
 so a repo whose `.mise.toml` asks for a different line gets a resolution mise
 cannot satisfy. Change `nodeVersion` (and `NODE_VERSION`) and rebuild. The kit
 does not bake a second line.
+
+**The baked Python is the only Python.** A repo whose `.mise.toml` pins another
+line, such as 3.14 or 3.15, will not resolve against the default image. A
+different exact patch also needs to be baked in. Change `pythonVersion` in the
+descriptor and `PYTHON_VERSION` in the Dockerfile to match the repo's pin, then
+rebuild. Runtime toolchain installs are blocked by the network policy.
 
 ## T3's preview browser
 
