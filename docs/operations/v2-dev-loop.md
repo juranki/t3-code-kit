@@ -135,6 +135,19 @@ it — and stopping does not remove it, so the volume objects stay allocated
 
 ## The CLI
 
+### Prune the builder cache
+
+```powershell
+npm run prune:builder
+```
+
+Run this between builds when the shared kit builder runs low on disk space.
+It removes all unused BuildKit cache; later builds rebuild those layers.
+The builder must already exist. Sandbox instances and their durable state
+are preserved.
+
+### Sandbox verbs
+
 `npm run <verb>` reaches `apps/cli/src/bin.ts`. Every verb is live: `up`, `url`,
 `logs`, `shell`, `refresh`, `down`, `rebuild`, `nuke`, `policy`, `doctor`, and
 `help`. They run through the `Sbx` seam in `packages/sbx` (`ProcessRunner` →
