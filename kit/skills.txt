@@ -8,7 +8,7 @@
 #
 # Source: mattpocock/skills, pinned by SKILLS_REF in kit/t3-code.dockerfile.
 # This is the 27 picked in the CLI's wizard on 2026-10-31, not the repo's
-# full 38: the rest are in-progress writing experiments and one-off
+# full 39: the rest are in-progress writing experiments and one-off
 # setup/migration skills, several of them Claude-specific.
 #
 # Parsed by kit/skills.sh, the one implementation of this format.
