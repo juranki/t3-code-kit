@@ -44,7 +44,7 @@ ARG FD_VERSION=10.5.1
 # with api.github.com blackholed: same 27 skills, byte-identical, hashes
 # computed locally.
 ARG SKILLS_VERSION=1.7.6
-ARG SKILLS_REF=a496f5513d4a4cf889bc48e189e579f4b0bdf6aa
+ARG SKILLS_REF=4ae2317ddb22b046e26455e4f9c9b3aaaf62212d
 
 # t3 ships prebuilt native modules that link libatomic. mise is the toolchain
 # manager, and it comes from the base image's apt source — no installer script
