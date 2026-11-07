@@ -20,6 +20,7 @@
     "doctor": "node apps/cli/src/bin.ts doctor",
     "help": "node apps/cli/src/bin.ts help",
     "smoke": "node scripts/smoke.ts",
+    "prune:builder": "sbx --no-input exec sbx-kit-builder docker buildx prune --builder sbx-builder --all --force",
     "test": "vp test run",
     "typecheck": "tsc --noEmit",
     "lint": "vp lint --deny-warnings",
