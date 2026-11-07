@@ -57,3 +57,8 @@ _Avoid_: persistence, survival
 Destroy a sandbox's durable state and remove its instance. The only verb that
 destroys data.
 _Avoid_: delete, purge, destroy, wipe
+
+**browser acceptance**:
+Evidence that the kit's baked-in preview browser is in the expected location,
+starts with its required libraries and fonts, and renders text and HTTPS pages.
+_Avoid_: browser presence check, browser install check
