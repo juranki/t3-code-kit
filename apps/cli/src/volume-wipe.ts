@@ -39,10 +39,13 @@ const markerScript = [
 // `t3 serve`, so the kill is not optional: without it the wipe races a live
 // SQLite writer. `find -delete` rather than `rm -rf dir/*`, which misses
 // dotfiles. The `[b]in/pi` bracket keeps the pattern from matching this
-// script's own command line.
+// script's own command line. Since t3 0.1.9 the `t3` launcher execs the
+// release binary by absolute path, so the server's command line is
+// `/home/agent/.t3/runtime/versions/<v>/t3 serve`; `(^|/)` matches that and a
+// bare `t3 serve`, and not this script (where `t3 serve` follows a `)`).
 const wipeScript = [
   "set -e",
-  "pkill -f '^t3 serve' 2>/dev/null || true",
+  "pkill -f '(^|/)t3 serve' 2>/dev/null || true",
   "pkill -x pi 2>/dev/null || true",
   "pkill -f '[b]in/pi( |$)' 2>/dev/null || true",
   ...VOLUME_PATHS.map((path) => `find ${shellQuote(path)} -mindepth 1 -delete`),

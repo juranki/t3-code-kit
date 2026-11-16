@@ -8,11 +8,11 @@ description: >-
   on the host. No host filesystem access: git is the only channel in and out.
 sourceUrl: https://github.com/juranki/t3-code-kit
 licenses: [MIT]
-provides: ["t3-code@0.1.5"]
+provides: ["t3-code@0.1.9"]
 
 args:
   t3Version:
-    default: "0.1.7"
+    default: "0.1.9"
     pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     buildArg: T3_VERSION
   piVersion:
@@ -31,11 +31,11 @@ args:
   # `rebuild`, the same as t3Version and piVersion. Node is the v2 workspace's
   # exact pin (package.json engines.node); the image bakes no other line.
   nodeVersion:
-    default: "26.13.0"
+    default: "26.13.1"
     pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     buildArg: NODE_VERSION
   goVersion:
-    default: "1.27.3"
+    default: "1.27.4"
     pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     buildArg: GO_VERSION
   pythonVersion:
@@ -45,11 +45,11 @@ args:
   # Not mise's: Vite+ is a global npm install and fd is a pinned release
   # binary in /usr/local/bin. Both are `rebuild` pins like the toolchain above.
   vitePlusVersion:
-    default: "1.5.0"
+    default: "1.6.0"
     pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     buildArg: VITE_PLUS_VERSION
   fdVersion:
-    default: "10.5.1"
+    default: "10.5.2"
     pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     buildArg: FD_VERSION
   # pi's provider, as a host credential-store service name. Change both when

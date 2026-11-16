@@ -618,9 +618,10 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
   // platform starts the workload with SHELL=/bin/sh - dash, which has no
   // readline: no history, no completion, no prompt colors. serve.sh exports
   // bash. Read the *running* server's environment, not serve.sh: the failure
-  // this catches is a server that started before the export existed.
+  // this catches is a server that started before the export existed. The
+  // `(^|/)` matches the absolute release path t3's launcher execs (0.1.9+).
   const shellScript =
-    'tr "\\0" "\\n" < /proc/$(pgrep -f "^t3 serve" | head -1)/environ 2>/dev/null | sed -n "s/^SHELL=//p"';
+    'tr "\\0" "\\n" < /proc/$(pgrep -f "(^|/)t3 serve" | head -1)/environ 2>/dev/null | sed -n "s/^SHELL=//p"';
   const serverShell = yield* exec(["sh", "-c", shellScript]).pipe(Effect.result);
   const shellValue = Result.isSuccess(serverShell)
     ? (serverShell.success.stdout
