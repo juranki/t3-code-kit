@@ -71,7 +71,7 @@ describe("wipeVolumeContents", () => {
         "-c",
       ]);
       const wipe = scriptOf(calls[1]!);
-      expect(wipe).toContain("pkill -f '^t3 serve'");
+      expect(wipe).toContain("pkill -f '(^|/)t3 serve'");
       expect(wipe).toContain("pkill -x pi");
       for (const path of VOLUME_PATHS) {
         expect(wipe).toContain(`find '${path}' -mindepth 1 -delete`);
