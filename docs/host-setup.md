@@ -19,7 +19,7 @@ This page covers the rest.
 | `sbx secret set openai`                         | Codex's OpenAI API key; only if you use Codex                    | `sbx secret ls` |
 | `sbx secret set openai --oauth`                 | Codex on a ChatGPT plan instead of an API key                    | `sbx secret ls` |
 | `sbx secret set anthropic`                      | Claude Code's Anthropic API key; only if you use Claude Code     | `sbx secret ls` |
-| `sbx secret set anthropic --oauth`              | Claude Code on a Claude subscription instead of an API key       | `sbx secret ls` |
+| `/login` in sbx's own Claude sandbox (below)    | Claude Code on a Claude subscription instead of an API key       | `sbx secret ls` |
 | Approve the credential binding                  | a stored secret is **not** an approval                           | see below       |
 
 Codex accepts either credential. `sbx secret set openai` stores an API key;
@@ -39,6 +39,22 @@ Claude Code works the same way with the `anthropic` service and
 `SBX_CRED_ANTHROPIC_MODE`. In OAuth mode the proxy intercepts
 `platform.claude.com/v1/oauth/token` and swaps the sentinel bearer at
 `api.anthropic.com`; no subscription token enters the sandbox.
+
+The difference is how a subscription gets stored. `sbx secret set anthropic
+--oauth` refuses (`anthropic OAuth cannot be started from sbx secret set`).
+Sign in once from sbx's built-in Claude sandbox instead; the proxy captures the
+login on the host. Give it an empty directory, because `sbx run` mounts its
+path argument:
+
+```powershell
+New-Item -ItemType Directory -Force $env:TEMP\claude-login | Out-Null
+sbx run --name claude-login claude $env:TEMP\claude-login   # then /login, then exit
+sbx secret ls                                               # anthropic: (oauth configured)
+sbx rm claude-login
+```
+
+The stored subscription is global, so the kit's `anthropic` credential uses it
+once its binding is approved. An API key is still `sbx secret set anthropic`.
 
 ### The binding is the step that bites
 
@@ -132,7 +148,8 @@ in [Troubleshooting](troubleshooting.md).
   `auth.json`. If the provider card shows unauthenticated, check
   `sbx secret ls` and the `openai` binding, then `npm run logs -- <name>`.
 - **Claude Code** is baked and on `PATH`; enable t3's Claude provider if it is
-  not already on. Set the `anthropic` secret (API key or `--oauth`) and approve
+  not already on. Store the `anthropic` secret (an API key, or a subscription via `/login`
+  as above) and approve
   its binding. On every start the kit writes `~/.claude/settings.json` from
   `SBX_CRED_ANTHROPIC_MODE` (an `apiKeyHelper` in API-key mode, none in OAuth
   mode) and seeds onboarding and workspace trust in `~/.claude.json`. If the

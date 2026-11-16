@@ -240,9 +240,10 @@ capabilities:
           refreshToken: oai-ort01-proxy-managed
 
   # Claude Code's model provider. Same "whichever the host bound" shape as
-  # Codex: `sbx secret set anthropic` stores a console API key, `... --oauth`
-  # stores Claude subscription tokens, and sbx surfaces the choice as
-  # SBX_CRED_ANTHROPIC_MODE for kit/serve.sh.
+  # Codex: `sbx secret set anthropic` stores a console API key, a `/login` in
+  # sbx's built-in Claude sandbox stores a Claude subscription (`secret set
+  # --oauth` refuses anthropic), and sbx surfaces the choice as
+  # SBX_CRED_ANTHROPIC_MODE for kit/serve.sh. See docs/host-setup.md.
   #
   # The API key's in-container name is deliberately NOT ANTHROPIC_API_KEY.
   # Claude Code reads that variable on its own, and a sentinel there would
