@@ -1,5 +1,0 @@
-{
-  "exit": 0,
-  "calls": [["exec", "<name>", "--", "t3", "pair"]],
-  "warnings": []
-}

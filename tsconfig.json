@@ -1,37 +1,8 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "types": ["node"],
-    "noEmit": true,
-    "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
-    "erasableSyntaxOnly": true,
-    "verbatimModuleSyntax": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "useDefineForClassFields": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    // The editor's Effect language service. Diagnostics are off here because
-    // Oxlint is the single reporter: the same rules run in `npm run lint` via
-    // @effect/tsgo, and a second reporter would duplicate every finding. The
-    // severities and per-file exemptions live in `vite.config.ts` (lint.rules
-    // and lint.overrides), which is the one place the gate reads.
-    "plugins": [
-      {
-        "name": "@effect/language-service",
-        "diagnostics": false,
-        "namespaceImportPackages": ["@effect/platform-node", "effect"],
-        "effectFn": ["span", "inferred-span", "suggested-span"]
-      }
-    ]
-  },
-  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "scripts/**/*.ts", "vite.config.ts"]
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "include": [],
+  "references": [
+    { "path": "tsconfig.packages.json" },
+    { "path": "tsconfig.tests.json" }
+  ]
 }

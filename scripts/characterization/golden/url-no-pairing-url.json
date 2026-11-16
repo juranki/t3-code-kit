@@ -1,8 +1,0 @@
-{
-  "exit": 1,
-  "calls": [
-    ["exec", "<name>", "--", "t3", "pair"],
-    ["exec", "<name>", "--", "tail", "-n", "500", "/home/agent/.t3/serve.log"]
-  ],
-  "warnings": ["no pairing URL: is the server up? try: npm run logs -- <name>"]
-}

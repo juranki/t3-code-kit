@@ -1,5 +1,0 @@
-{
-  "exit": 1,
-  "calls": [],
-  "warnings": ["unknown verb 'bogus' (try: npm run help)"]
-}

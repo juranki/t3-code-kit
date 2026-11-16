@@ -1,8 +1,0 @@
-{
-  "exit": 0,
-  "calls": [
-    ["exec", "<name>", "--", "t3", "pair"],
-    ["exec", "<name>", "--", "tail", "-n", "500", "/home/agent/.t3/serve.log"]
-  ],
-  "warnings": []
-}
