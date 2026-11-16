@@ -18,6 +18,8 @@ This page covers the rest.
 | `sbx secret set <provider>` (default `mistral`) | pi's model key                                                   | `sbx secret ls` |
 | `sbx secret set openai`                         | Codex's OpenAI API key; only if you use Codex                    | `sbx secret ls` |
 | `sbx secret set openai --oauth`                 | Codex on a ChatGPT plan instead of an API key                    | `sbx secret ls` |
+| `sbx secret set anthropic`                      | Claude Code's Anthropic API key; only if you use Claude Code     | `sbx secret ls` |
+| `sbx secret set anthropic --oauth`              | Claude Code on a Claude subscription instead of an API key       | `sbx secret ls` |
 | Approve the credential binding                  | a stored secret is **not** an approval                           | see below       |
 
 Codex accepts either credential. `sbx secret set openai` stores an API key;
@@ -32,6 +34,11 @@ sbx secret set openai --oauth --force  # replace an API key with OAuth
 
 In OAuth mode the proxy intercepts `auth.openai.com/oauth/token` and swaps the
 sentinel bearer at `chatgpt.com`; no ChatGPT token enters the sandbox.
+
+Claude Code works the same way with the `anthropic` service and
+`SBX_CRED_ANTHROPIC_MODE`. In OAuth mode the proxy intercepts
+`platform.claude.com/v1/oauth/token` and swaps the sentinel bearer at
+`api.anthropic.com`; no subscription token enters the sandbox.
 
 ### The binding is the step that bites
 
@@ -64,14 +71,25 @@ bindings:
   # openai:
   #   oauth:
   #     domains: [auth.openai.com, chatgpt.com]
+  # Claude Code with an API key:
+  anthropic:
+    apiKey:
+      domains: [api.anthropic.com]
+  # ...or Claude Code on a Claude subscription:
+  # anthropic:
+  #   oauth:
+  #     domains: [platform.claude.com, api.anthropic.com]
 ```
 
 Use one `openai` block, matching the credential type in `sbx secret ls`. The
 kit's `oauth` declaration adds `auth.openai.com` and `chatgpt.com`; the
 `apiKey` declaration adds `api.openai.com` and `openai.com`.
 
-`openai` is Codex's service. If you point pi at openai too, both credentials
-would claim `(openai, runtime)`; keep pi on a different provider.
+The same goes for `anthropic`: one block, matching `sbx secret ls`.
+
+`openai` is Codex's service and `anthropic` is Claude Code's. If you point pi at
+either one too, both credentials would claim `(<service>, runtime)`; keep pi on
+a different provider.
 
 A malformed file breaks every `sbx` command, so delete it and re-approve rather
 than hand-fixing it.
@@ -113,6 +131,13 @@ in [Troubleshooting](troubleshooting.md).
   `chatgpt.com/backend-api/codex`, API-key mode writes the sentinel to
   `auth.json`. If the provider card shows unauthenticated, check
   `sbx secret ls` and the `openai` binding, then `npm run logs -- <name>`.
+- **Claude Code** is baked and on `PATH`; enable t3's Claude provider if it is
+  not already on. Set the `anthropic` secret (API key or `--oauth`) and approve
+  its binding. On every start the kit writes `~/.claude/settings.json` from
+  `SBX_CRED_ANTHROPIC_MODE` (an `apiKeyHelper` in API-key mode, none in OAuth
+  mode) and seeds onboarding and workspace trust in `~/.claude.json`. If the
+  provider card shows unauthenticated, check `sbx secret ls` and the
+  `anthropic` binding, then `npm run logs -- <name>`.
 - Refresh the provider's model list from provider settings
   (`server.refreshProviders`). This is t3's own state in `statev2.sqlite` and
   the one cache a shell cannot reach — `npm run refresh -- <name>` covers the

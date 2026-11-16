@@ -2,8 +2,9 @@
 
 # t3-code-kit
 
-**Run [T3 Code](https://t3.codes) with [pi](https://github.com/earendil-works/pi)
-or [Codex](https://developers.openai.com/codex/cli) inside a [Docker
+**Run [T3 Code](https://t3.codes) with [pi](https://github.com/earendil-works/pi),
+[Codex](https://developers.openai.com/codex/cli), or [Claude
+Code](https://code.claude.com) inside a [Docker
 Sandbox](https://docs.docker.com/ai/sandboxes/), and drive it from a browser on
 the host.**
 
@@ -83,6 +84,7 @@ sbx login                             # Docker OAuth; no sandbox runs without it
 sbx secret set github                 # the value, first
 sbx secret set mistral                # ...and pi's provider's
 sbx secret set openai                 # ...and Codex's, if you enable it
+sbx secret set anthropic              # ...and Claude Code's, if you use it
 sbx create --name myproject ./kit     # approve the credential prompts
 sbx run --name myproject              # start it; Ctrl-\ detaches
 ```
@@ -114,8 +116,8 @@ with no path argument it mounts the current directory. `create` with no path is
 the mountless form, which is what keeps the host filesystem out of reach.
 
 Open the printed `http://localhost:3773/pair#token=…` in your browser. That is
-the whole workflow: the t3 web UI runs in the sandbox, and pi and Codex are the
-agents it can drive.
+the whole workflow: the t3 web UI runs in the sandbox, and pi, Codex, and Claude
+Code are the agents it can drive.
 
 ```sh
 npm run url -- myproject      # mint a fresh pairing URL
@@ -179,13 +181,14 @@ and a CLI version, and bakes the names listed in
 [`kit/skills.txt`](kit/skills.txt). Changing them is a `rebuild`, not an
 in-sandbox change; why they are baked in and not a volume is
 [ADR 0001](docs/adr/0001-skills-baked-into-image.md). pi and Codex share the
-same global directory, so one install serves both.
+same global directory, so one install serves both; Claude Code only reads
+`~/.claude/skills`, so the build writes a second copy there.
 
 ## Toolchains
 
 The image bakes node, go, and python through [`mise`](https://mise.jdx.dev) at
 the `nodeVersion` / `goVersion` / `pythonVersion` kit args, plus Vite+, `fd`,
-Codex, and T3's preview browser. A repo's `.mise.toml` selects a version but
+Codex, Claude Code, and T3's preview browser. A repo's `.mise.toml` selects a version but
 cannot install one: the build installs exactly one line per tool, so a
 different version is a kit-arg change and a `rebuild`. Pins, Java, and the
 `403`-means-allowlist failure are in [`docs/toolchains.md`](docs/toolchains.md).
@@ -200,7 +203,7 @@ npm run doctor       # what this host's sbx reports: version and capabilities
 ```
 
 `npm run smoke` brings a sandbox up, waits for the server, mints a pairing URL,
-and proves the toolchain, Codex, the preview browser, the volume, GitHub
+and proves the toolchain, Codex, Claude Code, the preview browser, the volume, GitHub
 egress, and the durability model. It ends with the sandbox nuked, so give it a
 dedicated name: `npm run smoke -- <name>`, or `T3CK_NAME`. The pi round-trip is
 off by default because it spends real model tokens; `SMOKE_AGENT=1` turns it
@@ -218,14 +221,20 @@ on. The `SMOKE_*` reference is in
   descriptor, the base image reference, and the `sbx` verbs are the parts most
   likely to move under you.
 - ⚠️ **No self-update inside the sandbox.** t3, the skills, Vite+, fd, Codex,
-  and T3's preview browser are pinned at build time; pi defaults to `latest`.
+  Claude Code, and T3's preview browser are pinned at build time; pi defaults to `latest`.
   Bumping any of them is a `rebuild`. The browser's `CHROME_VERSION` is a plain
   `ARG` rather than a kit arg, because it has to track the t3 binary instead of
   being chosen.
-- **Two providers ship** (pi and Codex). pi is the default; Codex is baked and
-  enabled, and shows as unauthenticated until you set the `openai` secret and
-  approve its binding. Adding another provider is one Dockerfile block, one
-  credential, and one egress entry.
+- **Three providers ship** (pi, Codex, and Claude Code). pi is the default;
+  Codex and Claude Code are baked, and each shows as unauthenticated until you
+  set its secret (`openai`, `anthropic`) and approve its binding. Adding another
+  provider is one Dockerfile block, one credential, and one egress entry.
+- **Claude Code takes an Anthropic API key or a Claude subscription.** Same
+  proxy model as Codex: the sandbox holds sentinels only. API-key mode hands the
+  sentinel to Claude through `apiKeyHelper`; subscription mode uses sbx's
+  rendered `~/.claude/.credentials.json`. The `anthropic` service is shared with
+  pi in the same way `openai` is. See
+  [ADR 0007](docs/adr/0007-claude-code-as-third-agent.md).
 - **Codex takes an OpenAI API key or a ChatGPT plan.** Both are proxy-injected:
   the sandbox holds a sentinel, and the proxy swaps it on egress. OAuth mode
   routes model calls through `chatgpt.com/backend-api/codex`; API-key mode uses

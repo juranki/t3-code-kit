@@ -118,6 +118,83 @@ EOF
   esac
 fi
 
+# Claude Code reads its credential from ~/.claude, never from the kit's
+# CLAUDE_PROXY_API_KEY (a name it does not know, chosen so a sentinel cannot
+# shadow a subscription). sbx surfaces the host's binding for `anthropic` as
+# SBX_CRED_ANTHROPIC_MODE. Re-seeded on every start because ~/.claude is not a
+# volume.
+#
+#   oauth  -> sbx renders ~/.claude/.credentials.json with the sentinel tokens;
+#             the proxy swaps in the real subscription bearer at
+#             api.anthropic.com. No apiKeyHelper: it would turn the session
+#             into an API-key session.
+#   apikey -> apiKeyHelper prints the proxy-managed sentinel; the proxy swaps
+#             it for the real key in x-api-key at api.anthropic.com.
+#   none   -> neither, so t3 shows Claude as unauthenticated.
+#
+# settings.json is the kit's, rewritten every start, like ~/.codex/config.toml.
+# Nonessential traffic (telemetry, error reporting, the auto-updater) is off:
+# its hosts are not in the egress policy, and nothing self-updates here.
+if command -v claude >/dev/null 2>&1; then
+  claude_home="$HOME/.claude"
+  claude_mode="${SBX_CRED_ANTHROPIC_MODE:-none}"
+  mkdir -p "$claude_home"
+
+  # Onboarding and workspace trust. Only when missing: Claude Code keeps its
+  # own state in this file, and a restart should not throw that away.
+  if [ ! -f "$HOME/.claude.json" ]; then
+    cat >"$HOME/.claude.json" <<'EOF'
+{
+  "hasCompletedOnboarding": true,
+  "bypassPermissionsModeAccepted": true,
+  "projects": {
+    "/home/agent/workspace": { "hasTrustDialogAccepted": true }
+  }
+}
+EOF
+  fi
+
+  helper=''
+  case "$claude_mode" in
+    oauth)
+      if [ -f "$claude_home/.credentials.json" ]; then
+        note "claude is in subscription OAuth mode through the proxy"
+      else
+        note "claude has an oauth binding but sbx rendered no ~/.claude/.credentials.json; Claude will show as unauthenticated in t3"
+      fi
+      ;;
+    apikey)
+      # The sentinel goes into the helper verbatim. It is a proxy placeholder,
+      # not a key, but refuse anything that would need JSON or shell quoting.
+      if printf '%s' "${CLAUDE_PROXY_API_KEY:-}" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+        helper="  \"apiKeyHelper\": \"echo ${CLAUDE_PROXY_API_KEY}\","
+        rm -f "$claude_home/.credentials.json"
+        note "claude is using the proxy-managed API key"
+      else
+        note "claude has no usable anthropic API-key sentinel; Claude will show as unauthenticated in t3"
+      fi
+      ;;
+    *)
+      rm -f "$claude_home/.credentials.json"
+      note "claude has no anthropic binding; it will show as unauthenticated in t3"
+      ;;
+  esac
+
+  {
+    printf '{\n'
+    [ -z "$helper" ] || printf '%s\n' "$helper"
+    cat <<'EOF'
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_AUTOUPDATER": "1"
+  },
+  "bypassPermissionsModeAccepted": true,
+  "skipDangerousModePermissionPrompt": true
+}
+EOF
+  } >"$claude_home/settings.json"
+fi
+
 # Chromium does not read SSL_CERT_FILE or NODE_EXTRA_CA_CERTS: it verifies TLS
 # against the NSS platform store at $HOME/.pki/nssdb. The sandbox proxy
 # re-signs every connection with a CA minted per sandbox, so without this the

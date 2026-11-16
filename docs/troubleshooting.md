@@ -88,6 +88,31 @@ Providers → Codex → Binary path**; it should resolve `codex` on the server's
 `0.166.0` is deliberate: it is the release t3 0.1.9 manages and its manifest
 marks supported. Bumping it is a `codexVersion` change and a `rebuild`.
 
+## Claude Code shows as unauthenticated in t3, or answers `401`
+
+`kit/serve.sh` writes `~/.claude/settings.json` on every start from
+`SBX_CRED_ANTHROPIC_MODE`: `oauth` for a Claude subscription (sbx renders
+`~/.claude/.credentials.json` with sentinels), `apikey` for an API key (an
+`apiKeyHelper` prints the sentinel), `none` for no binding.
+
+- `sbx secret ls` must show `anthropic`, and the binding must match its type.
+  API key: `api.anthropic.com`. OAuth: `platform.claude.com` and
+  `api.anthropic.com`.
+- `npm run logs -- <name>` names the mode: `claude is in subscription OAuth
+  mode through the proxy`, `claude is using the proxy-managed API key`, or
+  `claude has no anthropic binding`. `sbx rendered no ~/.claude/.credentials.json` means the
+  host bound OAuth but this `sbx` did not render the credential file.
+- A `401` naming `proxy-managed` means the sentinel reached Anthropic
+  unchanged: the binding is missing a host for that mode.
+
+Do not run `claude /login` or export `ANTHROPIC_API_KEY` inside the sandbox.
+Either one puts a real credential where the agent can read it, and an exported
+key shadows the subscription.
+
+`sbx exec <name> -- claude --version` should print the `claudeCodeVersion`
+pin. An older version means an image from before the pin, or the base image's
+own `claude` winning on `PATH`: `npm run rebuild -- <name>`.
+
 ## An agent says it cannot reach an API
 
 Egress is deny-by-default, and the proxy does not fail like a network. It

@@ -164,4 +164,10 @@ describe("v2 workspace layout", () => {
     // the Dockerfile ARG must match it. A rebuild is the only way to move it.
     expect(dockerfileArg("CODEX_VERSION")).toBe(descriptorDefault("codexVersion"));
   });
+
+  it("bakes the Claude Code pin the descriptor declares", () => {
+    // Same rule as Codex: the base image's own `claude` is unpinned, so the
+    // descriptor is the source of truth and the Dockerfile ARG must match it.
+    expect(dockerfileArg("CLAUDE_CODE_VERSION")).toBe(descriptorDefault("claudeCodeVersion"));
+  });
 });

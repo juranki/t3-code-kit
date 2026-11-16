@@ -26,6 +26,14 @@ args:
     default: "0.166.0"
     pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     buildArg: CODEX_VERSION
+  # Claude Code is the third agent. t3's Claude provider drives the `claude`
+  # CLI it finds on PATH. The base image carries its own unpinned `claude`; this
+  # pin installs ahead of it on PATH, so the version is the kit's, not the
+  # template's.
+  claudeCodeVersion:
+    default: "2.1.325"
+    pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    buildArg: CLAUDE_CODE_VERSION
   # The baked mise toolchain. Java is not here: it is the base image's
   # OpenJDK 21, put on PATH by the Dockerfile. Bumping one of these is a
   # `rebuild`, the same as t3Version and piVersion. Node is the v2 workspace's
@@ -100,6 +108,8 @@ capabilities:
             - ${{ kit.args.providerApiKeyEnv }}
             - CODEX_API_KEY
             - SBX_CRED_OPENAI_MODE
+            - CLAUDE_PROXY_API_KEY
+            - SBX_CRED_ANTHROPIC_MODE
             - GH_TOKEN
             - HTTP_PROXY
             - HTTPS_PROXY
@@ -174,6 +184,8 @@ capabilities:
   # must also stay in network-policy's runtime allow list.
   #   anthropic:  api.anthropic.com   x-api-key      %s
   #   openai:     api.openai.com      Authorization  Bearer %s
+  # Both are already claimed (Claude Code and Codex, below), so pointing pi at
+  # either collides on (<service>, runtime).
   - type: com.docker.sandbox/credential@1
     name: pi model provider
     optional: true
@@ -227,6 +239,52 @@ capabilities:
           accessToken: oai-oat01-proxy-managed
           refreshToken: oai-ort01-proxy-managed
 
+  # Claude Code's model provider. Same "whichever the host bound" shape as
+  # Codex: `sbx secret set anthropic` stores a console API key, `... --oauth`
+  # stores Claude subscription tokens, and sbx surfaces the choice as
+  # SBX_CRED_ANTHROPIC_MODE for kit/serve.sh.
+  #
+  # The API key's in-container name is deliberately NOT ANTHROPIC_API_KEY.
+  # Claude Code reads that variable on its own, and a sentinel there would
+  # shadow a bound subscription. serve.sh hands the sentinel to Claude through
+  # `apiKeyHelper` instead, and only in API-key mode.
+  #
+  # OAuth follows the Codex pattern: the proxy intercepts the token endpoint,
+  # the sandbox sees only the sentinels below (rendered into Claude Code's own
+  # credentials file), and the real bearer is substituted at api.anthropic.com.
+  #
+  # The service is `anthropic`, the name `sbx secret set anthropic` uses. If
+  # you also point pi at anthropic, the two credentials collide on
+  # (anthropic, runtime); keep pi on a different provider.
+  - type: com.docker.sandbox/credential@1
+    name: Claude Code model provider
+    optional: true
+    config:
+      service: anthropic
+      phase: runtime
+      apiKey:
+        name: CLAUDE_PROXY_API_KEY
+        proxyManaged: true
+        inject:
+          - domain: api.anthropic.com
+            header: x-api-key
+            format: "%s"
+      oauth:
+        tokenEndpoint: { host: platform.claude.com, path: /v1/oauth/token }
+        resourceHosts:
+          - api.anthropic.com
+        sentinels:
+          accessToken: sk-ant-oat01-proxy-managed
+          refreshToken: sk-ant-ort01-proxy-managed
+        credentialFile:
+          path: ~/.claude/.credentials.json
+          structure:
+            claudeAiOauth:
+              accessToken: "{{.AccessToken}}"
+              refreshToken: "{{.RefreshToken}}"
+              expiresAt: "{{.ExpiresAt}}"
+              scopes: "{{.Scopes}}"
+
   # Mirrors policy/allow.txt (runtime) and policy/install.txt (install-time).
   # The descriptor is normative — it travels with the
   # image, under one digest — and `npm run smoke` fails if the two disagree.
@@ -255,7 +313,14 @@ capabilities:
           - files.pythonhosted.org
       runtime:
         allow:
+          # Serves both pi (when its provider is anthropic) and Claude Code.
           - api.anthropic.com
+          # Claude Code's subscription OAuth: platform.claude.com is the token
+          # endpoint the proxy intercepts; console.anthropic.com and claude.ai
+          # are its account and profile lookups.
+          - platform.claude.com
+          - console.anthropic.com
+          - claude.ai
           # Serves both pi (when its provider is openai) and Codex.
           - api.openai.com
           - openai.com

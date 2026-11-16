@@ -566,6 +566,14 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
     "codexVersion",
     /^codex-cli (\d+(?:\.\d+)*)/mu,
   );
+  // Claude Code is the third. The base image ships its own unpinned `claude`,
+  // so this also proves the pinned npm install is the one on PATH.
+  yield* checkToolVersion(
+    "claude",
+    "claude --version 2>/dev/null",
+    "claudeCodeVersion",
+    /^(\d+(?:\.\d+)*) \(Claude Code\)/mu,
+  );
 
   // Java is the base image's OpenJDK 21, not mise's: mise-java.jdx.dev is not
   // in the allowlist and the base image already carries a JDK. This asserts the

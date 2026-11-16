@@ -16,10 +16,18 @@
 # reach the API" is usually a missing line here.
 
 # --- model providers: pi's endpoint, plus the two you are most likely to add.
-# api.openai.com also serves Codex, the second baked agent.
+# api.openai.com also serves Codex, the second baked agent, and
+# api.anthropic.com serves Claude Code, the third.
 api.anthropic.com
 api.openai.com
 api.mistral.ai
+
+# --- Claude Code's subscription OAuth. platform.claude.com is the token
+# endpoint the proxy intercepts; console.anthropic.com and claude.ai are the
+# account and profile lookups. Model calls stay on api.anthropic.com.
+platform.claude.com
+console.anthropic.com
+claude.ai
 
 # --- Codex's ChatGPT OAuth. auth.openai.com is the token endpoint the proxy
 # intercepts; chatgpt.com is where OAuth-mode model calls go

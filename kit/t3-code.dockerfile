@@ -15,6 +15,7 @@ FROM ${BASE}
 ARG T3_VERSION=0.1.9
 ARG PI_VERSION=latest
 ARG CODEX_VERSION=0.166.0
+ARG CLAUDE_CODE_VERSION=2.1.325
 
 # The baked mise toolchain. These are mise versions, not image tags: bumping
 # one is a `rebuild`, the same as T3_VERSION and PI_VERSION. Java is
@@ -265,6 +266,16 @@ RUN npm install -g "@earendil-works/pi-coding-agent@${PI_VERSION}"
 RUN npm install -g "@openai/codex@${CODEX_VERSION}" \
  && codex --version
 
+# Claude Code — the third agent t3 drives. The base image already has an
+# unpinned `claude` in ~/.local/bin; this one lands in the npm prefix, which is
+# ahead of it on PATH, so the pin is what t3 and a shell resolve. Like Codex,
+# the npm package pulls the platform binary as an optional dependency, and
+# `claude --version` proves it resolved during the build. The `command -v`
+# check is the guard against the base image's copy winning instead.
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && test "$(command -v claude)" = /home/agent/.npm-global/bin/claude \
+ && claude --version
+
 # Vite+ — the v2 toolchain's test/lint/format runner, installed globally so
 # `vp` is on PATH in every sandbox without a repo-local install. Same npm
 # prefix as pi, and the same rule: the pin is a build arg, so bumping it is a
@@ -277,11 +288,11 @@ RUN npm install -g "vite-plus@${VITE_PLUS_VERSION}" \
 # nothing self-updates inside the sandbox, and a skill you add by hand does
 # not survive a rebuild. See docs/adr/0001-skills-baked-into-image.md.
 #
-# -a pi, not --all: the base image also includes `claude`, and adding a copy
-# for an agent the kit does not support is unexplained surface. --copy, not
+# -a pi claude-code, not --all: those are the agents the kit drives. -g puts
+# pi's copy in ~/.agents/skills, the CLI's global store for both pi and Codex,
+# and Claude Code's in ~/.claude/skills, the only place it looks. --copy, not
 # the default symlinks: the image must not depend on a cache directory that
-# the last line removes. -g puts them in ~/.agents/skills, the CLI's global
-# store for both pi and Codex — one copy, no indirection.
+# the last line removes. Both directories are counted against the manifest.
 #
 # The count assertion is the point: `-s` silently ignores a name that no
 # longer exists upstream, so a SKILLS_REF bump that renames a skill would
@@ -292,9 +303,10 @@ RUN DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 \
       npx -y "skills@${SKILLS_VERSION}" add \
         "https://github.com/mattpocock/skills/tree/${SKILLS_REF}" \
         --skill $(sh /home/agent/skills.sh names /home/agent/skills.txt) \
-        --agent pi --global --copy --yes \
- && [ "$(ls -1 /home/agent/.agents/skills | wc -l)" -eq \
-      "$(sh /home/agent/skills.sh count /home/agent/skills.txt)" ] \
+        --agent pi claude-code --global --copy --yes \
+ && expected="$(sh /home/agent/skills.sh count /home/agent/skills.txt)" \
+ && [ "$(ls -1 /home/agent/.agents/skills | wc -l)" -eq "$expected" ] \
+ && [ "$(ls -1 /home/agent/.claude/skills | wc -l)" -eq "$expected" ] \
  && rm -f /home/agent/skills.txt /home/agent/skills.sh \
  && rm -rf /home/agent/.npm/_npx
 
