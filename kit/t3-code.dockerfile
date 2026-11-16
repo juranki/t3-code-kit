@@ -12,7 +12,7 @@ FROM ${BASE}
 
 # Pinned on purpose: nothing self-updates inside the sandbox. Bumping is a
 # `npm run rebuild`.
-ARG T3_VERSION=0.1.7
+ARG T3_VERSION=0.1.9
 ARG PI_VERSION=latest
 ARG CODEX_VERSION=0.166.0
 
@@ -22,20 +22,20 @@ ARG CODEX_VERSION=0.166.0
 #
 # Node is the v2 workspace's exact pin (package.json engines.node), so the
 # repo and the image cannot drift.
-ARG NODE_VERSION=26.13.0
-ARG GO_VERSION=1.27.3
+ARG NODE_VERSION=26.13.1
+ARG GO_VERSION=1.27.4
 ARG PYTHON_VERSION=3.13.18
 
 # Vite+ is the v2 workspace's test/lint/format runner. A global npm install,
 # not a mise tool: mise has no vite-plus plugin, and the npm backend would only
 # add a second install path. The pin matches package.json's devDependency.
-ARG VITE_PLUS_VERSION=1.5.0
+ARG VITE_PLUS_VERSION=1.6.0
 
 # fd is pinned because pi otherwise downloads it into ~/.pi/agent/bin on its
 # first run (#25): a runtime install, a first-run stall, and a binary a rebuild
 # throws away. The release tarball comes from github.com and
 # objects.githubusercontent.com, both already in install.allow.
-ARG FD_VERSION=10.5.1
+ARG FD_VERSION=10.5.2
 
 # The skills pin is a commit, not a branch, and that is load-bearing: with a
 # ref set the `skills` CLI clones at that sha instead of asking api.github.com
@@ -43,7 +43,7 @@ ARG FD_VERSION=10.5.1
 # registry.npmjs.org — no new install-time host in network-policy@2. Verified
 # with api.github.com blackholed: same 27 skills, byte-identical, hashes
 # computed locally.
-ARG SKILLS_VERSION=1.7.6
+ARG SKILLS_VERSION=1.9.0
 ARG SKILLS_REF=4ae2317ddb22b046e26455e4f9c9b3aaaf62212d
 
 # t3 ships prebuilt native modules that link libatomic. mise is the toolchain
@@ -198,8 +198,8 @@ RUN curl -fsSL -o /tmp/t3-install.sh https://t3.codes/install.sh \
 #
 # CHROME_VERSION is deliberately not a kit arg: it is not an independent choice,
 # it has to be the version the baked t3 binary names. The sha256 below is the
-# guard — it is t3's own value from the release table embedded in its binary, so
-# a T3_VERSION bump that moves the Chrome pin fails this layer instead of
+# guard — it is t3's own value from the release table embedded in its release,
+# so a T3_VERSION bump that moves the Chrome pin fails this layer instead of
 # leaving a binary t3 ignores and re-downloads (into a 403). If a future t3
 # stops embedding that table verbatim the guard fails loudly, which is the
 # intended failure mode: the pin has to be re-derived by hand. The sha differs
@@ -211,18 +211,23 @@ RUN curl -fsSL -o /tmp/t3-install.sh https://t3.codes/install.sh \
 # wrong package name in the apt list above fails here, in minutes, instead of in
 # the smoke on the host. `unzip`, `curl` and `sha256sum` are the base image's,
 # the same way `tar` and `curl` are in the fd layer above.
-ARG CHROME_VERSION=156.0.8078.80
+#
+# Since t3 0.1.9, ~/.local/bin/t3 is a launcher script that execs
+# $T3CODE_HOME/runtime/versions/<version>/t3, so the guard reads that binary
+# by path rather than following a symlink.
+ARG CHROME_VERSION=157.0.8103.38
 RUN set -eux; \
     arch="${TARGETARCH:-$(uname -m)}"; \
     case "$arch" in \
       amd64|x86_64) chrome_platform=linux64; \
-        chrome_sha256=547dcd374e02961bf998f6046a267644f8502225c36bb78ca307dab32a0b3eb4 ;; \
+        chrome_sha256=deafffa74660b34853a4119c361fd427ac8c9fcb62db51ddb8a797cd83a4ba2d ;; \
       arm64|aarch64) chrome_platform=linux-arm64; \
-        chrome_sha256=5bb6a00a4285c13303d3f72c5afdb70f144ea7a93eed462365a52b69631c9607 ;; \
+        chrome_sha256=b9b910a57b2a15eb3e55000a2339f93a973934a413ebfc6e585a50ec6c42fd6c ;; \
       *) echo "unsupported architecture for chrome-headless-shell: $arch" >&2; exit 1 ;; \
     esac; \
-    t3_bin="$(readlink -f /home/agent/.local/bin/t3)"; \
-    if ! grep -a -q "$chrome_sha256" "$t3_bin"; then \
+    t3_bin="${T3CODE_HOME}/runtime/versions/${T3_VERSION}/t3"; \
+    test -x "$t3_bin"; \
+    if ! grep -a -q -F "$chrome_sha256" "$t3_bin"; then \
       echo "t3 ${T3_VERSION} does not pin chrome-headless-shell ${CHROME_VERSION} for ${chrome_platform}" >&2; \
       echo "bump CHROME_VERSION and its sha256 to the release t3 names" >&2; \
       exit 1; \

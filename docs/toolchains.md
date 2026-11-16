@@ -38,7 +38,7 @@ A repo records what it needs in `.mise.toml` at its root:
 
 ```toml
 [tools]
-node = "26.13.0"
+node = "26.13.1"
 python = "3.13.18"
 ```
 

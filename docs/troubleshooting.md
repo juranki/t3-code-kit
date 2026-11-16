@@ -85,7 +85,7 @@ Providers → Codex → Binary path**; it should resolve `codex` on the server's
 `PATH`. The managed runtime is a download into `$T3CODE_HOME/tools`, which a
 `rebuild` discards, so the bake is the intended path.
 
-`0.166.0` is deliberate: it is the release t3 0.1.5 manages and its manifest
+`0.166.0` is deliberate: it is the release t3 0.1.9 manages and its manifest
 marks supported. Bumping it is a `codexVersion` change and a `rebuild`.
 
 ## An agent says it cannot reach an API

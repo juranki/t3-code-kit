@@ -15,12 +15,12 @@ only. The final acceptance run is in
 
 | Tool         | Host               | Image   | Where it comes from                          |
 | ------------ | ------------------ | ------- | -------------------------------------------- |
-| Node         | 26.13.0            | 26.13.0 | `%LOCALAPPDATA%\vite-plus\bin\node.exe`      |
+| Node         | 26.13.1            | 26.13.1 | `%LOCALAPPDATA%\vite-plus\bin\node.exe`      |
 | npm          | 11.20.0            | 11.20.0 | the same Vite+ install                       |
-| Vite+ (`vp`) | 1.5.0              | 1.5.0   | the same Vite+ install                       |
+| Vite+ (`vp`) | 1.6.0              | 1.6.0   | the same Vite+ install                       |
 | `sbx`        | 0.51.0 (`2329d12`) | n/a     | `%LOCALAPPDATA%\DockerSandboxes\bin\sbx.exe` |
 | git          | 2.34.1.windows.1   | n/a     | `C:\Program Files\Git\cmd\git.exe`           |
-| fd           | n/a                | 10.5.0  | `/usr/local/bin/fd` in the image             |
+| fd           | n/a                | 10.5.2  | `/usr/local/bin/fd` in the image             |
 
 `sbx` 0.51.0 is a floor, not a preference: the seam puts the global
 `--no-input` before every non-interactive verb, and that flag is new in 0.51.0.
@@ -163,6 +163,6 @@ both verbs.
 
 ## The image
 
-`kit/t3-code.dockerfile` bakes the same Node 26.13.0 plus Vite+ 1.5.0 and
-fd 10.5.0. `scripts/layout.test.ts` asserts those pins match the descriptor, so
+`kit/t3-code.dockerfile` bakes the same Node 26.13.1 plus Vite+ 1.6.0 and
+fd 10.5.2. `scripts/layout.test.ts` asserts those pins match the descriptor, so
 a bump that touches one and not the other fails `npm test`.
