@@ -131,7 +131,7 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
 
   const root = path.join(import.meta.dirname, "..");
   const name = nonEmpty(processArgs[2]) ?? nonEmpty(env.T3CK_NAME) ?? "t3ck-smoke";
-  const port = positiveInt(env.T3CK_PORT, 3773);
+  let port = positiveInt(env.T3CK_PORT, 3773);
   const repo = nonEmpty(env.SMOKE_REPO) ?? "https://github.com/juranki/t3-code-kit";
   const agentEnabled = env.SMOKE_AGENT === "1";
   const agentTimeout = positiveInt(env.SMOKE_AGENT_TIMEOUT, 120);
@@ -267,19 +267,37 @@ export const runSmoke = Effect.fn("Smoke.run")(function* () {
   for (const line of renderCapabilities(probed.success)) yield* Console.log(`  ${line}`);
   yield* reporter.pass("sbx probe reports its capabilities");
 
-  const sandboxExists = (): Effect.Effect<boolean> =>
+  const sandboxExists = (): Effect.Effect<boolean | undefined> =>
     sbx.list().pipe(
       Effect.map((sandboxes) => sandboxes.some((sandbox) => sandbox.name === name)),
-      Effect.orElseSucceed(() => false),
+      Effect.orElseSucceed(() => undefined),
     );
 
   // ---------------------------------------------------------------- lifecycle
   yield* head("sandbox lifecycle");
 
   // A sandbox that was already there is still ours to stop if `up` fails.
-  if (yield* sandboxExists()) yield* Ref.set(state, "running");
+  const existed = yield* sandboxExists();
+  if (existed) yield* Ref.set(state, "running");
 
-  const up = yield* cli(["up", name], upTimeoutMs).pipe(Effect.result);
+  const start = () => cli(["up", name], upTimeoutMs).pipe(Effect.result);
+  let up = yield* start();
+  // Retry only sbx's publish failure for a fresh instance. Check the listing
+  // again in case the failed create left an instance with a stored mapping.
+  const lastPort = existed === false ? Math.min(port + 4, 65_535) : port;
+  while (
+    port < lastPort &&
+    Result.isSuccess(up) &&
+    up.success.exitCode !== 0 &&
+    up.success.stderr.includes(
+      `publish host 127.0.0.1:${port} -> sandbox port 3773/tcp4: port not available:`,
+    ) &&
+    (yield* sandboxExists()) === false
+  ) {
+    yield* Console.log(`  host port ${port} is unavailable, retrying on ${port + 1}`);
+    port += 1;
+    up = yield* start();
+  }
   if (Result.isFailure(up)) {
     yield* reporter.fail(`up could not run: ${up.failure.message}`);
     if (yield* sandboxExists()) {
