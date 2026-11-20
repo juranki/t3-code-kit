@@ -62,3 +62,15 @@ _Avoid_: delete, purge, destroy, wipe
 Evidence that the kit's baked-in preview browser is in the expected location,
 starts with its required libraries and fonts, and renders text and HTTPS pages.
 _Avoid_: browser presence check, browser install check
+
+**durability acceptance**:
+Evidence that `rebuild` preserves durable state across volume reattachment,
+`nuke` refuses without `--yes` on a non-TTY and wipes all volume contents while
+retaining volume objects, and `nuke` on a missing sandbox instance fails.
+_Avoid_: durability smoke, volume check
+
+**toolchain acceptance**:
+Evidence that the kit's baked-in tools, `mise` shims, pinned versions, UTF-8
+locale, package database, workspace mount, interactive shell, and skills are
+present and active inside a sandbox instance.
+_Avoid_: tool check, environment check
