@@ -121,6 +121,10 @@ failure. It prints the `sbx` capabilities first, so a failure is attributable to
 the runtime it ran against. The first run after a `kit/` change rebuilds the
 image and takes 10–25 minutes; later runs are 3–6.
 
+Smoke starts with `T3CK_PORT` (default 3773). If `sbx` reports that the
+host port is unavailable when creating the sandbox, smoke tries up to four
+higher ports and uses the successful port for the rest of the run.
+
 A successful run ends with the sandbox nuked by the durability checks. A failed
 one leaves it running so you can look at it, unless `SMOKE_DOWN=1`, which stops
 it — and stopping does not remove it, so the volume objects stay allocated
